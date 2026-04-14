@@ -133,6 +133,30 @@
   --shadow-input: 0px 0.5px 1.9px 0px rgba(0, 0, 0, 0.4);
 }
 
+/*
+ * Light-only dashboard: next-themes sets class="light" on <html>.
+ * Re-assert the UI tokens here so they win over any stale `.dark` / `.blue`
+ * class pairing (same specificity as those selectors, later in the cascade).
+ */
+html.light {
+  color-scheme: light;
+  --text-primary: #1a2332;
+  --text-secondary: #475569;
+  --text-tertiary: #a3b2be;
+  --bg-primary: #ffffff;
+  --bg-primary-light: #fafafa;
+  --bg-secondary: #f4f5f5;
+  --bg-tertiary: #eaebec;
+  --bg-quaternary: #dadcdd;
+  --accent-primary: #2980d3;
+  --accent-red: #ff5f57;
+  --accent-green: #00c8b3;
+  --accent-violet: #8f97f9;
+  --accent-orange: #e89b00;
+  --shadow-soft: 0px 4px 20.2px 0px rgba(0, 0, 0, 0.05);
+  --shadow-input: 0px 0.5px 1.9px 0px rgba(0, 0, 0, 0.13);
+}
+
 *,
 *::before,
 *::after {

@@ -73,11 +73,15 @@ export default function LabTestsVolume({ data }: { data?: any }) {
     const labelStep = Math.max(1, Math.ceil(dateCategories.length / 6));
 
     const options: ApexCharts.ApexOptions = {
+        theme: { mode: "light" },
         chart: {
             type: "area",
             toolbar: { show: false },
             zoom: { enabled: false },
             sparkline: { enabled: false },
+            background: "transparent",
+            foreColor: "var(--text-secondary)",
+            fontFamily: "Montserrat, system-ui, sans-serif",
         },
         stroke: { curve: "smooth", width: 3, colors: ["#2E8BDF"] },
         fill: {
@@ -126,6 +130,7 @@ export default function LabTestsVolume({ data }: { data?: any }) {
         },
         tooltip: {
             enabled: true,
+            theme: "light",
             x: {
                 formatter: (value: string) => {
                     const parsed = toDate(value);
@@ -153,7 +158,11 @@ export default function LabTestsVolume({ data }: { data?: any }) {
     const series = [{ name: useWeekly ? "Weekly Standard Messages" : "Daily Standard Messages", data: standardSeries }];
 
     return (
-        <DashboardCard padding="none" className="flex flex-col gap-3" style={{ height: 360, padding: 18 }}>
+        <DashboardCard
+            padding="none"
+            className="flex h-full min-h-0 w-full min-w-0 flex-col gap-3"
+            style={{ padding: 18 }}
+        >
             <Text variant="body-md-semibold" color="text-primary">
                 {useWeekly ? "Standard Messages by Week" : "Standard Messages by Day"}
             </Text>
@@ -175,7 +184,7 @@ export default function LabTestsVolume({ data }: { data?: any }) {
                 </div>
             </div>
 
-            <div className="min-h-0 flex-1">
+            <div className="min-h-[200px] w-full min-w-0 flex-1 lg:min-h-[220px]">
                 <Chart options={options} series={series} type="area" height="100%" width="100%" />
             </div>
         </DashboardCard>

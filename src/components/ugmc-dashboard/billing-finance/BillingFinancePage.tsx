@@ -71,11 +71,17 @@ const BillingFinancePage = ({ data, onEditRole }: { data?: any; onEditRole?: (ro
             </div>
 
             {/* Clinical Operations charts under Staffing & Coverage KPIs */}
-            <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
-                <div className="animate-slide-in-up" style={{ animationDelay: '150ms', opacity: 0, animationFillMode: 'forwards' }}>
+            <div className="grid min-w-0 grid-cols-1 items-stretch gap-4 lg:grid-cols-2">
+                <div
+                    className="flex min-h-0 min-w-0 animate-slide-in-up"
+                    style={{ animationDelay: '150ms', opacity: 0, animationFillMode: 'forwards' }}
+                >
                     <LabTestsVolume data={data} />
                 </div>
-                <div className="animate-slide-in-up" style={{ animationDelay: '180ms', opacity: 0, animationFillMode: 'forwards' }}>
+                <div
+                    className="flex min-h-0 min-w-0 animate-slide-in-up"
+                    style={{ animationDelay: '180ms', opacity: 0, animationFillMode: 'forwards' }}
+                >
                     <ImagingRadiology data={data} />
                 </div>
             </div>
