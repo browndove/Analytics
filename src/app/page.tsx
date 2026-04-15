@@ -15,17 +15,17 @@ import {
 import { FaUsers, FaEnvelope, FaArrowTrendUp, FaShieldHalved } from "react-icons/fa6";
 import CalendarRangePicker from "@/components/CalendarRangePicker";
 import clsx from "clsx";
+import DashboardSidebar, { type DashboardTab } from "@/components/sidebar/sidebar";
+import GenerateReportModal from "@/components/report/GenerateReportModal";
 
 const PatientInsightPage = lazy(() => import("@/components/ugmc-dashboard/patient-insight/PatientInsightPage"));
 const BillingFinancePage = lazy(() => import("@/components/ugmc-dashboard/billing-finance/BillingFinancePage"));
 
-type DashboardTab = 'executive' | 'patient' | 'billing';
-
-const TABS: { id: DashboardTab; label: string; color: string; bgColor: string }[] = [
-    { id: 'executive', label: 'Usage Summary', color: '#2484c7', bgColor: 'rgba(36,132,199,0.1)' },
-    { id: 'patient', label: 'Response Performance', color: '#6974f7', bgColor: 'rgba(105,116,247,0.1)' },
-    { id: 'billing', label: 'Staffing & Coverage', color: '#00c8b3', bgColor: 'rgba(0,200,179,0.1)' },
-];
+const TAB_LABELS: Record<DashboardTab, string> = {
+    executive: "Usage Summary",
+    patient: "Response Performance",
+    billing: "Staffing & Coverage",
+};
 
 export interface AnalyticsData {
     active_users_count: number;
@@ -86,11 +86,13 @@ function UsagePageContent() {
     const pathname = usePathname();
 
     const [activeTab, setActiveTab] = useState<DashboardTab>('executive');
+    const [isSidebarDocked, setIsSidebarDocked] = useState(false);
     const [revenueFullscreen, setRevenueFullscreen] = useState(false);
     const [patientFlowFullscreen, setPatientFlowFullscreen] = useState(false);
     const [data, setData] = useState<AnalyticsData | null>(null);
     const [loading, setLoading] = useState(true);
     const [roleMetricsModalOpen, setRoleMetricsModalOpen] = useState(false);
+    const [reportModalOpen, setReportModalOpen] = useState(false);
 
     // Use a ref to read searchParams inside fetchAnalytics without adding it
     // as a dependency — prevents router.replace → searchParams change → refetch loop.
@@ -165,24 +167,30 @@ function UsagePageContent() {
     const filledRoles = data?.filled_roles ?? 0;
     const totalRoles = data?.total_roles ?? 0;
 
-    const handleSignOut = async () => {
-        try {
-            await fetch("/api/proxy/auth/logout", { method: "POST" });
-        } finally {
-            window.location.href = "/login";
-        }
-    };
-
     return (
-        <div className={clsx('usage-dashboard-shell', 'usage-dashboard-shell--standalone')}>
-            <div className="usage-inner">
-                {/* Header Row: Title + Tabs (left) | Calendar (right) */}
+        <div style={{ ["--sidebar-width" as string]: isSidebarDocked ? "58px" : "243px" }}>
+            <DashboardSidebar
+                isDocked={isSidebarDocked}
+                onDockToggle={() => setIsSidebarDocked((prev) => !prev)}
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+                onGenerateReport={() => setReportModalOpen(true)}
+            />
+            <GenerateReportModal
+                open={reportModalOpen}
+                onClose={() => setReportModalOpen(false)}
+                defaultDateFrom={dateFrom}
+                defaultDateTo={dateTo}
+            />
+            <div className={clsx('usage-dashboard-shell')}>
+                <div className="usage-inner">
+                {/* Header Row: Title (left) | Calendar (right) — section switching lives in the sidebar */}
                 <div className="animate-slide-in-up usage-header-row">
                     <div className="flex min-w-0 flex-1 flex-col gap-3 min-[900px]:flex-row min-[900px]:flex-wrap min-[900px]:items-center min-[900px]:gap-x-4 min-[900px]:gap-y-2">
                         {/* Title Block */}
                         <div className="flex min-w-0 shrink-0 flex-col justify-center">
-                            <span className="text-base font-semibold leading-snug text-[var(--text-primary)]">
-                                {TABS.find(t => t.id === activeTab)?.label ?? 'Usage Summary'}
+                            <span className="text-[1.5rem] font-bold leading-snug text-text-primary">
+                                {TAB_LABELS[activeTab]}
                             </span>
                             <span className="text-xs leading-snug text-gray-400">
                                 {dateFrom && dateTo && dateFrom === dateTo
@@ -192,58 +200,9 @@ function UsagePageContent() {
                                         : (data?.window_days === 0 ? 'Today' : `Last ${data?.window_days ?? 30} days`)}
                             </span>
                         </div>
-
-                        <div className="hidden h-7 w-px shrink-0 bg-[#e5e7eb] min-[900px]:block" aria-hidden />
-
-                        {/* Tab Buttons — shrink-0 so nowrap pills cannot overflow onto the title */}
-                        <div className="usage-header-tabs shrink-0">
-                            {TABS.map((tab) => {
-                                const isActive = activeTab === tab.id;
-                                return (
-                                    <button
-                                        key={tab.id}
-                                        onClick={() => setActiveTab(tab.id)}
-                                        className="cursor-pointer whitespace-nowrap transition-all duration-200 ease-out"
-                                        style={{
-                                            padding: '4px 10px',
-                                            borderRadius: 6,
-                                            fontSize: 12,
-                                            lineHeight: 1,
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            fontWeight: isActive ? 600 : 500,
-                                            background: isActive ? '#1d4ed8' : 'transparent',
-                                            color: isActive ? '#fff' : '#6b7280',
-                                            border: isActive ? '1px solid #1d4ed8' : '1px solid #e5e7eb',
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            if (!isActive) {
-                                                e.currentTarget.style.background = '#f3f4f6';
-                                                e.currentTarget.style.color = '#374151';
-                                            }
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            if (!isActive) {
-                                                e.currentTarget.style.background = 'transparent';
-                                                e.currentTarget.style.color = '#6b7280';
-                                            }
-                                        }}
-                                    >
-                                        {tab.label}
-                                    </button>
-                                );
-                            })}
-                        </div>
                     </div>
 
                     <div className="flex shrink-0 flex-col items-stretch gap-2 min-[900px]:flex-row min-[900px]:items-center min-[900px]:justify-end min-[900px]:gap-3">
-                        <button
-                            type="button"
-                            onClick={handleSignOut}
-                            className="cursor-pointer rounded-md border border-[#e5e7eb] bg-white px-3 py-1.5 text-xs font-medium text-[#374151] transition-colors hover:bg-[#f9fafb]"
-                        >
-                            Sign out
-                        </button>
                         <CalendarRangePicker
                             from={dateFrom}
                             to={dateTo}
@@ -355,6 +314,7 @@ function UsagePageContent() {
                     onClose={() => setRoleMetricsModalOpen(false)}
                     roles={data?.role_metrics || []}
                 />
+                </div>
             </div>
         </div>
     );

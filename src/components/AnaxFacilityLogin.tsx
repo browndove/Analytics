@@ -92,14 +92,24 @@ export default function AnaxFacilityLogin() {
 
     const handleLogin = async () => {
         setError('');
-        if (!email || !password) {
-            setError('Please enter your email and password.');
-            showToast('Please enter your email and password.', 'error');
+        const code = normalizeFacilityCode(facilityCode);
+        if (!code) {
+            setError('Please enter your facility code.');
+            showToast('Please enter your facility code.', 'error');
+            return;
+        }
+        if (!email.trim()) {
+            setError('Please enter your email.');
+            showToast('Please enter your email.', 'error');
+            return;
+        }
+        if (!password) {
+            setError('Please enter your password.');
+            showToast('Please enter your password.', 'error');
             return;
         }
         setLoading(true);
         try {
-            const code = normalizeFacilityCode(facilityCode);
             const res = await fetch(API_ENDPOINTS.ADMIN_LOGIN, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -213,16 +223,20 @@ export default function AnaxFacilityLogin() {
             <div className="fade-in" style={{ width: '100%', maxWidth: 420, padding: '0 20px' }}>
                 {/* Brand */}
                 <div style={{ textAlign: 'center', marginBottom: 36 }}>
-                    <div style={{
-                        width: 52, height: 52,
-                        background: 'var(--helix-primary)',
-                        borderRadius: 14,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        margin: '0 auto 16px',
-                        boxShadow: '0 2px 8px rgba(30,58,95,0.18)',
-                    }}>
-                        <span className="material-icons-round" style={{ fontSize: 26, color: '#fff' }}>local_hospital</span>
-                    </div>
+                    <img
+                        src="/assets/images/helix-logo.png"
+                        alt="Helix"
+                        width={120}
+                        height={120}
+                        style={{
+                            height: 56,
+                            width: 'auto',
+                            maxWidth: 'min(200px, 70vw)',
+                            margin: '0 auto 14px',
+                            display: 'block',
+                            objectFit: 'contain',
+                        }}
+                    />
                     <h1 style={{ fontSize: '1.8rem', fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
                         Helix Analytics
                     </h1>
@@ -252,25 +266,6 @@ export default function AnaxFacilityLogin() {
                         // Credentials Step
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                             <div>
-                                <label className="label">Email Address</label>
-                                <div style={{ position: 'relative' }}>
-                                    <span className="material-icons-round" style={{
-                                        position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
-                                        fontSize: 16, color: 'var(--text-muted)',
-                                    }}>mail</span>
-                                    <input
-                                        id="email"
-                                        className="input"
-                                        type="email"
-                                        placeholder="admin@accramedical.com.gh"
-                                        value={email}
-                                        onChange={e => setEmail(e.target.value)}
-                                        onKeyDown={e => e.key === 'Enter' && handleLogin()}
-                                        style={{ paddingLeft: 36 }}
-                                    />
-                                </div>
-                            </div>
-                            <div>
                                 <label className="label">Facility Code</label>
                                 <div style={{ position: 'relative' }}>
                                     <span className="material-icons-round" style={{
@@ -290,6 +285,26 @@ export default function AnaxFacilityLogin() {
                                     />
                                 </div>
                                 <p style={{ fontSize: 11, color: 'var(--text-disabled)', marginTop: 4 }}>Letters and numbers only; typed as capitals.</p>
+                            </div>
+                            <div>
+                                <label className="label">Email</label>
+                                <div style={{ position: 'relative' }}>
+                                    <span className="material-icons-round" style={{
+                                        position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
+                                        fontSize: 16, color: 'var(--text-muted)',
+                                    }}>mail</span>
+                                    <input
+                                        id="email"
+                                        className="input"
+                                        type="email"
+                                        placeholder="admin@accramedical.com.gh"
+                                        value={email}
+                                        onChange={e => setEmail(e.target.value)}
+                                        onKeyDown={e => e.key === 'Enter' && handleLogin()}
+                                        style={{ paddingLeft: 36 }}
+                                        autoComplete="email"
+                                    />
+                                </div>
                             </div>
                             <div>
                                 <label className="label">Password</label>

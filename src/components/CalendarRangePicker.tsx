@@ -7,6 +7,10 @@ type CalendarRangePickerProps = {
     from: string;
     to: string;
     onChange: (from: string, to: string) => void;
+    /** Full-width trigger (e.g. modals). Default keeps compact inline layout. */
+    layout?: "inline" | "block";
+    /** Prominent labeled from/to pill for modals (requires `layout="block"`). */
+    presentation?: "standard" | "modalPill";
 };
 
 function daysInMonth(year: number, month: number) {
@@ -33,7 +37,17 @@ function isSameDay(a: Date, b: Date) {
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const DAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 
-export default function CalendarRangePicker({ from, to, onChange }: CalendarRangePickerProps) {
+function formatPillDate(d: Date) {
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+export default function CalendarRangePicker({
+    from,
+    to,
+    onChange,
+    layout = "inline",
+    presentation = "standard",
+}: CalendarRangePickerProps) {
     const today = new Date();
     const [open, setOpen] = useState(false);
     const [viewYear, setViewYear] = useState(today.getFullYear());
@@ -139,26 +153,107 @@ export default function CalendarRangePicker({ from, to, onChange }: CalendarRang
         return 'Select date range';
     };
 
+    const isBlock = layout === "block";
+    const isModalPill = presentation === "modalPill" && isBlock;
+
     return (
-        <div ref={ref} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+        <div
+            ref={ref}
+            style={{
+                position: "relative",
+                display: isBlock ? "flex" : "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                width: isBlock ? "100%" : undefined,
+            }}
+        >
             <button
+                type="button"
+                aria-expanded={open}
+                aria-haspopup="dialog"
+                aria-label="Choose report date range"
                 onClick={() => { setOpen(!open); if (!open && fromDate) { setViewYear(fromDate.getFullYear()); setViewMonth(fromDate.getMonth()); } }}
+                className={
+                    isModalPill
+                        ? "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+                        : undefined
+                }
                 style={{
-                    display: 'flex', alignItems: 'center', gap: 6,
-                    padding: '6px 12px', borderRadius: 'var(--radius-md)',
-                    background: 'var(--surface-card)', border: '1px solid var(--border-default)',
-                    fontSize: 12, fontWeight: 500, color: fromDate ? 'var(--text-primary)' : 'var(--text-muted)',
-                    cursor: 'pointer', transition: 'all 0.15s',
-                    boxShadow: open ? '0 0 0 2px rgba(59,130,246,0.15)' : 'none',
+                    display: "flex",
+                    alignItems: "center",
+                    gap: isModalPill ? 14 : 10,
+                    padding: isModalPill ? "14px 18px" : isBlock ? "12px 16px" : "6px 12px",
+                    borderRadius: isModalPill ? 12 : 12,
+                    background: isModalPill ? "#f8fafc" : "var(--surface-card)",
+                    border: `1px solid ${isModalPill ? "#e2e8f0" : "var(--border-default)"}`,
+                    fontSize: isBlock ? 13 : 12,
+                    fontWeight: 500,
+                    color: fromDate ? "var(--text-primary)" : "var(--text-muted)",
+                    cursor: "pointer",
+                    transition: "all 0.15s",
+                    boxShadow: open
+                        ? isModalPill
+                            ? "0 0 0 2px rgba(79, 70, 229, 0.25)"
+                            : "0 0 0 2px rgba(30,58,95,0.12)"
+                        : isModalPill
+                          ? "0 1px 2px rgba(15, 23, 42, 0.06)"
+                          : "none",
+                    flex: isBlock ? 1 : undefined,
+                    minWidth: isBlock ? 0 : undefined,
+                    justifyContent: isBlock ? (isModalPill ? "flex-start" : "space-between") : undefined,
+                    boxSizing: "border-box",
                 }}
             >
-                <span className="material-icons-round" style={{ fontSize: 14, color: 'var(--text-muted)' }}>date_range</span>
-                {displayLabel()}
+                {isModalPill ? (
+                    <>
+                        <span className="material-icons-round shrink-0 text-slate-500" style={{ fontSize: 22 }}>
+                            calendar_today
+                        </span>
+                        <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+                            <div className="min-w-0 flex-1">
+                                <div
+                                    className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500"
+                                    style={{ letterSpacing: "0.08em" }}
+                                >
+                                    From
+                                </div>
+                                <div className="truncate text-sm font-semibold text-slate-900">
+                                    {fromDate ? formatPillDate(fromDate) : "—"}
+                                </div>
+                            </div>
+                            <div className="hidden shrink-0 text-slate-300 sm:block" aria-hidden>
+                                —
+                            </div>
+                            <div className="min-w-0 flex-1 sm:text-right">
+                                <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500 sm:text-right">To</div>
+                                <div className="truncate text-sm font-semibold text-slate-900 sm:text-right">
+                                    {toDate ? formatPillDate(toDate) : "—"}
+                                </div>
+                            </div>
+                        </div>
+                        <span className="material-icons-round shrink-0 text-indigo-500" style={{ fontSize: 22 }}>
+                            edit_calendar
+                        </span>
+                    </>
+                ) : isBlock ? (
+                    <>
+                        <span className="material-icons-round" style={{ fontSize: 18, color: "var(--text-muted)" }}>event</span>
+                        <span style={{ flex: 1, textAlign: "left" }}>{displayLabel()}</span>
+                        <span className="material-icons-round" style={{ fontSize: 20, color: "var(--text-muted)" }}>calendar_month</span>
+                    </>
+                ) : (
+                    <>
+                        <span className="material-icons-round" style={{ fontSize: 14, color: "var(--text-muted)" }}>date_range</span>
+                        {displayLabel()}
+                    </>
+                )}
             </button>
 
             {(from || to) && (
                 <button
+                    type="button"
                     onClick={() => { onChange('', ''); setPicking('from'); }}
+                    className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1"
                     style={{
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         width: 22, height: 22, borderRadius: '50%',
@@ -166,6 +261,7 @@ export default function CalendarRangePicker({ from, to, onChange }: CalendarRang
                         cursor: 'pointer', padding: 0, color: 'var(--text-muted)',
                     }}
                     title="Clear dates"
+                    aria-label="Clear date range"
                 >
                     <span className="material-icons-round" style={{ fontSize: 12 }}>close</span>
                 </button>

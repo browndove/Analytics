@@ -162,7 +162,7 @@ html.light {
 *::after {
   box-sizing: border-box;
   margin: 0;
-  padding: 0;
+  /* Do not zero padding globally — it can override Tailwind @layer utilities; use component styles instead. */
 }
 
 html,

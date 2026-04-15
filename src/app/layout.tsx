@@ -3,8 +3,8 @@ import "./globals.css";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
-  title: "Anax — Usage",
-  description: "Facility usage and analytics dashboard.",
+  title: "Helix Analytics",
+  description: "Helix Analytics — facility usage and analytics.",
 };
 
 export default function RootLayout({

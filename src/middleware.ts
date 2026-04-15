@@ -27,7 +27,12 @@ function isTokenValid(token: string): boolean {
 export function middleware(req: NextRequest) {
     const { pathname } = req.nextUrl;
 
-    if (pathname.startsWith("/api") || pathname.startsWith("/_next") || pathname === "/favicon.ico") {
+    if (
+        pathname.startsWith("/api") ||
+        pathname.startsWith("/_next") ||
+        pathname === "/favicon.ico" ||
+        pathname.startsWith("/assets/")
+    ) {
         return NextResponse.next();
     }
 
@@ -51,5 +56,6 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-    matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+    // Do not run auth on static files under /public/assets (images, etc.)
+    matcher: ["/((?!_next/static|_next/image|favicon.ico|assets/).*)"],
 };
