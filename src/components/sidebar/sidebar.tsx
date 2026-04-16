@@ -52,9 +52,14 @@ export default function DashboardSidebar({ isDocked, onDockToggle, activeTab, on
 
     const handleLogout = async () => {
         try {
-            await fetch("/api/proxy/auth/logout", { method: "POST" });
+            await fetch("/api/proxy/auth/logout", {
+                method: "POST",
+                credentials: "include",
+            });
+        } catch {
+            /* still redirect — server may have cleared cookies */
         } finally {
-            window.location.href = "/login";
+            window.location.replace("/login");
         }
     };
 

@@ -18,13 +18,14 @@ export async function GET(req: NextRequest) {
         const { searchParams } = new URL(req.url);
         const url = new URL(`${API_BASE_URL}/api/v1/facilities/${facilityId}/usage-metrics`);
 
-        // Forward optional window — backend expects 'days' (Usage page sends ?days=)
-        const days = searchParams.get('days');
-        const windowDays = searchParams.get('window_days');
-        if (days !== null && days !== '') {
-            url.searchParams.set('days', days);
-        } else if (windowDays !== null && windowDays !== '') {
-            url.searchParams.set('days', windowDays);
+        // Forward optional range — backend accepts RFC3339 UTC timestamps.
+        const from = searchParams.get('from');
+        const to = searchParams.get('to');
+        if (from !== null && from !== '') {
+            url.searchParams.set('from', from);
+        }
+        if (to !== null && to !== '') {
+            url.searchParams.set('to', to);
         }
 
         console.log('[analytics] Request to:', url.toString());

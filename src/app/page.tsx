@@ -86,6 +86,12 @@ function UsagePageContent() {
     const pathname = usePathname();
 
     const [activeTab, setActiveTab] = useState<DashboardTab>('executive');
+    /** Once a tab is opened, keep it mounted (hidden) so switching back is instant. */
+    const [tabMounted, setTabMounted] = useState<Record<DashboardTab, boolean>>({
+        executive: true,
+        patient: false,
+        billing: false,
+    });
     const [isSidebarDocked, setIsSidebarDocked] = useState(false);
     const [revenueFullscreen, setRevenueFullscreen] = useState(false);
     const [patientFlowFullscreen, setPatientFlowFullscreen] = useState(false);
@@ -99,18 +105,26 @@ function UsagePageContent() {
     const searchParamsRef = useRef(searchParams);
     useEffect(() => { searchParamsRef.current = searchParams; }, [searchParams]);
 
-    const initialDays = searchParams.get('days');
-    // Compute initial date states if days param exists in the URL
+    useEffect(() => {
+        setTabMounted((m) => (m[activeTab] ? m : { ...m, [activeTab]: true }));
+    }, [activeTab]);
+
+    /** In-memory analytics by range key — instant restore when revisiting the same window. */
+    const analyticsCacheRef = useRef<Map<string, AnalyticsData>>(new Map());
+
+    const initialFrom = searchParams.get("from");
+    const initialTo = searchParams.get("to");
+    // Compute initial date states from URL if present.
     const getInitialDates = () => {
-        if (!initialDays) return { from: '', to: '' };
-        const days = parseInt(initialDays, 10);
-        if (isNaN(days)) return { from: '', to: '' };
-        const endDate = new Date();
-        const startDate = new Date();
-        startDate.setDate(endDate.getDate() - days);
+        if (!initialFrom || !initialTo) return { from: "", to: "" };
+        const fromDate = new Date(`${initialFrom}T00:00:00`);
+        const toDate = new Date(`${initialTo}T00:00:00`);
+        if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime()) || fromDate > toDate) {
+            return { from: "", to: "" };
+        }
         return {
-            from: startDate.toISOString().split('T')[0],
-            to: endDate.toISOString().split('T')[0]
+            from: initialFrom,
+            to: initialTo,
         };
     };
 
@@ -119,37 +133,47 @@ function UsagePageContent() {
     const [dateTo, setDateTo] = useState(initialDateState.to);
 
     const fetchAnalytics = useCallback(async () => {
-        setLoading(true);
+        const params = new URLSearchParams();
+        const sp = searchParamsRef.current;
+        let cacheKey = "default";
+
+        if (dateFrom && dateTo) {
+            params.set("from", `${dateFrom}T00:00:00Z`);
+            params.set("to", `${dateTo}T00:00:00Z`);
+            cacheKey = `from=${dateFrom}|to=${dateTo}`;
+
+            const urlParams = new URLSearchParams(sp.toString());
+            urlParams.set("from", dateFrom);
+            urlParams.set("to", dateTo);
+            router.replace(`${pathname}?${urlParams.toString()}`, { scroll: false });
+        } else if (sp.has("from") || sp.has("to")) {
+            const urlParams = new URLSearchParams(sp.toString());
+            urlParams.delete("from");
+            urlParams.delete("to");
+            router.replace(`${pathname}?${urlParams.toString()}`, { scroll: false });
+        }
+
+        const cached = analyticsCacheRef.current.get(cacheKey);
+        if (cached) {
+            setData(cached);
+            setLoading(false);
+        } else {
+            setLoading(true);
+        }
+
         try {
-            const params = new URLSearchParams();
-            const sp = searchParamsRef.current;
-            if (dateFrom && dateTo) {
-                // Backend only supports window_days — convert date range to days
-                const fromMs = new Date(dateFrom + 'T00:00:00').getTime();
-                const toMs = new Date(dateTo + 'T00:00:00').getTime();
-                const diffDays = Math.max(0, Math.round((toMs - fromMs) / (1000 * 60 * 60 * 24)));
-                params.set('days', String(diffDays));
-                
-                // Keep browser URL strictly in sync
-                const urlParams = new URLSearchParams(sp.toString());
-                urlParams.set('days', String(diffDays));
-                router.replace(`${pathname}?${urlParams.toString()}`, { scroll: false });
-            } else if (sp.has('days')) {
-                const urlParams = new URLSearchParams(sp.toString());
-                urlParams.delete('days');
-                router.replace(`${pathname}?${urlParams.toString()}`, { scroll: false });
-            }
             const qs = params.toString();
-            const url = `/api/proxy/analytics${qs ? `?${qs}` : ''}`;
-            console.log('[usage] Fetching:', url);
-            const res = await fetch(url);
+            const url = `/api/proxy/analytics${qs ? `?${qs}` : ""}`;
+            console.log("[usage] Fetching:", url);
+            const res = await fetch(url, { cache: "no-store" });
             if (res.ok) {
-                const json = await res.json();
-                console.log('[usage] Response window_days:', json.window_days, 'total_messages:', json.total_messages);
+                const json = (await res.json()) as AnalyticsData;
+                console.log("[usage] Response window_days:", json.window_days, "total_messages:", json.total_messages);
+                analyticsCacheRef.current.set(cacheKey, json);
                 setData(json);
             }
         } catch (err) {
-            console.error('Failed to fetch analytics:', err);
+            console.error("Failed to fetch analytics:", err);
         } finally {
             setLoading(false);
         }
@@ -211,20 +235,12 @@ function UsagePageContent() {
                     </div>
                 </div>
 
-                {/* Section Content */}
-                {activeTab !== 'executive' && (
-                    <Suspense fallback={
-                        <div className="flex items-center justify-center py-20">
-                            <div className="w-8 h-8 border-2 border-accent-primary border-t-transparent rounded-full animate-spin" />
-                        </div>
-                    }>
-                        {activeTab === 'patient' && <PatientInsightPage data={data} onViewMoreRoles={() => setRoleMetricsModalOpen(true)} />}
-                        {activeTab === 'billing' && <BillingFinancePage data={data} />}
-                    </Suspense>
-                )}
-
-                {/* Executive Overview Content */}
-                {activeTab === 'executive' && (<>
+                {/* Tab panels: keep mounted after first visit so switching tabs does not remount / reload lazy chunks */}
+                {tabMounted.executive && (
+                <div
+                    className={clsx(activeTab !== "executive" && "hidden")}
+                    aria-hidden={activeTab !== "executive"}
+                >
                 {/* KPI Cards Row — responsive columns */}
                 <div className="usage-kpi-grid">
                     <KpiCard
@@ -307,7 +323,40 @@ function UsagePageContent() {
                         </div>
                     </div>
                 </div>
-                </>)}
+                </div>
+                )}
+                {tabMounted.patient && (
+                    <div
+                        className={clsx(activeTab !== "patient" && "hidden")}
+                        aria-hidden={activeTab !== "patient"}
+                    >
+                        <Suspense
+                            fallback={
+                                <div className="flex items-center justify-center py-20">
+                                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent-primary border-t-transparent" />
+                                </div>
+                            }
+                        >
+                            <PatientInsightPage data={data} onViewMoreRoles={() => setRoleMetricsModalOpen(true)} />
+                        </Suspense>
+                    </div>
+                )}
+                {tabMounted.billing && (
+                    <div
+                        className={clsx(activeTab !== "billing" && "hidden")}
+                        aria-hidden={activeTab !== "billing"}
+                    >
+                        <Suspense
+                            fallback={
+                                <div className="flex items-center justify-center py-20">
+                                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent-primary border-t-transparent" />
+                                </div>
+                            }
+                        >
+                            <BillingFinancePage data={data} />
+                        </Suspense>
+                    </div>
+                )}
 
                 <RoleMetricsModal
                     isOpen={roleMetricsModalOpen}

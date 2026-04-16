@@ -26,13 +26,12 @@ type GenerateReportModalProps = {
     defaultDateTo: string;
 };
 
-function rangeToWindowDays(from: string, to: string): number | null {
-    if (!from || !to) return null;
+function isValidRange(from: string, to: string): boolean {
+    if (!from || !to) return false;
     const fromMs = new Date(`${from}T00:00:00`).getTime();
     const toMs = new Date(`${to}T00:00:00`).getTime();
-    if (Number.isNaN(fromMs) || Number.isNaN(toMs)) return null;
-    if (fromMs > toMs) return null;
-    return Math.max(0, Math.round((toMs - fromMs) / (1000 * 60 * 60 * 24)));
+    if (Number.isNaN(fromMs) || Number.isNaN(toMs)) return false;
+    return fromMs <= toMs;
 }
 
 function sortGroups(entries: [string, ReportMetricDef[]][]): [string, ReportMetricDef[]][] {
@@ -94,8 +93,7 @@ export default function GenerateReportModal({ open, onClose, defaultDateFrom, de
 
     const handleGenerate = async () => {
         setError("");
-        const days = rangeToWindowDays(dateFrom, dateTo);
-        if (days === null) {
+        if (!isValidRange(dateFrom, dateTo)) {
             setError("Choose a valid date range (from before or equal to to).");
             return;
         }
@@ -106,7 +104,8 @@ export default function GenerateReportModal({ open, onClose, defaultDateFrom, de
         setBusy(true);
         try {
             const qs = new URLSearchParams();
-            qs.set("days", String(days));
+            qs.set("from", `${dateFrom}T00:00:00Z`);
+            qs.set("to", `${dateTo}T00:00:00Z`);
             const res = await fetch(`/api/proxy/analytics?${qs.toString()}`);
             const payload = await res.json();
             if (!res.ok) {
