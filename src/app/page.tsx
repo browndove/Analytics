@@ -17,6 +17,7 @@ import CalendarRangePicker from "@/components/CalendarRangePicker";
 import clsx from "clsx";
 import DashboardSidebar, { type DashboardTab } from "@/components/sidebar/sidebar";
 import GenerateReportModal from "@/components/report/GenerateReportModal";
+import { appendUsageMetricsRange } from "@/lib/usage-metrics-range";
 
 const PatientInsightPage = lazy(() => import("@/components/ugmc-dashboard/patient-insight/PatientInsightPage"));
 const BillingFinancePage = lazy(() => import("@/components/ugmc-dashboard/billing-finance/BillingFinancePage"));
@@ -138,8 +139,7 @@ function UsagePageContent() {
         let cacheKey = "default";
 
         if (dateFrom && dateTo) {
-            params.set("from", `${dateFrom}T00:00:00Z`);
-            params.set("to", `${dateTo}T00:00:00Z`);
+            appendUsageMetricsRange(params, dateFrom, dateTo);
             cacheKey = `from=${dateFrom}|to=${dateTo}`;
 
             const urlParams = new URLSearchParams(sp.toString());

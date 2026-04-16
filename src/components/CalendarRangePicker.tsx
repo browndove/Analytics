@@ -24,6 +24,11 @@ function formatDate(d: Date): string {
     return `${y}-${m}-${day}`;
 }
 
+/** YYYY-MM-DD for a UTC civil date (monthIndex 0–11). Matches usage-metrics `from`/`to` URL state. */
+function formatDateUTCParts(y: number, monthIndex: number, day: number): string {
+    return `${y}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
 function parseDate(s: string): Date | null {
     if (!s) return null;
     const d = new Date(s + 'T00:00:00');
@@ -363,16 +368,60 @@ export default function CalendarRangePicker({
                         })}
                     </div>
 
-                    {/* Quick actions */}
+                    {/* Quick actions — set inclusive from/to (UTC civil dates) for dashboard + API */}
                     <div style={{ display: 'flex', gap: 6, marginTop: 10, borderTop: '1px solid var(--border-subtle)', paddingTop: 10 }}>
                         {[
-                            { label: 'Today', fn: () => { const t = formatDate(today); onChange(t, t); setOpen(false); setPicking('from'); } },
-                            { label: 'Last 7 days', fn: () => { const e = formatDate(today); const s = new Date(); s.setDate(s.getDate() - 7); onChange(formatDate(s), e); setOpen(false); setPicking('from'); } },
-                            { label: 'Last 30 days', fn: () => { const e = formatDate(today); const s = new Date(); s.setMonth(s.getMonth() - 1); onChange(formatDate(s), e); setOpen(false); setPicking('from'); } },
-                        ].map(q => (
+                            {
+                                label: 'Today',
+                                fn: () => {
+                                    const n = new Date();
+                                    const y = n.getUTCFullYear();
+                                    const m = n.getUTCMonth();
+                                    const d = n.getUTCDate();
+                                    const ymd = formatDateUTCParts(y, m, d);
+                                    onChange(ymd, ymd);
+                                },
+                            },
+                            {
+                                label: 'Last 7 days',
+                                fn: () => {
+                                    const n = new Date();
+                                    const ey = n.getUTCFullYear();
+                                    const em = n.getUTCMonth();
+                                    const ed = n.getUTCDate();
+                                    const start = new Date(Date.UTC(ey, em, ed - 7));
+                                    onChange(
+                                        formatDateUTCParts(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()),
+                                        formatDateUTCParts(ey, em, ed),
+                                    );
+                                },
+                            },
+                            {
+                                label: 'Last 30 days',
+                                fn: () => {
+                                    const n = new Date();
+                                    const ey = n.getUTCFullYear();
+                                    const em = n.getUTCMonth();
+                                    const ed = n.getUTCDate();
+                                    const start = new Date(Date.UTC(ey, em, ed - 30));
+                                    onChange(
+                                        formatDateUTCParts(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate()),
+                                        formatDateUTCParts(ey, em, ed),
+                                    );
+                                },
+                            },
+                        ].map((q) => (
                             <button
                                 key={q.label}
-                                onClick={q.fn}
+                                type="button"
+                                onMouseDown={(e) => e.stopPropagation()}
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    q.fn();
+                                    setOpen(false);
+                                    setPicking('from');
+                                }}
                                 style={{
                                     flex: 1, padding: '5px 0', fontSize: 10.5, fontWeight: 600,
                                     borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)',

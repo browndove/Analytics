@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import CalendarRangePicker from "@/components/CalendarRangePicker";
 import { REPORT_METRICS, defaultMetricSelection, type ReportMetricDef } from "@/lib/report-metrics";
+import { appendUsageMetricsRange } from "@/lib/usage-metrics-range";
 
 const METRIC_TOTAL = REPORT_METRICS.length;
 
@@ -104,8 +105,7 @@ export default function GenerateReportModal({ open, onClose, defaultDateFrom, de
         setBusy(true);
         try {
             const qs = new URLSearchParams();
-            qs.set("from", `${dateFrom}T00:00:00Z`);
-            qs.set("to", `${dateTo}T00:00:00Z`);
+            appendUsageMetricsRange(qs, dateFrom, dateTo);
             const res = await fetch(`/api/proxy/analytics?${qs.toString()}`);
             const payload = await res.json();
             if (!res.ok) {
