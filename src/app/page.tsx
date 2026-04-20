@@ -282,7 +282,7 @@ function UsagePageContent() {
                 </div>
 
                 {/* Main Content — sidebar beside chart + role row; Message Trends only in main column */}
-                <div className="usage-main-grid">
+                <div className="usage-main-grid" style={{ marginTop: 24 }}>
                     <div className="usage-main-grid__chart animate-slide-in-up stagger-2">
                         <RevenueChart
                             isFullscreen={revenueFullscreen}
