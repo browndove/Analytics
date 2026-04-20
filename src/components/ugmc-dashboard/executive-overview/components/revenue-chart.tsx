@@ -69,7 +69,14 @@ const RevenueChart = ({ isFullscreen = false, onToggleFullscreen, isHovered = fa
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [volKey, periodDays]);
 
-    const yAxisMax = Math.max(Math.ceil(seriesMax * 1.08), 4);
+    // Give the peak ~25% headroom so the line/marker never touches the card's top edge,
+    // then round up to a "nice" step for clean y-axis ticks.
+    const yAxisMax = useMemo(() => {
+        const padded = Math.max(seriesMax * 1.25, 4);
+        const magnitude = Math.pow(10, Math.max(0, Math.floor(Math.log10(padded)) - 1));
+        const step = magnitude;
+        return Math.ceil(padded / step) * step;
+    }, [seriesMax]);
 
     // Limit visible x-axis labels
     const tickAmount = periodDays <= 7 ? undefined : periodDays <= 14 ? 7 : 6;
