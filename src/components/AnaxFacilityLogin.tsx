@@ -59,7 +59,6 @@ export default function AnaxFacilityLogin() {
     }, [resendTimer]);
 
     const handleOtpChange = useCallback((index: number, value: string) => {
-        // Handle paste of full code
         if (value.length > 1) {
             const digits = value.replace(/\D/g, '').slice(0, 6).split('');
             const next = [...otpDigits];
@@ -122,7 +121,6 @@ export default function AnaxFacilityLogin() {
                 setLoading(false);
                 return;
             }
-            // OTP sent to email, move to OTP verification step
             setSessionEmail(email);
             setSessionFacilityCode(code);
             setStep('otp');
@@ -186,13 +184,11 @@ export default function AnaxFacilityLogin() {
                 return;
             }
             showToast('Login successful! Redirecting...', 'success');
-            // Best-effort read to warm auth context after OTP verification.
-            // We intentionally do not call /api/proxy/facility-select here.
             try {
                 if (!extractFacilityIdFromPayload(data)) {
                     await fetch(API_ENDPOINTS.AUTH_ME).catch(() => null);
                 }
-            } catch { /* best effort — proceed to dashboard */ }
+            } catch { /* best effort */ }
             setTimeout(() => router.push('/'), 1500);
         } catch (err) {
             const errMsg = err instanceof Error ? err.message : 'Network error. Please try again.';
@@ -209,325 +205,678 @@ export default function AnaxFacilityLogin() {
         setError('');
     };
 
+    // ------------------------------------------------------------------
+    // Palette & shared styles (scoped to this component)
+    // ------------------------------------------------------------------
+    const C = {
+        navy900: '#0b1a33',
+        navy800: '#0f2447',
+        navy700: '#163362',
+        accent: '#3b82f6',
+        accentHover: '#2563eb',
+        panelBg: '#eef1f5',
+        cardBg: '#ffffff',
+        border: '#e2e6ec',
+        borderStrong: '#cfd5de',
+        textDark: '#0b1a33',
+        textBody: '#475569',
+        textMuted: '#6b7689',
+        textFaint: '#94a0b2',
+        inputBg: '#f1f4f8',
+        cta: '#0b1a33',
+        ctaHover: '#14254a',
+        errorBg: '#fef2f2',
+        errorBorder: '#fecaca',
+        errorText: '#b91c1c',
+    };
+
+    const labelStyle: React.CSSProperties = {
+        display: 'block',
+        fontSize: 10.5,
+        fontWeight: 600,
+        letterSpacing: '0.12em',
+        textTransform: 'uppercase',
+        color: C.textMuted,
+        marginBottom: 6,
+    };
+
+    const inputWrapStyle: React.CSSProperties = {
+        position: 'relative',
+        display: 'flex',
+        alignItems: 'center',
+        background: C.inputBg,
+        border: `1px solid ${C.border}`,
+        borderRadius: 10,
+        transition: 'border-color 0.15s, box-shadow 0.15s, background 0.15s',
+    };
+
+    const inputStyle: React.CSSProperties = {
+        flex: 1,
+        background: 'transparent',
+        border: 'none',
+        outline: 'none',
+        padding: '12px 14px 12px 40px',
+        fontSize: 14,
+        color: C.textDark,
+        fontFamily: 'inherit',
+        borderRadius: 10,
+    };
+
+    const iconLeftStyle: React.CSSProperties = {
+        position: 'absolute',
+        left: 12,
+        top: '50%',
+        transform: 'translateY(-50%)',
+        fontSize: 18,
+        color: C.textFaint,
+        pointerEvents: 'none',
+    };
+
     return (
         <div style={{
             minHeight: '100vh',
-            background: 'var(--bg-900)',
+            width: '100%',
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            position: 'relative',
-            overflow: 'hidden',
+            background: C.panelBg,
+            color: C.textDark,
+            fontFamily: "'Inter', 'Montserrat', system-ui, -apple-system, sans-serif",
         }}>
+            {/* ============================================================
+                LEFT PANEL — Dark brand side
+               ============================================================ */}
+            <div
+                className="login-left"
+                style={{
+                    flex: '1 1 50%',
+                    minHeight: '100vh',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    background: C.navy900,
+                    color: '#fff',
+                    padding: '40px 48px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                }}
+            >
+                {/* Animated aurora gradient */}
+                <div
+                    aria-hidden
+                    className="login-aurora"
+                    style={{
+                        position: 'absolute',
+                        inset: '-20%',
+                        background: `radial-gradient(ellipse 60% 50% at 20% 30%, ${C.navy700} 0%, transparent 60%), radial-gradient(ellipse 50% 45% at 80% 70%, #1e4a8a 0%, transparent 65%), radial-gradient(ellipse 55% 50% at 60% 20%, #2563eb33 0%, transparent 60%), ${C.navy900}`,
+                        pointerEvents: 'none',
+                    }}
+                />
+                {/* Grid overlay */}
+                <div
+                    aria-hidden
+                    style={{
+                        position: 'absolute',
+                        inset: 0,
+                        backgroundImage:
+                            'linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px)',
+                        backgroundSize: '28px 28px',
+                        backgroundPosition: '-1px -1px',
+                        pointerEvents: 'none',
+                        maskImage: 'radial-gradient(ellipse at 30% 40%, #000 40%, transparent 90%)',
+                        WebkitMaskImage: 'radial-gradient(ellipse at 30% 40%, #000 40%, transparent 90%)',
+                    }}
+                />
+                {/* Soft glow */}
+                <div
+                    aria-hidden
+                    style={{
+                        position: 'absolute',
+                        top: '-10%',
+                        left: '-15%',
+                        width: 520,
+                        height: 520,
+                        borderRadius: '50%',
+                        background: 'radial-gradient(circle, rgba(59,130,246,0.25), transparent 70%)',
+                        filter: 'blur(20px)',
+                        pointerEvents: 'none',
+                    }}
+                />
 
-            <div className="fade-in" style={{ width: '100%', maxWidth: 420, padding: '0 20px' }}>
-                {/* Brand */}
-                <div style={{ textAlign: 'center', marginBottom: 36 }}>
-                    <img
-                        src="/assets/images/helix-logo.png"
-                        alt="Helix"
-                        width={120}
-                        height={120}
+                {/* Top: brand lockup */}
+                <div style={{ position: 'relative', zIndex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 56 }}>
+                        <img
+                            src="/assets/images/helix-logo.png"
+                            alt="Helix"
+                            width={32}
+                            height={32}
+                            style={{ height: 32, width: 'auto', objectFit: 'contain', filter: 'drop-shadow(0 4px 12px rgba(59,130,246,0.4))' }}
+                        />
+                        <span
+                            style={{
+                                fontSize: 11,
+                                fontWeight: 700,
+                                letterSpacing: '0.2em',
+                                color: 'rgba(255,255,255,0.85)',
+                            }}
+                        >
+                            HELIX ANALYTICS
+                        </span>
+                    </div>
+
+                    <h1
                         style={{
-                            height: 56,
-                            width: 'auto',
-                            maxWidth: 'min(200px, 70vw)',
-                            margin: '0 auto 14px',
-                            display: 'block',
-                            objectFit: 'contain',
+                            fontSize: 'clamp(2.6rem, 5vw, 3.6rem)',
+                            fontWeight: 900,
+                            letterSpacing: '-0.03em',
+                            margin: 0,
+                            lineHeight: 1.05,
+                            color: '#ffffff',
                         }}
-                    />
-                    <h1 style={{ fontSize: '1.8rem', fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
-                        Helix Analytics
+                    >
+                        Helix
                     </h1>
-                    <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 4, letterSpacing: '0.02em' }}>Facility usage & analytics</p>
+                    <h2
+                        style={{
+                            fontSize: 'clamp(1.2rem, 2vw, 1.6rem)',
+                            fontWeight: 600,
+                            letterSpacing: '-0.01em',
+                            margin: '6px 0 20px',
+                            color: '#ffffff',
+                        }}
+                    >
+                        Facility Analytics
+                    </h2>
+                    <p
+                        style={{
+                            maxWidth: 420,
+                            fontSize: 13.5,
+                            lineHeight: 1.6,
+                            color: 'rgba(255,255,255,0.7)',
+                            margin: 0,
+                        }}
+                    >
+                        For facility and hospital staff who track usage and analytics on Helix.
+                        Sign in with your work email and password. Helix will email
+                        you a one-time code to confirm it&apos;s you.
+                    </p>
                 </div>
 
-                {/* Card */}
-                <div style={{
-                    background: 'var(--surface-card)',
-                    border: '1px solid var(--border-default)',
-                    borderRadius: 'var(--radius-xl)',
-                    padding: '32px 28px',
-                    boxShadow: '0 1px 4px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.02)',
-                }}>
-                    <h2 style={{ fontSize: '1.3rem', marginBottom: 4 }}>Facility sign-in</h2>
-                    <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 28 }}>
-                        {step === 'credentials' ? 'Sign in with your facility admin credentials.' : 'Enter the 6-digit code sent to your email.'}
+                {/* Bottom: fine-print */}
+                <div style={{ position: 'relative', zIndex: 1 }}>
+                    <p
+                        style={{
+                            fontSize: 11.5,
+                            color: 'rgba(255,255,255,0.45)',
+                            margin: 0,
+                            letterSpacing: '0.02em',
+                        }}
+                    >
+                        Analytics dashboard — not the patient app or ward staff mobile sign-in.
                     </p>
+                </div>
+            </div>
 
-                    {error && (
-                        <div style={{ padding: '10px 14px', borderRadius: 'var(--radius-md)', background: 'var(--critical-bg)', border: '1px solid rgba(140,90,94,0.2)', marginBottom: 16, fontSize: 13, color: 'var(--critical)', fontWeight: 500 }}>
-                            {error}
+            {/* ============================================================
+                RIGHT PANEL — Form side
+               ============================================================ */}
+            <div
+                className="login-right"
+                style={{
+                    flex: '1 1 50%',
+                    minHeight: '100vh',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '40px 24px',
+                    background: C.panelBg,
+                }}
+            >
+                <div style={{ width: '100%', maxWidth: 440 }}>
+                    {/* Eyebrow */}
+                    <div
+                        style={{
+                            textAlign: 'center',
+                            fontSize: 10.5,
+                            fontWeight: 700,
+                            letterSpacing: '0.22em',
+                            color: C.textMuted,
+                            textTransform: 'uppercase',
+                            marginBottom: 10,
+                        }}
+                    >
+                        Admin sign-in
+                    </div>
+                    <h2
+                        style={{
+                            textAlign: 'center',
+                            fontSize: '1.6rem',
+                            fontWeight: 700,
+                            color: C.textDark,
+                            margin: '0 0 24px',
+                            letterSpacing: '-0.01em',
+                        }}
+                    >
+                        Helix Facility Analytics
+                    </h2>
+
+                    {/* Card */}
+                    <div
+                        style={{
+                            background: C.cardBg,
+                            border: `1px solid ${C.border}`,
+                            borderRadius: 16,
+                            padding: '22px 22px 24px',
+                            boxShadow: '0 1px 2px rgba(15,23,42,0.04), 0 8px 24px rgba(15,23,42,0.06)',
+                        }}
+                    >
+                        {/* Info chip */}
+                        <div
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                background: '#eef4ff',
+                                border: '1px solid #dce7fb',
+                                borderRadius: 10,
+                                padding: '8px 12px',
+                                fontSize: 12.5,
+                                fontWeight: 600,
+                                color: '#1e3a5f',
+                                marginBottom: 12,
+                            }}
+                        >
+                            <span className="material-icons-round" style={{ fontSize: 15, color: '#2563eb' }}>lock</span>
+                            {step === 'credentials' ? 'Facility code & Helix password' : 'Two-factor verification'}
                         </div>
-                    )}
+                        <p
+                            style={{
+                                fontSize: 12.5,
+                                color: C.textBody,
+                                lineHeight: 1.55,
+                                margin: '0 0 18px',
+                            }}
+                        >
+                            {step === 'credentials' ? (
+                                <>Use your facility&apos;s Helix code and the admin email and password your organization gave you. Helix will email you a short code to finish signing in.</>
+                            ) : (
+                                <>Enter the 6-digit code we sent to <strong style={{ color: C.textDark }}>{sessionEmail}</strong>.</>
+                            )}
+                        </p>
 
-                    {step === 'credentials' ? (
-                        // Credentials Step
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                            <div>
-                                <label className="label">Facility Code</label>
-                                <div style={{ position: 'relative' }}>
-                                    <span className="material-icons-round" style={{
-                                        position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
-                                        fontSize: 16, color: 'var(--text-muted)',
-                                    }}>business</span>
-                                    <input
-                                        id="facility-code"
-                                        className="input"
-                                        type="text"
-                                        value={facilityCode}
-                                        onChange={e => setFacilityCode(normalizeFacilityCode(e.target.value))}
-                                        onKeyDown={e => e.key === 'Enter' && handleLogin()}
-                                        style={{ paddingLeft: 36, fontFamily: "'Courier New', Courier, monospace", letterSpacing: '0.08em', textTransform: 'uppercase' }}
-                                        autoComplete="off"
-                                    />
-                                </div>
-                                <p style={{ fontSize: 11, color: 'var(--text-disabled)', marginTop: 4 }}>Letters and numbers only; typed as capitals.</p>
+                        {error && (
+                            <div
+                                style={{
+                                    padding: '10px 12px',
+                                    borderRadius: 10,
+                                    background: C.errorBg,
+                                    border: `1px solid ${C.errorBorder}`,
+                                    color: C.errorText,
+                                    fontSize: 12.5,
+                                    fontWeight: 500,
+                                    marginBottom: 14,
+                                }}
+                            >
+                                {error}
                             </div>
-                            <div>
-                                <label className="label">Email</label>
-                                <div style={{ position: 'relative' }}>
-                                    <span className="material-icons-round" style={{
-                                        position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
-                                        fontSize: 16, color: 'var(--text-muted)',
-                                    }}>mail</span>
-                                    <input
-                                        id="email"
-                                        className="input"
-                                        type="email"
-                                        value={email}
-                                        onChange={e => setEmail(e.target.value)}
-                                        onKeyDown={e => e.key === 'Enter' && handleLogin()}
-                                        style={{ paddingLeft: 36 }}
-                                        autoComplete="email"
-                                    />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="label">Password</label>
-                                <div style={{ position: 'relative' }}>
-                                    <span className="material-icons-round" style={{
-                                        position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
-                                        fontSize: 16, color: 'var(--text-muted)',
-                                    }}>lock</span>
-                                    <input
-                                        id="password"
-                                        className="input"
-                                        type={showPassword ? 'text' : 'password'}
-                                        value={password}
-                                        onChange={e => setPassword(e.target.value)}
-                                        onKeyDown={e => e.key === 'Enter' && handleLogin()}
-                                        style={{ paddingLeft: 36, paddingRight: 42 }}
-                                        autoComplete="current-password"
-                                    />
-                                    <button
-                                        type="button"
-                                        aria-label={showPassword ? 'Hide password' : 'Show password'}
-                                        onClick={() => setShowPassword(prev => !prev)}
-                                        style={{
-                                            position: 'absolute',
-                                            right: 10,
-                                            top: '50%',
-                                            transform: 'translateY(-50%)',
-                                            border: 'none',
-                                            background: 'transparent',
-                                            color: 'var(--text-muted)',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            padding: 0,
-                                        }}
-                                    >
-                                        <span className="material-icons-round" style={{ fontSize: 18 }}>
-                                            {showPassword ? 'visibility_off' : 'visibility'}
-                                        </span>
-                                    </button>
-                                </div>
-                            </div>
+                        )}
 
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
-                                <button className="btn btn-ghost btn-sm" style={{ padding: '2px 0', fontSize: 12 }}>
-                                    Recovery?
+                        {step === 'credentials' ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                                {/* Facility code */}
+                                <div>
+                                    <label style={labelStyle} htmlFor="facility-code">Facility Helix Code</label>
+                                    <div style={inputWrapStyle}>
+                                        <span className="material-icons-round" style={iconLeftStyle}>business</span>
+                                        <input
+                                            id="facility-code"
+                                            type="text"
+                                            value={facilityCode}
+                                            onChange={e => setFacilityCode(normalizeFacilityCode(e.target.value))}
+                                            onKeyDown={e => e.key === 'Enter' && handleLogin()}
+                                            style={{
+                                                ...inputStyle,
+                                                fontFamily: "'Courier New', Courier, monospace",
+                                                letterSpacing: '0.08em',
+                                                textTransform: 'uppercase',
+                                            }}
+                                            autoComplete="off"
+                                        />
+                                    </div>
+                                    <p style={{ fontSize: 11, color: C.textFaint, margin: '6px 0 0' }}>
+                                        Letters and numbers only. Shown in capitals.
+                                    </p>
+                                </div>
+
+                                {/* Email */}
+                                <div>
+                                    <label style={labelStyle} htmlFor="email">Work email</label>
+                                    <div style={inputWrapStyle}>
+                                        <span className="material-icons-round" style={iconLeftStyle}>mail</span>
+                                        <input
+                                            id="email"
+                                            type="email"
+                                            value={email}
+                                            onChange={e => setEmail(e.target.value)}
+                                            onKeyDown={e => e.key === 'Enter' && handleLogin()}
+                                            style={inputStyle}
+                                            autoComplete="email"
+                                            placeholder="you@hospital.org"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Password */}
+                                <div>
+                                    <label style={labelStyle} htmlFor="password">Helix password</label>
+                                    <div style={inputWrapStyle}>
+                                        <span className="material-icons-round" style={iconLeftStyle}>key</span>
+                                        <input
+                                            id="password"
+                                            type={showPassword ? 'text' : 'password'}
+                                            value={password}
+                                            onChange={e => setPassword(e.target.value)}
+                                            onKeyDown={e => e.key === 'Enter' && handleLogin()}
+                                            style={{ ...inputStyle, paddingRight: 42 }}
+                                            autoComplete="current-password"
+                                        />
+                                        <button
+                                            type="button"
+                                            aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                            onClick={() => setShowPassword(p => !p)}
+                                            style={{
+                                                position: 'absolute',
+                                                right: 10,
+                                                top: '50%',
+                                                transform: 'translateY(-50%)',
+                                                background: 'transparent',
+                                                border: 'none',
+                                                cursor: 'pointer',
+                                                color: C.textMuted,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                padding: 4,
+                                            }}
+                                        >
+                                            <span className="material-icons-round" style={{ fontSize: 18 }}>
+                                                {showPassword ? 'visibility_off' : 'visibility'}
+                                            </span>
+                                        </button>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
+                                        <button
+                                            type="button"
+                                            style={{
+                                                background: 'transparent',
+                                                border: 'none',
+                                                color: C.accentHover,
+                                                fontSize: 12,
+                                                fontWeight: 600,
+                                                cursor: 'pointer',
+                                                padding: 0,
+                                            }}
+                                        >
+                                            Forgot password?
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* CTA */}
+                                <button
+                                    id="sign-in-btn"
+                                    onClick={handleLogin}
+                                    disabled={loading}
+                                    style={{
+                                        marginTop: 4,
+                                        width: '100%',
+                                        padding: '13px 16px',
+                                        borderRadius: 12,
+                                        border: 'none',
+                                        background: C.cta,
+                                        color: '#fff',
+                                        fontSize: 14,
+                                        fontWeight: 600,
+                                        cursor: loading ? 'not-allowed' : 'pointer',
+                                        opacity: loading ? 0.75 : 1,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: 8,
+                                        transition: 'background 0.15s, transform 0.05s',
+                                    }}
+                                    onMouseEnter={e => { if (!loading) (e.currentTarget.style.background = C.ctaHover); }}
+                                    onMouseLeave={e => { (e.currentTarget.style.background = C.cta); }}
+                                >
+                                    {loading ? 'Signing in…' : 'Continue to Helix'}
+                                    {!loading && (
+                                        <span className="material-icons-round" style={{ fontSize: 17 }}>arrow_forward</span>
+                                    )}
                                 </button>
                             </div>
+                        ) : (
+                            // OTP STEP
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 18, alignItems: 'center' }}>
+                                <div
+                                    style={{
+                                        width: 54, height: 54, borderRadius: '50%',
+                                        background: 'linear-gradient(135deg, #eef4ff, #dbe8ff)',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    }}
+                                >
+                                    <span className="material-icons-round" style={{ fontSize: 26, color: '#1e3a5f' }}>
+                                        verified_user
+                                    </span>
+                                </div>
 
-                            <button
-                                id="sign-in-btn"
-                                className="btn btn-primary"
-                                style={{ width: '100%', justifyContent: 'center', padding: '11px', fontSize: 14, marginTop: 4, opacity: loading ? 0.7 : 1 }}
-                                onClick={handleLogin}
-                                disabled={loading}
-                            >
-                                {loading ? 'Signing in...' : 'Sign In'}
-                                {!loading && <span className="material-icons-round" style={{ fontSize: 16 }}>arrow_forward</span>}
-                            </button>
-                        </div>
-                    ) : (
-                        // OTP Verification Step
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 20, alignItems: 'center' }}>
-                            {/* Shield icon */}
-                            <div style={{
-                                width: 56, height: 56,
-                                borderRadius: '50%',
-                                background: 'linear-gradient(135deg, rgba(30,58,95,0.08), rgba(30,58,95,0.15))',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            }}>
-                                <span className="material-icons-round" style={{ fontSize: 28, color: 'var(--helix-primary)' }}>verified_user</span>
-                            </div>
-
-                            <div style={{ textAlign: 'center' }}>
-                                <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>Two-Factor Authentication</div>
                                 {sessionFacilityCode && (
-                                    <div style={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: 5,
-                                        padding: '3px 10px 3px 7px',
-                                        borderRadius: 'var(--radius-md)',
-                                        background: 'rgba(30,58,95,0.06)',
-                                        fontSize: 11.5,
-                                        color: 'var(--helix-primary)',
-                                        fontWeight: 600,
-                                        marginBottom: 6,
-                                    }}>
+                                    <div
+                                        style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: 6,
+                                            padding: '4px 10px',
+                                            borderRadius: 8,
+                                            background: '#eef4ff',
+                                            border: '1px solid #dce7fb',
+                                            fontSize: 11.5,
+                                            fontWeight: 600,
+                                            color: '#1e3a5f',
+                                        }}
+                                    >
                                         <span className="material-icons-round" style={{ fontSize: 13 }}>business</span>
                                         Facility {sessionFacilityCode}
                                     </div>
                                 )}
-                                <div style={{ fontSize: 12.5, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                                    Enter the 6-digit code sent to<br />
-                                    <strong style={{ color: 'var(--text-secondary)' }}>{sessionEmail}</strong>
+
+                                <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                                    {otpDigits.map((digit, i) => (
+                                        <input
+                                            key={i}
+                                            ref={el => { otpRefs.current[i] = el; }}
+                                            type="text"
+                                            inputMode="numeric"
+                                            autoComplete="one-time-code"
+                                            value={digit}
+                                            onChange={e => handleOtpChange(i, e.target.value)}
+                                            onKeyDown={e => handleOtpKeyDown(i, e)}
+                                            onFocus={e => e.target.select()}
+                                            maxLength={6}
+                                            style={{
+                                                width: 44, height: 52,
+                                                textAlign: 'center',
+                                                fontSize: 22, fontWeight: 700,
+                                                borderRadius: 10,
+                                                border: `1.5px solid ${digit ? C.navy800 : C.borderStrong}`,
+                                                background: digit ? '#f7faff' : '#fff',
+                                                color: C.textDark,
+                                                outline: 'none',
+                                                transition: 'border-color 0.15s, background 0.15s',
+                                            }}
+                                        />
+                                    ))}
+                                </div>
+
+                                <button
+                                    id="verify-otp-btn"
+                                    onClick={handleVerifyOtp}
+                                    disabled={loading || otp.length !== 6}
+                                    style={{
+                                        width: '100%',
+                                        padding: '13px 16px',
+                                        borderRadius: 12,
+                                        border: 'none',
+                                        background: C.cta,
+                                        color: '#fff',
+                                        fontSize: 14,
+                                        fontWeight: 600,
+                                        cursor: loading || otp.length !== 6 ? 'not-allowed' : 'pointer',
+                                        opacity: loading || otp.length !== 6 ? 0.6 : 1,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: 8,
+                                    }}
+                                >
+                                    {loading ? 'Verifying…' : 'Verify & continue'}
+                                    {!loading && (
+                                        <span className="material-icons-round" style={{ fontSize: 17 }}>arrow_forward</span>
+                                    )}
+                                </button>
+
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, width: '100%' }}>
+                                    <button
+                                        onClick={handleBackToCredentials}
+                                        disabled={loading}
+                                        style={{
+                                            background: 'transparent',
+                                            border: 'none',
+                                            color: C.textMuted,
+                                            fontSize: 12,
+                                            fontWeight: 600,
+                                            cursor: 'pointer',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: 4,
+                                        }}
+                                    >
+                                        <span className="material-icons-round" style={{ fontSize: 14 }}>arrow_back</span>
+                                        Back
+                                    </button>
+                                    <div style={{ width: 1, height: 14, background: C.border }} />
+                                    <button
+                                        onClick={handleResendOtp}
+                                        disabled={loading || resendTimer > 0}
+                                        style={{
+                                            background: 'transparent',
+                                            border: 'none',
+                                            color: resendTimer > 0 ? C.textFaint : C.accentHover,
+                                            fontSize: 12,
+                                            fontWeight: 600,
+                                            cursor: resendTimer > 0 ? 'not-allowed' : 'pointer',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: 4,
+                                        }}
+                                    >
+                                        <span className="material-icons-round" style={{ fontSize: 14 }}>refresh</span>
+                                        {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend code'}
+                                    </button>
                                 </div>
                             </div>
+                        )}
+                    </div>
 
-                            {/* 6 digit boxes */}
-                            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-                                {otpDigits.map((digit, i) => (
-                                    <input
-                                        key={i}
-                                        ref={el => { otpRefs.current[i] = el; }}
-                                        type="text"
-                                        inputMode="numeric"
-                                        autoComplete="one-time-code"
-                                        value={digit}
-                                        onChange={e => handleOtpChange(i, e.target.value)}
-                                        onKeyDown={e => handleOtpKeyDown(i, e)}
-                                        onFocus={e => e.target.select()}
-                                        maxLength={6}
-                                        style={{
-                                            width: 46, height: 52,
-                                            textAlign: 'center',
-                                            fontSize: 22, fontWeight: 700,
-                                            letterSpacing: 0,
-                                            borderRadius: 'var(--radius-md)',
-                                            border: `1.5px solid ${digit ? 'var(--helix-primary)' : 'var(--border-default)'}`,
-                                            background: digit ? 'rgba(30,58,95,0.03)' : 'var(--surface-card)',
-                                            color: 'var(--text-primary)',
-                                            outline: 'none',
-                                            transition: 'border-color 0.15s, background 0.15s, box-shadow 0.15s',
-                                            caretColor: 'var(--helix-primary)',
-                                            fontFamily: "'Montserrat', sans-serif",
-                                        }}
-                                        onBlur={e => { e.target.style.boxShadow = 'none'; }}
-                                    />
-                                ))}
-                            </div>
-
-                            {/* Filled indicator dots */}
-                            <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
-                                {otpDigits.map((d, i) => (
-                                    <div key={i} style={{
-                                        width: 6, height: 6, borderRadius: '50%',
-                                        background: d ? 'var(--helix-primary)' : 'var(--border-default)',
-                                        transition: 'background 0.15s',
-                                    }} />
-                                ))}
-                            </div>
-
+                    {/* Footer links under card */}
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: 22, marginTop: 18 }}>
+                        {[
+                            { icon: 'help_outline', label: 'Help & support' },
+                            { icon: 'shield', label: 'Privacy' },
+                        ].map(item => (
                             <button
-                                id="verify-otp-btn"
-                                className="btn btn-primary"
-                                style={{ width: '100%', justifyContent: 'center', padding: '12px', fontSize: 14, opacity: loading || otp.length !== 6 ? 0.6 : 1, transition: 'opacity 0.15s' }}
-                                onClick={handleVerifyOtp}
-                                disabled={loading || otp.length !== 6}
+                                key={item.label}
+                                style={{
+                                    background: 'transparent',
+                                    border: 'none',
+                                    color: C.textMuted,
+                                    fontSize: 12,
+                                    fontWeight: 500,
+                                    cursor: 'pointer',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                }}
                             >
-                                {loading ? (
-                                    <>Verifying...</>
-                                ) : (
-                                    <>Verify & Continue <span className="material-icons-round" style={{ fontSize: 16 }}>arrow_forward</span></>
-                                )}
+                                <span className="material-icons-round" style={{ fontSize: 14 }}>{item.icon}</span>
+                                {item.label}
                             </button>
-
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, width: '100%' }}>
-                                <button
-                                    className="btn btn-ghost btn-sm"
-                                    style={{ fontSize: 12, color: 'var(--text-muted)', padding: '4px 0' }}
-                                    onClick={handleBackToCredentials}
-                                    disabled={loading}
-                                >
-                                    <span className="material-icons-round" style={{ fontSize: 14 }}>arrow_back</span>
-                                    Back
-                                </button>
-
-                                <div style={{ width: 1, height: 14, background: 'var(--border-default)' }} />
-
-                                <button
-                                    className="btn btn-ghost btn-sm"
-                                    style={{ fontSize: 12, color: resendTimer > 0 ? 'var(--text-disabled)' : 'var(--helix-primary)', padding: '4px 0' }}
-                                    onClick={handleResendOtp}
-                                    disabled={loading || resendTimer > 0}
-                                >
-                                    <span className="material-icons-round" style={{ fontSize: 14 }}>refresh</span>
-                                    {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend Code'}
-                                </button>
-                            </div>
-                        </div>
-                    )}
+                        ))}
+                    </div>
                 </div>
-
-                {/* Footer */}
-                <div style={{ display: 'flex', justifyContent: 'center', gap: 20, marginTop: 24 }}>
-                    {[
-                        { icon: 'help', label: 'Help Desk' },
-                        { icon: 'policy', label: 'Privacy Policy' },
-                    ].map(item => (
-                        <button key={item.label} className="btn btn-ghost btn-xs" style={{ color: 'var(--text-muted)' }}>
-                            <span className="material-icons-round" style={{ fontSize: 14 }}>{item.icon}</span>
-                            {item.label}
-                        </button>
-                    ))}
-                </div>
-                <p style={{ textAlign: 'center', fontSize: 10.5, color: 'var(--text-disabled)', marginTop: 12 }}>
-                    &copy; {new Date().getFullYear()} Blvcksapphire Company Ltd
-                </p>
             </div>
 
-            {/* Toast Notification */}
+            {/* Toast */}
             {toast && (
-                <div className="toast-enter" style={{
-                    position: 'fixed',
-                    top: 20,
-                    right: 20,
-                    zIndex: 999,
-                    background: 'var(--surface-card)',
-                    border: `1px solid ${toast.type === 'error' ? 'var(--critical)' : 'var(--success)'}`,
-                    borderRadius: 'var(--radius-md)',
-                    padding: '12px 16px',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    color: toast.type === 'error' ? 'var(--critical)' : 'var(--success)',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                }}>
+                <div
+                    className="toast-enter"
+                    style={{
+                        position: 'fixed',
+                        top: 20,
+                        right: 20,
+                        zIndex: 999,
+                        background: '#fff',
+                        border: `1px solid ${toast.type === 'error' ? C.errorBorder : '#c7eccb'}`,
+                        borderRadius: 10,
+                        padding: '12px 16px',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: toast.type === 'error' ? C.errorText : '#166534',
+                        boxShadow: '0 6px 20px rgba(15,23,42,0.12)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                    }}
+                >
                     <span className="material-icons-round" style={{ fontSize: 16 }}>
                         {toast.type === 'error' ? 'error' : 'check_circle'}
                     </span>
                     {toast.message}
                 </div>
             )}
+
+            {/* Responsive: stack on small screens */}
+            <style jsx>{`
+                @media (max-width: 900px) {
+                    :global(.login-left) {
+                        display: none !important;
+                    }
+                    :global(.login-right) {
+                        flex: 1 1 100% !important;
+                    }
+                }
+                :global(.login-aurora) {
+                    animation: auroraDrift 18s ease-in-out infinite alternate;
+                    will-change: transform, filter;
+                    filter: blur(40px) saturate(1.1);
+                }
+                @keyframes auroraDrift {
+                    0% {
+                        transform: translate3d(0, 0, 0) scale(1);
+                        filter: blur(40px) saturate(1.05) hue-rotate(0deg);
+                    }
+                    50% {
+                        transform: translate3d(3%, -2%, 0) scale(1.06);
+                        filter: blur(50px) saturate(1.2) hue-rotate(-8deg);
+                    }
+                    100% {
+                        transform: translate3d(-2%, 2%, 0) scale(1.03);
+                        filter: blur(45px) saturate(1.1) hue-rotate(6deg);
+                    }
+                }
+                @media (prefers-reduced-motion: reduce) {
+                    :global(.login-aurora) {
+                        animation: none;
+                    }
+                }
+            `}</style>
         </div>
     );
 }
