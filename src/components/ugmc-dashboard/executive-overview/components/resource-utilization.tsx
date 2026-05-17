@@ -47,6 +47,14 @@ interface ResourceUtilizationProps {
     departments?: DepartmentMetricItem[];
 }
 
+/** Bounded escalation rate: escalations / (critical_messages + escalations). Escalations are messages too. */
+const deptRate = (d: DepartmentMetricItem): number => {
+    const esc = Number(d?.escalation_notifications) || 0;
+    const crit = Number(d?.critical_messages_sent) || 0;
+    const denom = crit + esc;
+    return denom > 0 ? (esc / denom) * 100 : 0;
+};
+
 const ResourceUtilization = ({ departments = [] }: ResourceUtilizationProps) => {
     const [isHovered, setIsHovered] = useState(false);
     const [animatedPercentages, setAnimatedPercentages] = useState<number[]>([]);
@@ -55,15 +63,15 @@ const ResourceUtilization = ({ departments = [] }: ResourceUtilizationProps) => 
     const depsKey = JSON.stringify(departments);
     const depts = useMemo(() =>
         [...departments]
-            .sort((a, b) => b.escalation_rate_vs_dept_critical_messages_percent - a.escalation_rate_vs_dept_critical_messages_percent)
+            .sort((a, b) => deptRate(b) - deptRate(a))
             .slice(0, 4),
         // eslint-disable-next-line react-hooks/exhaustive-deps
         [depsKey]
     );
 
-    /** Bar fill is normalized within the visible rows so rates above 100% still read visually; badge shows the real rate. */
+    /** Bar fill is normalized within the visible rows; badge shows the real rate (now bounded <=100%). */
     const maxEscalationRate = useMemo(
-        () => Math.max(...depts.map(d => Number(d.escalation_rate_vs_dept_critical_messages_percent) || 0), 1),
+        () => Math.max(...depts.map(d => deptRate(d)), 1),
         [depts]
     );
 
@@ -73,7 +81,7 @@ const ResourceUtilization = ({ departments = [] }: ResourceUtilizationProps) => 
         setAnimatedPercentages(new Array(depts.length).fill(0));
         depts.forEach((dept, index) => {
             setTimeout(() => {
-                const targetRate = Number(dept.escalation_rate_vs_dept_critical_messages_percent) || 0;
+                const targetRate = deptRate(dept);
                 const targetBarPercent = maxEscalationRate > 0
                     ? Math.min(100, (targetRate / maxEscalationRate) * 100)
                     : 0;
@@ -130,7 +138,7 @@ const ResourceUtilization = ({ departments = [] }: ResourceUtilizationProps) => 
                 )}
                 {depts.map((dept, index) => {
                     const style = COLORS[index % COLORS.length];
-                    const badgeRate = Math.round(Number(dept.escalation_rate_vs_dept_critical_messages_percent) || 0);
+                    const badgeRate = Math.round(deptRate(dept));
                     const criticalSent = Math.round(Number(dept.critical_messages_sent) || 0);
                     const alerts = Math.round(Number(dept.escalation_notifications) || 0);
                     const replyLabel = fmtCriticalReplyMin(dept.avg_reply_response_minutes_critical);

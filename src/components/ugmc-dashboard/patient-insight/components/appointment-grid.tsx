@@ -29,7 +29,13 @@ const MiniDonut = ({ percentage, color }: { percentage: number; color: string })
 };
 
 const AppointmentCancellationBreakdown = ({ data }: { data: any }) => {
-	const depts = (data?.department_metrics || []).slice().sort((a: any, b: any) => b.escalation_rate_vs_dept_critical_messages_percent - a.escalation_rate_vs_dept_critical_messages_percent).slice(0, 4);
+	const deptRate = (d: any) => {
+		const esc = Number(d?.escalation_notifications) || 0;
+		const crit = Number(d?.critical_messages_sent) || 0;
+		const denom = crit + esc;
+		return denom > 0 ? (esc / denom) * 100 : 0;
+	};
+	const depts = (data?.department_metrics || []).slice().sort((a: any, b: any) => deptRate(b) - deptRate(a)).slice(0, 4);
 
 	return (
 		<DashboardCard padding="none" className="flex flex-col" style={{ padding: 18, height: 380, gridColumn: 'span 4' }}>
@@ -44,7 +50,7 @@ const AppointmentCancellationBreakdown = ({ data }: { data: any }) => {
 					<div key={index}>
 						<div className="flex items-center justify-between min-h-[48px]">
 							<Text variant="body-sm-semibold" color="text-primary" className="truncate pr-4">{dept.department_name}</Text>
-							<MiniDonut percentage={Math.round(dept.escalation_rate_vs_dept_critical_messages_percent || 0)} color="#FF5F57" />
+							<MiniDonut percentage={Math.round(deptRate(dept))} color="#FF5F57" />
 						</div>
 						{index < depts.length - 1 && <div className="w-full h-px border-b border-tertiary" style={{ marginTop: 12 }} />}
 					</div>
@@ -62,7 +68,9 @@ const shortenRole = (name: string) => {
 };
 
 const AppointmentCancellationChart = ({ isFullscreen = false, onToggleFullscreen, data, onViewMore }: { isFullscreen?: boolean; onToggleFullscreen?: () => void; data?: any; onViewMore?: () => void }) => {
-	const rolesList = (data?.role_metrics || data?.top_escalated_roles || []).slice(0, 6);
+	const rolesList = [...(data?.role_metrics || data?.top_escalated_roles || [])]
+		.sort((a: any, b: any) => (Number(b?.avg_critical_ack_minutes) || 0) - (Number(a?.avg_critical_ack_minutes) || 0))
+		.slice(0, 6);
 	const chartData = rolesList.map((d: any) => {
 		const val = d.avg_critical_ack_minutes || 0;
 		return val === 0 ? 0.05 : val;

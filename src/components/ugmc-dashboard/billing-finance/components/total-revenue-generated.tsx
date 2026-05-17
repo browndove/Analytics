@@ -36,7 +36,8 @@ const TotalRevenueGenerated: React.FC<{ data?: any }> = ({ data }) => {
         ? roles.map((r: any) => {
               const total = Number(r?.total_messages_for_role || 0);
               const esc = Number(r?.escalation_count || 0);
-              return total > 0 ? Number(((esc / total) * 100).toFixed(2)) : 0;
+              const denom = total + esc;
+              return denom > 0 ? Number(((esc / denom) * 100).toFixed(2)) : 0;
           })
         : [0];
     const maxRate = escalationRateData.length ? Math.max(...escalationRateData) : 0;

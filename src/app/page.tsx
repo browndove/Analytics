@@ -10,6 +10,7 @@ import {
     DailyPatientFlow,
     RedZoneAlerts,
     LiveUpdates,
+    InsightsCard,
     RoleMetricsModal,
 } from "@/components/ugmc-dashboard/executive-overview/components";
 import { FaUsers, FaEnvelope, FaArrowTrendUp, FaShieldHalved } from "react-icons/fa6";
@@ -283,29 +284,31 @@ function UsagePageContent() {
 
                 {/* Main Content — sidebar beside chart + role row; Message Trends only in main column */}
                 <div className="usage-main-grid" style={{ marginTop: 24 }}>
-                    <div className="usage-main-grid__chart animate-slide-in-up stagger-2">
-                        <RevenueChart
-                            isFullscreen={revenueFullscreen}
-                            onToggleFullscreen={() => setRevenueFullscreen(!revenueFullscreen)}
-                            dailyVolume={data?.daily_message_volume}
-                        />
-                    </div>
-
-                    <div className="usage-main-grid__twocol dashboard-two-col">
-                        <div className="animate-slide-in-up stagger-3">
-                            <RoleCriticalTraffic roles={data?.role_metrics} />
+                    <div className="usage-main-grid__main">
+                        <div className="usage-main-grid__chart animate-slide-in-up stagger-2">
+                            <RevenueChart
+                                isFullscreen={revenueFullscreen}
+                                onToggleFullscreen={() => setRevenueFullscreen(!revenueFullscreen)}
+                                dailyVolume={data?.daily_message_volume}
+                            />
                         </div>
-                        <div className="animate-slide-in-up stagger-4">
-                            <ServiceDistribution departments={data?.department_metrics} />
-                        </div>
-                    </div>
 
-                    <div className="usage-main-grid__full animate-slide-in-up stagger-5">
-                        <DailyPatientFlow
-                            isFullscreen={patientFlowFullscreen}
-                            onToggleFullscreen={() => setPatientFlowFullscreen(!patientFlowFullscreen)}
-                            dailyVolume={data?.daily_message_volume}
-                        />
+                        <div className="usage-main-grid__twocol dashboard-two-col">
+                            <div className="animate-slide-in-up stagger-3">
+                                <RoleCriticalTraffic roles={data?.role_metrics} />
+                            </div>
+                            <div className="animate-slide-in-up stagger-4">
+                                <ServiceDistribution departments={data?.department_metrics} />
+                            </div>
+                        </div>
+
+                        <div className="usage-main-grid__full animate-slide-in-up stagger-5">
+                            <DailyPatientFlow
+                                isFullscreen={patientFlowFullscreen}
+                                onToggleFullscreen={() => setPatientFlowFullscreen(!patientFlowFullscreen)}
+                                dailyVolume={data?.daily_message_volume}
+                            />
+                        </div>
                     </div>
 
                     <div className="usage-main-grid__sidebar">
@@ -320,6 +323,9 @@ function UsagePageContent() {
                                 avg_first_read_minutes_non_critical: data.avg_first_read_minutes_non_critical,
                                 total_calls_made: data.total_calls_made,
                             } : undefined} />
+                        </div>
+                        <div className="animate-slide-in-right stagger-5 usage-sidebar-sticky">
+                            <InsightsCard data={data ?? undefined} />
                         </div>
                     </div>
                 </div>

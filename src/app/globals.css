@@ -1242,17 +1242,26 @@ select.input {
 }
 
 .usage-main-grid {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 16px;
-  align-items: start;
-  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
   min-width: 0;
+}
+
+.usage-main-grid__main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .usage-main-grid__chart,
 .usage-main-grid__twocol,
 .usage-main-grid__full,
-.usage-main-grid__sidebar {
+.usage-main-grid__sidebar,
+.usage-main-grid__main {
   min-width: 0;
 }
 
@@ -1265,36 +1274,40 @@ select.input {
 
 @media (min-width: 1100px) {
   .usage-main-grid {
-    grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
-    grid-template-rows: auto auto auto;
+    flex-direction: row;
+    align-items: flex-start;
   }
 
-  /* Line chart + role row share the main column; escalations + response times sit beside them only */
-  .usage-main-grid__chart {
-    grid-column: 1;
-    grid-row: 1;
-  }
-
-  .usage-main-grid__twocol {
-    grid-column: 1;
-    grid-row: 2;
-  }
-
-  /* Same width as chart + Role critical / Role Coverage (column 1 only) */
-  .usage-main-grid__full {
-    grid-column: 1;
-    grid-row: 3;
+  .usage-main-grid__main {
+    flex: 1 1 0;
+    min-width: 0;
   }
 
   .usage-main-grid__sidebar {
-    grid-column: 2;
-    grid-row: 1 / -1;
+    flex: 0 0 320px;
+    max-width: 320px;
+    min-width: 260px;
+    align-self: stretch;
+    background: transparent;
+    border-radius: 0;
+  }
+
+  /* Pin the last sidebar card so it follows the user as they scroll
+     past the main column rows, eliminating the empty area beside Message Trends.
+     flex: 1 makes it stretch to fill the remaining sidebar height so the card's
+     bottom aligns with the bottom of the main column (end of Message Trends). */
+  .usage-sidebar-sticky {
     position: sticky;
     top: 16px;
-    align-self: stretch;
-    /* Fills the two-row sidebar track so there’s no odd gap above Message Trends */
-    background: var(--bg-secondary);
-    border-radius: 0;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .usage-sidebar-sticky > * {
+    flex: 1 1 auto;
+    min-height: 0;
   }
 }
 

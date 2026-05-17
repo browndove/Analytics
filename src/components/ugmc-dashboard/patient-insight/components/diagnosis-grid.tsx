@@ -75,7 +75,10 @@ const RoleEscalationsTable = ({ data }: { data: any }) => {
 					</thead>
 					<tbody>
 						{itemsList.map((item: any, index: number) => {
-							const rate = item.total_messages_for_role > 0 ? (item.escalation_count / item.total_messages_for_role) * 100 : 0;
+							const escalations = Number(item.escalation_count) || 0;
+							const messages = Number(item.total_messages_for_role) || 0;
+							const denom = messages + escalations;
+							const rate = denom > 0 ? (escalations / denom) * 100 : 0;
 							let rateClass = 'text-text-secondary bg-tertiary';
 							if (rate > 15) rateClass = 'text-accent-red bg-accent-red/10';
 							else if (rate > 5) rateClass = 'text-accent-primary bg-accent-primary/10';

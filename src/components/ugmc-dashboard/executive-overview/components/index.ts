@@ -6,5 +6,6 @@ export { default as ServiceDistribution } from './service-distribution';
 export { default as DailyPatientFlow } from './daily-patient-flow';
 export { default as RedZoneAlerts } from './red-zone-alerts';
 export { default as LiveUpdates } from './live-updates';
+export { default as InsightsCard } from './insights-card';
 export { default as RoleCoverageModal } from './RoleCoverageModal';
 export { default as RoleMetricsModal } from './RoleMetricsModal';
