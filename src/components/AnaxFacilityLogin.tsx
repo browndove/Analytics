@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { API_ENDPOINTS } from '@/lib/config';
 
 /** Strip non-alphanumerics and force uppercase */
@@ -651,6 +652,13 @@ export default function AnaxFacilityLogin() {
                                         <span className="material-icons-round" style={{ fontSize: 17 }}>arrow_forward</span>
                                     )}
                                 </button>
+
+                                <p style={{ marginTop: 16, textAlign: 'center', fontSize: 12, color: C.textMuted }}>
+                                    Helix internal staff?{' '}
+                                    <Link href="/internal/login" style={{ color: C.accentHover, fontWeight: 600 }}>
+                                        Internal sign in
+                                    </Link>
+                                </p>
                             </div>
                         ) : (
                             // OTP STEP

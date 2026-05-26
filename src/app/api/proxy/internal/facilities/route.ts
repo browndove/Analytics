@@ -2,6 +2,7 @@ import { getProxyHeaders } from "@/lib/proxy-auth";
 import { fetchFacilitiesUpstream } from "@/lib/facilities-list";
 import { NextRequest, NextResponse } from "next/server";
 
+/** Internal dashboard — same upstream as GET /api/v1/facilities. */
 export async function GET(req: NextRequest) {
     try {
         const result = await fetchFacilitiesUpstream(getProxyHeaders(req));

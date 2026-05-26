@@ -1,13 +1,17 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import clsx from "clsx";
 import Text from "@/components/text";
+import { API_ENDPOINTS } from "@/lib/config";
+import { readClientFacilityIdFromCookie } from "@/lib/client-facility";
 import { IoDownloadOutline, IoLogOut } from "react-icons/io5";
 import { MdSpaceDashboard } from "react-icons/md";
 import { FaUser } from "react-icons/fa6";
 import { BsCreditCardFill } from "react-icons/bs";
+import { PiArrowsLeftRight } from "react-icons/pi";
 
-export type DashboardTab = "executive" | "patient" | "billing";
+export type DashboardTab = "executive" | "patient" | "billing" | "transfer";
 
 type DashboardSidebarProps = {
     isDocked: boolean;
@@ -27,6 +31,7 @@ const menuItems: MenuItem[] = [
     { id: "executive", name: "Usage Summary", icon: MdSpaceDashboard },
     { id: "patient", name: "Response Performance", icon: FaUser },
     { id: "billing", name: "Staffing & Coverage", icon: BsCreditCardFill },
+    { id: "transfer", name: "Transfer Insight", icon: PiArrowsLeftRight },
 ];
 
 const SidebarIcon = ({ className }: { className?: string }) => (
@@ -36,6 +41,21 @@ const SidebarIcon = ({ className }: { className?: string }) => (
 );
 
 export default function DashboardSidebar({ isDocked, onDockToggle, activeTab, onTabChange, onGenerateReport }: DashboardSidebarProps) {
+    const [inSupportMode, setInSupportMode] = useState(false);
+
+    useEffect(() => {
+        if (readClientFacilityIdFromCookie()) {
+            setInSupportMode(true);
+            return;
+        }
+        fetch(API_ENDPOINTS.INTERNAL_ACT_AS, { credentials: "include" })
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data: { support_mode?: boolean } | null) => {
+                if (data?.support_mode) setInSupportMode(true);
+            })
+            .catch(() => undefined);
+    }, []);
+
     const headerBlockPadding = isDocked
         ? { paddingLeft: 12, paddingRight: 12, paddingTop: 20, paddingBottom: 20 }
         : { paddingLeft: 18, paddingRight: 18, paddingTop: 20, paddingBottom: 20 };
@@ -50,16 +70,38 @@ export default function DashboardSidebar({ isDocked, onDockToggle, activeTab, on
         ? { paddingLeft: 10, paddingRight: 10 }
         : { paddingLeft: 14, paddingRight: 14 };
 
-    const handleLogout = async () => {
+    const handleExitSupport = async () => {
         try {
-            await fetch("/api/proxy/auth/logout", {
+            await fetch(API_ENDPOINTS.INTERNAL_EXIT_ACT_AS, {
+                method: "POST",
+                credentials: "include",
+            });
+        } catch {
+            /* redirect anyway */
+        } finally {
+            window.location.replace("/internal/dashboard");
+        }
+    };
+
+    const showSupportBanner = inSupportMode && !isDocked;
+
+    const handleLogout = async () => {
+        const wasSupport = inSupportMode;
+        try {
+            if (wasSupport) {
+                await fetch(API_ENDPOINTS.INTERNAL_EXIT_ACT_AS, {
+                    method: "POST",
+                    credentials: "include",
+                });
+            }
+            await fetch(API_ENDPOINTS.LOGOUT, {
                 method: "POST",
                 credentials: "include",
             });
         } catch {
             /* still redirect — server may have cleared cookies */
         } finally {
-            window.location.replace("/login");
+            window.location.replace(wasSupport ? "/internal/login" : "/login");
         }
     };
 
@@ -156,12 +198,12 @@ export default function DashboardSidebar({ isDocked, onDockToggle, activeTab, on
                                 >
                                     <div className={clsx("flex items-center", isDocked ? "" : "gap-[5px]")}>
                                         <Icon
-                                            size={item.id === "billing" ? 18 : item.id === "patient" ? 17 : 15}
+                                            size={item.id === "billing" ? 18 : item.id === "patient" ? 17 : item.id === "transfer" ? 18 : 15}
                                             className={clsx("shrink-0", isActive ? "text-accent-primary" : "text-text-secondary")}
                                         />
                                         {!isDocked && (
                                             <Text
-                                                variant={isActive ? "body-sm-semibold" : "body-sm"}
+                                                variant="body-sm-semibold"
                                                 color={isActive ? "accent-primary" : "text-secondary"}
                                             >
                                                 {item.name}
@@ -177,6 +219,25 @@ export default function DashboardSidebar({ isDocked, onDockToggle, activeTab, on
 
             <div className="flex flex-col gap-4">
                 <div className="w-full border-t border-tertiary" style={{ boxSizing: "border-box", ...footerBlockPadding }}>
+                    {showSupportBanner ? (
+                        <div className="mb-3 flex flex-col items-start gap-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                            <Text
+                                as="p"
+                                variant="body-sm-semibold"
+                                color="text-primary"
+                                className="m-0 w-full"
+                            >
+                                Support mode
+                            </Text>
+                            <button
+                                type="button"
+                                onClick={handleExitSupport}
+                                className="m-0 border-0 bg-transparent p-0 text-left text-[11px] font-semibold text-accent-primary hover:underline"
+                            >
+                                Exit support
+                            </button>
+                        </div>
+                    ) : null}
                     <button
                         type="button"
                         onClick={onGenerateReport}

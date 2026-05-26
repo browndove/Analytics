@@ -1,5 +1,6 @@
-import { NextRequest } from 'next/server';
-import { getTokenFromCookie } from '@/lib/proxy-auth';
+import { NextRequest } from "next/server";
+import { getTokenFromCookie } from "@/lib/proxy-auth";
+import { FACILITY_ID_COOKIE, getSupportFacilityId, isSupportMode } from "@/lib/auth-cookies";
 
 const FACILITY_CACHE_TTL_MS = 60_000;
 const facilityIdCache = new Map<string, { facilityId: string; expiresAt: number }>();
@@ -21,35 +22,29 @@ function setCachedFacilityId(token: string, facilityId: string): void {
     });
 }
 
-/**
- * Extract a facility id from an object that may contain facility fields.
- */
 function extractFacilityIdFromObject(source: Record<string, unknown>): string | undefined {
-    const id = String(source.facility_id || source.facilityId || source.current_facility_id || source.currentFacilityId || '').trim();
+    const id = String(source.facility_id || source.facilityId || source.current_facility_id || source.currentFacilityId || "").trim();
     if (id) return id;
 
-    // Check nested facility object
-    if (source.facility && typeof source.facility === 'object') {
+    if (source.facility && typeof source.facility === "object") {
         const f = source.facility as Record<string, unknown>;
-        const nestedId = String(f.id || f.facility_id || '').trim();
+        const nestedId = String(f.id || f.facility_id || "").trim();
         if (nestedId) return nestedId;
     }
     return undefined;
 }
 
-/**
- * Extract facility id from common backend payload shapes.
- */
 export function extractFacilityIdFromPayload(payload: unknown): string | undefined {
-    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return undefined;
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) return undefined;
     const root = payload as Record<string, unknown>;
 
     const topLevel = extractFacilityIdFromObject(root);
     if (topLevel) return topLevel;
 
-    const data = root.data && typeof root.data === 'object' && !Array.isArray(root.data)
-        ? root.data as Record<string, unknown>
-        : undefined;
+    const data =
+        root.data && typeof root.data === "object" && !Array.isArray(root.data)
+            ? (root.data as Record<string, unknown>)
+            : undefined;
 
     const candidates: unknown[] = [
         root.user,
@@ -64,7 +59,7 @@ export function extractFacilityIdFromPayload(payload: unknown): string | undefin
     ];
 
     for (const candidate of candidates) {
-        if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) continue;
+        if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) continue;
         const id = extractFacilityIdFromObject(candidate as Record<string, unknown>);
         if (id) return id;
     }
@@ -73,53 +68,47 @@ export function extractFacilityIdFromPayload(payload: unknown): string | undefin
 }
 
 /**
- * Best-effort helper that resolves facility_id from the authenticated user context.
- * Priority: 1) explicit facility cookie  2) /auth/me user.facility_id
- * Returns undefined if not resolvable; callers should decide fallback behavior.
+ * Resolve facility_id for tenant APIs (usage-metrics, transfer-metrics, etc.).
+ * Support mode: act-as cookies. Facility admin: helix-facility cookie or /auth/me.
  */
 export async function resolveFacilityId(req: NextRequest, apiBaseUrl: string): Promise<string | undefined> {
     const token = getTokenFromCookie(req);
     if (!token) return undefined;
 
-    // 0. Check explicit facility cookie (set during OTP verification)
-    const cookieFacilityId = req.cookies.get('helix-facility')?.value;
+    if (isSupportMode(req)) {
+        const supportId = getSupportFacilityId(req);
+        if (supportId) {
+            setCachedFacilityId(token, supportId);
+            return supportId;
+        }
+    }
+
+    const cookieFacilityId = req.cookies.get(FACILITY_ID_COOKIE)?.value?.trim();
     if (cookieFacilityId) {
         setCachedFacilityId(token, cookieFacilityId);
         return cookieFacilityId;
     }
 
-    // 0.5 Try short-lived in-memory cache to avoid repeated auth/me calls.
     const cachedFacilityId = getCachedFacilityId(token);
     if (cachedFacilityId) {
         return cachedFacilityId;
     }
 
-    const headers = {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-    };
-
-    // 1. Try to get facility_id from the authenticated user's profile
     try {
         const meRes = await fetch(`${apiBaseUrl}/api/v1/auth/me`, {
-            method: 'GET',
-            headers,
+            method: "GET",
+            headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+            },
         });
         if (meRes.ok) {
             const meData = await meRes.json();
             const fid = extractFacilityIdFromPayload(meData);
             if (fid) {
-                console.log('[resolveFacilityId] Resolved from auth/me:', fid);
                 setCachedFacilityId(token, fid);
                 return fid;
             }
-            // Log for debugging if nothing found
-            if (meData?.staff && typeof meData.staff === 'object') {
-                console.log('[resolveFacilityId] staff keys:', JSON.stringify(Object.keys(meData.staff)));
-            }
-            console.log('[resolveFacilityId] No facility_id found in auth/me');
-        } else {
-            console.log('[resolveFacilityId] auth/me status:', meRes.status);
         }
     } catch {
         return undefined;

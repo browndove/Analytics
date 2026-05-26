@@ -1,27 +1,26 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import {
+    FACILITY_SESSION_COOKIE,
+    INTERNAL_SESSION_COOKIE,
+    isInternalAdminToken,
+    isSupportMode,
+    isTokenValid,
+} from "@/lib/auth-cookies";
 
-const COOKIE_NAME = "helix-session";
+function facilityAuthed(req: NextRequest): boolean {
+    const token = req.cookies.get(FACILITY_SESSION_COOKIE)?.value;
+    return Boolean(token && isTokenValid(token));
+}
 
-function isTokenValid(token: string): boolean {
-    try {
-        const parts = token.split(".");
-        if (parts.length !== 3) return false;
-        const payload = JSON.parse(atob(parts[1])) as Record<string, unknown>;
-        const expiredAt = payload.expired_at ?? payload.exp;
-        if (expiredAt) {
-            const expiry =
-                typeof expiredAt === "string"
-                    ? new Date(expiredAt).getTime()
-                    : typeof expiredAt === "number"
-                      ? expiredAt * 1000
-                      : 0;
-            if (expiry && Date.now() > expiry) return false;
-        }
-        return true;
-    } catch {
-        return false;
-    }
+function internalAuthed(req: NextRequest): boolean {
+    const token = req.cookies.get(INTERNAL_SESSION_COOKIE)?.value;
+    return Boolean(token && isTokenValid(token) && isInternalAdminToken(token));
+}
+
+function appAuthed(req: NextRequest): boolean {
+    if (facilityAuthed(req)) return true;
+    return internalAuthed(req) && isSupportMode(req);
 }
 
 export function middleware(req: NextRequest) {
@@ -36,17 +35,47 @@ export function middleware(req: NextRequest) {
         return NextResponse.next();
     }
 
-    const token = req.cookies.get(COOKIE_NAME)?.value ?? "";
-    const authed = token && isTokenValid(token);
+    const internal = internalAuthed(req);
+    const facility = facilityAuthed(req);
+    const support = isSupportMode(req);
+    const authed = appAuthed(req);
+
+    const isInternalPath = pathname === "/internal/login" || pathname.startsWith("/internal/");
+
+    if (isInternalPath) {
+        if (pathname === "/internal/login") {
+            if (internal) {
+                return NextResponse.redirect(new URL("/internal/dashboard", req.url));
+            }
+            return NextResponse.next();
+        }
+
+        if (!internal) {
+            const login = new URL("/internal/login", req.url);
+            login.searchParams.set("from", pathname);
+            return NextResponse.redirect(login);
+        }
+
+        return NextResponse.next();
+    }
 
     if (pathname === "/login") {
-        if (authed) {
+        if (facility) {
             return NextResponse.redirect(new URL("/", req.url));
+        }
+        if (internal && support) {
+            return NextResponse.redirect(new URL("/", req.url));
+        }
+        if (internal) {
+            return NextResponse.redirect(new URL("/internal/dashboard", req.url));
         }
         return NextResponse.next();
     }
 
     if (!authed) {
+        if (internal) {
+            return NextResponse.redirect(new URL("/internal/dashboard", req.url));
+        }
         const login = new URL("/login", req.url);
         login.searchParams.set("from", pathname);
         return NextResponse.redirect(login);
@@ -56,6 +85,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-    // Do not run auth on static files under /public/assets (images, etc.)
     matcher: ["/((?!_next/static|_next/image|favicon.ico|assets/).*)"],
 };

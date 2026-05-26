@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
+import { clearAllAuthCookies } from "@/lib/proxy-auth";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
 
 function withSessionCleared(res: NextResponse): NextResponse {
-    res.cookies.delete("helix-session");
-    res.cookies.delete("helix-facility");
-    return res;
+    return clearAllAuthCookies(res);
 }
 
 export async function POST() {

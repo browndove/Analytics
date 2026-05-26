@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { sessionCookieOptions } from "@/lib/auth-cookies";
+import { clearInternalCookies, FACILITY_SESSION_COOKIE, FACILITY_ID_COOKIE } from "@/lib/proxy-auth";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
 
@@ -56,27 +58,16 @@ export async function POST(req: NextRequest) {
         }
         const response = NextResponse.json(data, { status: res.status });
         if (res.ok) {
+            clearInternalCookies(response);
             const access = data.access_token;
             if (typeof access === "string" && access) {
-                response.cookies.set("helix-session", access, {
-                    httpOnly: true,
-                    secure: process.env.NODE_ENV === "production",
-                    sameSite: "lax",
-                    path: "/",
-                    maxAge: 60 * 60 * 8,
-                });
+                response.cookies.set(FACILITY_SESSION_COOKIE, access, sessionCookieOptions(true));
             }
             const facilityId = extractFacilityIdFromPayload(data);
             if (facilityId) {
-                response.cookies.set("helix-facility", facilityId, {
-                    httpOnly: false,
-                    secure: process.env.NODE_ENV === "production",
-                    sameSite: "lax",
-                    path: "/",
-                    maxAge: 60 * 60 * 8,
-                });
+                response.cookies.set(FACILITY_ID_COOKIE, facilityId, sessionCookieOptions(false));
             } else {
-                response.cookies.delete("helix-facility");
+                response.cookies.delete(FACILITY_ID_COOKIE);
             }
         }
         return response;
