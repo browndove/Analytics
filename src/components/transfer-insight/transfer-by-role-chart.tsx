@@ -37,16 +37,13 @@ const TransferByRoleChart = ({ data, loading }: TransferByRoleChartProps) => {
             },
         },
         xaxis: {
-            max,
-            tickAmount: 4,
+            categories,
             labels: { style: chartLabelStyle },
         },
         yaxis: {
-            categories,
-            labels: {
-                style: chartLabelStyle,
-                maxWidth: 140,
-            },
+            max,
+            tickAmount: 4,
+            labels: { style: chartLabelStyle },
         },
         legend: { show: false },
         tooltip: {

@@ -34,7 +34,7 @@ const TransferDirectionChart = ({ data, loading }: TransferDirectionChartProps) 
                             fontFamily: "Montserrat",
                             fontSize: "18px",
                             fontWeight: 700,
-                            formatter: (val) => val,
+                            formatter: (val) => String(val),
                         },
                         total: {
                             show: true,
