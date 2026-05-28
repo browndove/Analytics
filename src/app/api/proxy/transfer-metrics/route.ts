@@ -1,10 +1,11 @@
 import { getProxyHeaders } from "@/lib/proxy-auth";
 import { resolveFacilityId } from "@/lib/proxy-facility";
+import { extractTransferMetricsFromUsage } from "@/lib/transfer-metrics";
 import { NextRequest, NextResponse } from "next/server";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
 
-/** GET /api/proxy/transfer-metrics — facility transfer request metrics */
+/** GET /api/proxy/transfer-metrics — transfer fields from usage-metrics */
 export async function GET(req: NextRequest) {
     try {
         const facilityId = await resolveFacilityId(req, API_BASE_URL);
@@ -16,14 +17,12 @@ export async function GET(req: NextRequest) {
         }
 
         const { searchParams } = new URL(req.url);
-        const url = new URL(`${API_BASE_URL}/api/v1/facilities/${facilityId}/transfer-metrics`);
+        const url = new URL(`${API_BASE_URL}/api/v1/facilities/${facilityId}/usage-metrics`);
 
         const from = searchParams.get("from");
         const to = searchParams.get("to");
         if (from !== null && from !== "") url.searchParams.set("from", from);
         if (to !== null && to !== "") url.searchParams.set("to", to);
-
-        console.log("[transfer-metrics] Request to:", url.toString());
 
         const res = await fetch(url.toString(), {
             method: "GET",
@@ -31,22 +30,33 @@ export async function GET(req: NextRequest) {
         });
 
         const text = await res.text();
-        console.log("[transfer-metrics] Backend response status:", res.status);
-
-        let data: unknown;
+        let usagePayload: unknown;
         try {
-            data = JSON.parse(text);
+            usagePayload = text ? JSON.parse(text) : {};
         } catch {
-            console.error("[transfer-metrics] Failed to parse backend response as JSON");
             return NextResponse.json(
                 { error: "Backend returned invalid response", details: text.substring(0, 200) },
                 { status: 502 },
             );
         }
 
-        return NextResponse.json(data, { status: res.status });
+        if (!res.ok) {
+            return NextResponse.json(usagePayload, { status: res.status });
+        }
+
+        const transfer = extractTransferMetricsFromUsage(usagePayload);
+        if (!transfer) {
+            return NextResponse.json(
+                {
+                    error: "Usage metrics response has no transfer data",
+                    facility_id: facilityId,
+                },
+                { status: 404 },
+            );
+        }
+
+        return NextResponse.json(transfer);
     } catch (err) {
-        console.error("[transfer-metrics] Proxy error:", err);
         const message = err instanceof Error ? err.message : "Unknown error";
         return NextResponse.json({ error: "Proxy error", details: message }, { status: 500 });
     }

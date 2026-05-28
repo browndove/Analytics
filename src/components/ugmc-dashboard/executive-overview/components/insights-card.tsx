@@ -1,120 +1,237 @@
-'use client';
+"use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import Text from "@/components/text";
 import InfoTooltip from "@/components/info-tooltip";
 import clsx from "clsx";
-import { HiOutlineTrophy, HiOutlineClock, HiOutlineBolt } from "react-icons/hi2";
 
-const infoText = "Top 3 roles by fastest critical acknowledgment time. Lower bars are better (faster responses).";
+const TOP_N = 5;
+
+const infoText =
+    "Top 5 roles with the fastest average critical acknowledgment time. " +
+    "The bar shows each role’s share of combined speed (faster roles take more of the bar). " +
+    "List shows each role’s average ack time on critical messages.";
+
+const SEGMENT_STYLES = [
+    { bar: "#00C8B3", bg: "rgba(0,200,179,0.1)", text: "#089A8A" },
+    { bar: "#2980D3", bg: "rgba(41,128,211,0.1)", text: "#2980D3" },
+    { bar: "#FFCA57", bg: "rgba(255,202,87,0.2)", text: "#C68904" },
+    { bar: "#FF9257", bg: "rgba(255,146,87,0.1)", text: "#FF9257" },
+    { bar: "#FF5F57", bg: "rgba(255,95,87,0.1)", text: "#FF5F57" },
+] as const;
 
 interface InsightsCardProps {
     data?: {
         role_metrics?: {
             role_name?: string;
             role_id?: string;
-            department_name?: string;
-            critical_messages?: number;
-            escalated_critical_messages?: number;
             avg_critical_ack_minutes?: number;
+            critical_messages?: number;
         }[];
     };
 }
+
+type RankedRole = {
+    id: string;
+    name: string;
+    ackMinutes: number;
+    segmentPercent: number;
+};
 
 function num(v: unknown): number {
     const n = typeof v === "string" ? parseFloat(v) : Number(v);
     return Number.isFinite(n) ? n : 0;
 }
 
+function formatRoleName(name: string): string {
+    return name.replace(/^HH\s*-\s*/i, "").trim() || name;
+}
+
+function formatAckTime(minutes: number): string {
+    if (minutes <= 0) return "—";
+    if (minutes < 1) {
+        const seconds = minutes * 60;
+        if (seconds < 10) return `${seconds.toFixed(1)}s`;
+        return `${Math.round(seconds)}s`;
+    }
+    if (minutes < 10) return `${minutes.toFixed(1)}m`;
+    return `${Math.round(minutes)}m`;
+}
+
 const InsightsCard = ({ data }: InsightsCardProps) => {
     const [isHovered, setIsHovered] = useState(false);
+    const [isVisible, setIsVisible] = useState(false);
+    const [animatedBars, setAnimatedBars] = useState<number[]>([]);
 
-    const topRoles = useMemo(() => {
+    const { topRoles, fastestMinutes } = useMemo(() => {
         const roles = (data?.role_metrics || [])
             .filter((r) => num(r?.avg_critical_ack_minutes) > 0 && num(r?.critical_messages) > 0)
-            .map((r) => ({
-                name: r.role_name || "Role",
+            .map((r, i) => ({
+                id: String(r.role_id || "").trim() || `role-${i}`,
+                name: formatRoleName(r.role_name || "Role"),
                 ackMinutes: num(r.avg_critical_ack_minutes),
-                critMsgs: num(r.critical_messages),
             }))
             .sort((a, b) => a.ackMinutes - b.ackMinutes)
-            .slice(0, 5);
-        return roles;
+            .slice(0, TOP_N);
+
+        const fastest = roles[0]?.ackMinutes ?? 0;
+        const scores = roles.map((r) => (fastest > 0 ? fastest / r.ackMinutes : 0));
+        const scoreSum = scores.reduce((a, b) => a + b, 0) || 1;
+
+        const withSegments: RankedRole[] = roles.map((r, i) => ({
+            id: r.id,
+            name: r.name,
+            ackMinutes: r.ackMinutes,
+            segmentPercent: (scores[i] / scoreSum) * 100,
+        }));
+
+        return { topRoles: withSegments, fastestMinutes: fastest };
     }, [data]);
 
-    const maxAck = Math.max(...topRoles.map((r) => r.ackMinutes), 1);
-    const fastestTime = topRoles.length > 0 ? topRoles[0].ackMinutes : 1;
+    useEffect(() => {
+        setIsVisible(true);
+    }, []);
+
+    useEffect(() => {
+        if (!isVisible || topRoles.length === 0) {
+            setAnimatedBars([]);
+            return;
+        }
+
+        const targets = topRoles.map((r) => r.segmentPercent);
+        const duration = 1200;
+        const start = performance.now();
+        let frame: number;
+
+        const tick = (now: number) => {
+            const t = Math.min((now - start) / duration, 1);
+            const eased = 1 - Math.pow(1 - t, 3);
+            setAnimatedBars(targets.map((p) => p * eased));
+            if (t < 1) frame = requestAnimationFrame(tick);
+            else setAnimatedBars(targets);
+        };
+
+        frame = requestAnimationFrame(tick);
+        return () => cancelAnimationFrame(frame);
+    }, [isVisible, topRoles]);
+
+    const heroTime = formatAckTime(fastestMinutes);
 
     return (
         <div
             className={clsx(
-                "bg-primary rounded-[12px] flex flex-col shadow-soft overflow-hidden",
-                "transition-all duration-500"
+                "flex h-full min-h-0 w-full flex-col overflow-hidden rounded-[12px] bg-primary shadow-soft",
+                "transition-shadow duration-300",
+                isHovered && "shadow-[0_6px_24px_rgba(0,0,0,0.08)]",
             )}
-            style={{ padding: 12, width: "100%", height: "100%", minHeight: 0 }}
+            style={{ padding: 12 }}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
-            <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                    <HiOutlineBolt className="w-[16px] h-[16px] text-accent-violet" />
-                    <Text variant="body-md-semibold" color="text-primary">Fastest Acknowledgment</Text>
-                </div>
-                <InfoTooltip text={infoText} show={isHovered} />
-            </div>
-
-            <div className="flex flex-col flex-1 gap-2">
-                {topRoles.length === 0 && (
-                    <div style={{ padding: "8px 0", textAlign: "center" }}>
-                        <Text variant="body-sm" color="text-secondary">No data available</Text>
+            <div className="flex flex-col gap-3">
+                <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex flex-col gap-0.5">
+                        <Text variant="body-md-semibold" color="text-primary" className="font-bold">
+                            Fastest Acknowledgment
+                        </Text>
+                        <Text variant="body-sm" color="text-secondary">
+                            Top {TOP_N} roles · Avg critical ack
+                        </Text>
                     </div>
-                )}
-                {topRoles.map((role, idx) => {
-                    const barWidth = fastestTime > 0 ? (fastestTime / role.ackMinutes) * 100 : 0;
-                    
-                    // Minimal colors
-                    const rankColors = {
-                        0: { text: 'text-amber-600', bar: 'bg-amber-400' }, // Gold
-                        1: { text: 'text-gray-600', bar: 'bg-gray-400' }, // Silver
-                        2: { text: 'text-orange-600', bar: 'bg-orange-400' }, // Bronze
-                        3: { text: 'text-blue-600', bar: 'bg-blue-400' },
-                        4: { text: 'text-purple-600', bar: 'bg-purple-400' },
-                    }[idx] || { text: 'text-gray-600', bar: 'bg-gray-400' };
-                    
-                    return (
-                        <div
-                            key={role.name}
-                            className="flex items-center gap-3 py-2"
-                        >
-                            <span className={clsx("text-sm font-bold w-[20px] text-center", rankColors.text)}>
-                                {idx + 1}
+                    <div className="flex shrink-0 items-center gap-1">
+                        {topRoles.length > 0 ? (
+                            <div className="whitespace-nowrap rounded-[5px] bg-[#2980D31A] px-[7px] py-1">
+                                <span className="text-[12px] font-semibold tabular-nums text-[#2980D3]">
+                                    {topRoles.length} tracked
+                                </span>
+                            </div>
+                        ) : null}
+                        <InfoTooltip text={infoText} show={isHovered} />
+                    </div>
+                </div>
+
+                {topRoles.length === 0 ? (
+                    <Text variant="body-sm" color="text-secondary" className="py-6 text-center">
+                        No acknowledgment data for this period
+                    </Text>
+                ) : (
+                    <>
+                        <div className="flex flex-col gap-0.5">
+                            <span className="text-[28px] font-bold leading-none tabular-nums text-[#2980D3]">
+                                {heroTime}
                             </span>
-                            
-                            <div className="flex-1 min-w-0">
-                                <Text variant="body-sm" color="text-primary" className="truncate">
-                                    {role.name}
-                                </Text>
-                                <div className="mt-1">
-                                    <div className="relative w-full h-[3px] bg-gray-100 rounded-full overflow-hidden">
-                                        <div
-                                            className={clsx("absolute inset-y-0 left-0 rounded-full transition-all duration-500 ease-out", rankColors.bar)}
-                                            style={{ width: `${barWidth}%` }}
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div className="flex items-center gap-1 shrink-0">
-                                <HiOutlineClock className="w-[10px] h-[10px] text-text-secondary" />
-                                <Text variant="body-xs" color="text-secondary">
-                                    {role.ackMinutes < 1 ? "<1" : role.ackMinutes.toFixed(1)}m
-                                </Text>
-                            </div>
+                            <Text variant="body-sm" color="text-secondary">
+                                Fastest critical ack
+                            </Text>
                         </div>
-                    );
-                })}
-                
-                            </div>
+
+                        <div className="flex h-[28px] overflow-hidden rounded-[8px]">
+                            {topRoles.map((role, index) => {
+                                const style = SEGMENT_STYLES[index] ?? SEGMENT_STYLES[4];
+                                const width = animatedBars[index] ?? 0;
+                                const isFirst = index === 0;
+                                const isLast = index === topRoles.length - 1;
+                                return (
+                                    <div
+                                        key={role.id}
+                                        className={clsx(
+                                            "shrink-0 transition-[width] duration-150",
+                                            isFirst && "rounded-l-[8px]",
+                                            isLast && "rounded-r-[8px]",
+                                        )}
+                                        style={{
+                                            width: `${Math.max(width, index === 0 ? 8 : 4)}%`,
+                                            backgroundColor: style.bar,
+                                            minWidth: width > 0 ? 2 : 0,
+                                        }}
+                                        title={`${role.name}: ${formatAckTime(role.ackMinutes)}`}
+                                    />
+                                );
+                            })}
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                            {topRoles.map((role, index) => {
+                                const style = SEGMENT_STYLES[index] ?? SEGMENT_STYLES[4];
+                                return (
+                                    <Fragment key={role.id}>
+                                        <div className="flex items-center justify-between gap-2 rounded-md px-0.5 transition-colors hover:bg-secondary/50">
+                                            <div className="flex min-w-0 items-center gap-1.5">
+                                                <div
+                                                    className="h-2.5 w-2.5 shrink-0 rounded-[2px]"
+                                                    style={{ backgroundColor: style.bar }}
+                                                />
+                                                <Text
+                                                    variant="body-sm"
+                                                    color="text-primary"
+                                                    className="truncate"
+                                                >
+                                                    {role.name}
+                                                </Text>
+                                            </div>
+                                            <div
+                                                className="shrink-0 rounded-[5px] px-[7px] py-0.5"
+                                                style={{ backgroundColor: style.bg }}
+                                            >
+                                                <span
+                                                    className="text-[12px] font-semibold tabular-nums"
+                                                    style={{ color: style.text }}
+                                                >
+                                                    {formatAckTime(role.ackMinutes)}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        {index < topRoles.length - 1 ? (
+                                            <div className="border-t border-tertiary" />
+                                        ) : null}
+                                    </Fragment>
+                                );
+                            })}
+                        </div>
+
+                    </>
+                )}
+            </div>
         </div>
     );
 };

@@ -6,6 +6,7 @@ import DashboardCard from "@/components/safety-reports/dashboard-card";
 import { RiExpandDiagonalLine } from "react-icons/ri";
 import { GrContract } from "react-icons/gr";
 import type { TransferMetricsData } from "@/lib/transfer-metrics";
+import { TRANSFER_FACILITY_TOP_N } from "./chart-theme";
 
 type TransferByFacilityChartProps = {
     data: TransferMetricsData | null;
@@ -21,7 +22,7 @@ const TransferByFacilityChart = ({ data, loading }: TransferByFacilityChartProps
     const rows = React.useMemo(() => {
         const list = [...(data?.transfer_by_counterparty_facility ?? [])];
         list.sort((a, b) => b.total_transfer_requests - a.total_transfer_requests);
-        return list.slice(0, 6);
+        return list.slice(0, TRANSFER_FACILITY_TOP_N);
     }, [data]);
 
     const total = rows.reduce((sum, r) => sum + r.total_transfer_requests, 0);

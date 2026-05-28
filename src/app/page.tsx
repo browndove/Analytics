@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, lazy, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import {
     KpiCard,
@@ -19,7 +19,7 @@ import clsx from "clsx";
 import DashboardSidebar, { type DashboardTab } from "@/components/sidebar/sidebar";
 import GenerateReportModal from "@/components/report/GenerateReportModal";
 import { appendUsageMetricsRange } from "@/lib/usage-metrics-range";
-import type { TransferMetricsData } from "@/lib/transfer-metrics";
+import { extractTransferMetricsFromUsage } from "@/lib/transfer-metrics";
 
 const PatientInsightPage = lazy(() => import("@/components/ugmc-dashboard/patient-insight/PatientInsightPage"));
 const BillingFinancePage = lazy(() => import("@/components/ugmc-dashboard/billing-finance/BillingFinancePage"));
@@ -105,9 +105,6 @@ function UsagePageContent() {
     const [loading, setLoading] = useState(true);
     const [roleMetricsModalOpen, setRoleMetricsModalOpen] = useState(false);
     const [reportModalOpen, setReportModalOpen] = useState(false);
-    const [transferData, setTransferData] = useState<TransferMetricsData | null>(null);
-    const [transferLoading, setTransferLoading] = useState(false);
-    const transferCacheRef = useRef<Map<string, TransferMetricsData>>(new Map());
 
     // Use a ref to read searchParams inside fetchAnalytics without adding it
     // as a dependency — prevents router.replace → searchParams change → refetch loop.
@@ -189,43 +186,8 @@ function UsagePageContent() {
 
     useEffect(() => { fetchAnalytics(); }, [fetchAnalytics]);
 
-    const fetchTransferMetrics = useCallback(async () => {
-        const params = new URLSearchParams();
-        let cacheKey = "default";
-
-        if (dateFrom && dateTo) {
-            appendUsageMetricsRange(params, dateFrom, dateTo);
-            cacheKey = `from=${dateFrom}|to=${dateTo}`;
-        }
-
-        const cached = transferCacheRef.current.get(cacheKey);
-        if (cached) {
-            setTransferData(cached);
-            setTransferLoading(false);
-        } else {
-            setTransferLoading(true);
-        }
-
-        try {
-            const qs = params.toString();
-            const url = `/api/proxy/transfer-metrics${qs ? `?${qs}` : ""}`;
-            const res = await fetch(url, { cache: "no-store" });
-            if (res.ok) {
-                const json = (await res.json()) as TransferMetricsData;
-                transferCacheRef.current.set(cacheKey, json);
-                setTransferData(json);
-            }
-        } catch (err) {
-            console.error("Failed to fetch transfer metrics:", err);
-        } finally {
-            setTransferLoading(false);
-        }
-    }, [dateFrom, dateTo]);
-
-    useEffect(() => {
-        if (!tabMounted.transfer) return;
-        fetchTransferMetrics();
-    }, [fetchTransferMetrics, tabMounted.transfer]);
+    /** Transfer KPIs/charts use the same usage-metrics payload as Usage Summary. */
+    const transferData = useMemo(() => extractTransferMetricsFromUsage(data), [data]);
 
     const activeUsers = data?.active_users_count ?? 0;
     const activityRate = data?.active_users_rate_percent ?? 0;
@@ -420,7 +382,7 @@ function UsagePageContent() {
                                 </div>
                             }
                         >
-                            <TransferInsightPage data={transferData} loading={transferLoading} />
+                            <TransferInsightPage data={transferData} loading={loading} />
                         </Suspense>
                     </div>
                 )}
