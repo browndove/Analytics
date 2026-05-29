@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import clsx from "clsx";
 import Text from "@/components/text";
 import { API_ENDPOINTS } from "@/lib/config";
-import { readClientFacilityIdFromCookie } from "@/lib/client-facility";
 import { IoDownloadOutline, IoLogOut } from "react-icons/io5";
 import { MdSpaceDashboard } from "react-icons/md";
 import { FaUser } from "react-icons/fa6";
@@ -44,14 +43,10 @@ export default function DashboardSidebar({ isDocked, onDockToggle, activeTab, on
     const [inSupportMode, setInSupportMode] = useState(false);
 
     useEffect(() => {
-        if (readClientFacilityIdFromCookie()) {
-            setInSupportMode(true);
-            return;
-        }
         fetch(API_ENDPOINTS.INTERNAL_ACT_AS, { credentials: "include" })
             .then((res) => (res.ok ? res.json() : null))
             .then((data: { support_mode?: boolean } | null) => {
-                if (data?.support_mode) setInSupportMode(true);
+                setInSupportMode(data?.support_mode === true);
             })
             .catch(() => undefined);
     }, []);
