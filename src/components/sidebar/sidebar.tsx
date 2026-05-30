@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import clsx from "clsx";
 import Text from "@/components/text";
 import { API_ENDPOINTS } from "@/lib/config";
+import { resolveClientFacilityName } from "@/lib/client-facility";
 import { IoDownloadOutline, IoLogOut } from "react-icons/io5";
 import { MdSpaceDashboard } from "react-icons/md";
 import { FaUser } from "react-icons/fa6";
@@ -39,8 +40,99 @@ const SidebarIcon = ({ className }: { className?: string }) => (
     </svg>
 );
 
+function SidebarBrandHeader({
+    facilityName,
+    onDockToggle,
+}: {
+    facilityName: string | null;
+    onDockToggle: () => void;
+}) {
+    return (
+        <div className="relative flex min-w-0 items-start gap-3 rounded-[11px] border border-[#e8eaef] bg-white py-3 pl-4 pr-3 shadow-[0_1px_3px_rgba(15,23,42,0.04)] transition-all duration-200 hover:border-accent-primary/20 hover:shadow-[0_2px_10px_rgba(41,128,211,0.08)]">
+            <span
+                aria-hidden
+                className="absolute bottom-3 left-0 top-3 w-[3px] rounded-r-full bg-accent-primary"
+            />
+            <img
+                src="/assets/images/helix-logo.png"
+                alt="Helix"
+                width={28}
+                height={28}
+                className="mt-0.5 h-7 w-7 shrink-0 object-contain"
+            />
+            <div className="min-w-0 flex-1">
+                {facilityName ? (
+                    <>
+                        <p
+                            className="m-0 truncate text-[13px] font-semibold leading-tight text-text-primary"
+                            title={facilityName}
+                        >
+                            {facilityName}
+                        </p>
+                        <p className="m-0 mt-1 truncate text-[11px] font-medium leading-tight tracking-wide text-text-tertiary">
+                            Helix Analytics
+                        </p>
+                    </>
+                ) : (
+                    <p className="m-0 truncate text-[13px] font-semibold leading-tight text-text-primary">
+                        Helix Analytics
+                    </p>
+                )}
+            </div>
+            <button
+                type="button"
+                onClick={onDockToggle}
+                className="mt-0.5 flex shrink-0 cursor-pointer items-center justify-center rounded-md p-1 text-[#A3B2BE] transition-colors duration-200 hover:bg-secondary/70 hover:text-text-secondary"
+                title="Collapse sidebar"
+                aria-label="Collapse sidebar"
+            >
+                <SidebarIcon />
+            </button>
+        </div>
+    );
+}
+
+function SidebarBrandHeaderDocked({
+    facilityName,
+    onDockToggle,
+}: {
+    facilityName: string | null;
+    onDockToggle: () => void;
+}) {
+    return (
+        <div className="flex flex-col items-center gap-2.5">
+            <div
+                className="relative flex h-9 w-9 items-center justify-center rounded-[10px] border border-[#e8eaef] bg-white shadow-[0_1px_3px_rgba(15,23,42,0.04)]"
+                title={facilityName ?? "Helix Analytics"}
+            >
+                <span
+                    aria-hidden
+                    className="absolute bottom-2 left-0 top-2 w-[2px] rounded-r-full bg-accent-primary"
+                />
+                <img
+                    src="/assets/images/helix-logo.png"
+                    alt="Helix"
+                    width={20}
+                    height={20}
+                    className="h-5 w-5 object-contain"
+                />
+            </div>
+            <button
+                type="button"
+                onClick={onDockToggle}
+                className="flex cursor-pointer items-center justify-center rounded-md p-1 text-[#A3B2BE] transition-colors duration-200 hover:bg-secondary/70 hover:text-text-secondary"
+                title={facilityName ? `${facilityName} — Expand sidebar` : "Expand sidebar"}
+                aria-label="Expand sidebar"
+            >
+                <SidebarIcon className="h-[17px] w-[17px]" />
+            </button>
+        </div>
+    );
+}
+
 export default function DashboardSidebar({ isDocked, onDockToggle, activeTab, onTabChange, onGenerateReport }: DashboardSidebarProps) {
     const [inSupportMode, setInSupportMode] = useState(false);
+    const [facilityName, setFacilityName] = useState<string | null>(null);
 
     useEffect(() => {
         fetch(API_ENDPOINTS.INTERNAL_ACT_AS, { credentials: "include" })
@@ -49,15 +141,21 @@ export default function DashboardSidebar({ isDocked, onDockToggle, activeTab, on
                 setInSupportMode(data?.support_mode === true);
             })
             .catch(() => undefined);
+
+        resolveClientFacilityName()
+            .then((name) => {
+                if (name) setFacilityName(name);
+            })
+            .catch(() => undefined);
     }, []);
 
     const headerBlockPadding = isDocked
-        ? { paddingLeft: 12, paddingRight: 12, paddingTop: 20, paddingBottom: 20 }
-        : { paddingLeft: 18, paddingRight: 18, paddingTop: 20, paddingBottom: 20 };
+        ? { paddingLeft: 10, paddingRight: 10, paddingTop: 16, paddingBottom: 10 }
+        : { paddingLeft: 14, paddingRight: 14, paddingTop: 16, paddingBottom: 10 };
 
     const navBlockPadding = isDocked
-        ? { paddingLeft: 8, paddingRight: 8 }
-        : { paddingLeft: 14, paddingRight: 14 };
+        ? { paddingLeft: 8, paddingRight: 8, paddingTop: 4 }
+        : { paddingLeft: 14, paddingRight: 14, paddingTop: 2 };
 
     const footerBlockPadding = { paddingLeft: 14, paddingRight: 14, paddingTop: 15, paddingBottom: 15 };
 
@@ -108,59 +206,15 @@ export default function DashboardSidebar({ isDocked, onDockToggle, activeTab, on
             )}
             style={{ boxSizing: "border-box" }}
         >
-            <div className="flex flex-col gap-[20px]">
+            <div className="flex flex-col gap-[6px]">
                 <div
-                    className={clsx(
-                        "flex w-full flex-col border-b border-secondary bg-primary-light",
-                        isDocked ? "gap-[15px]" : "gap-[15px]"
-                    )}
+                    className="flex w-full flex-col border-b border-secondary bg-primary-light"
                     style={{ boxSizing: "border-box", ...headerBlockPadding }}
                 >
                     {!isDocked ? (
-                        <div
-                            className="flex w-full min-w-0 items-center gap-2"
-                            style={{ paddingLeft: 2, paddingRight: 2, boxSizing: "border-box" }}
-                        >
-                            <img
-                                src="/assets/images/helix-logo.png"
-                                alt="Helix"
-                                width={32}
-                                height={32}
-                                style={{
-                                    height: 24,
-                                    width: "auto",
-                                    flexShrink: 0,
-                                    display: "block",
-                                    objectFit: "contain",
-                                }}
-                            />
-                            <span
-                                className="min-w-0 flex-1 truncate leading-tight tracking-tight text-text-primary"
-                                style={{ fontSize: "14px", fontWeight: 700, lineHeight: 1.2 }}
-                            >
-                                Helix Analytics
-                            </span>
-                            <button
-                                type="button"
-                                onClick={onDockToggle}
-                                className="flex shrink-0 cursor-pointer items-center justify-end text-[#A3B2BE] transition-opacity hover:opacity-70"
-                                title="Collapse sidebar"
-                                aria-label="Collapse sidebar"
-                            >
-                                <SidebarIcon />
-                            </button>
-                        </div>
+                        <SidebarBrandHeader facilityName={facilityName} onDockToggle={onDockToggle} />
                     ) : (
-                        <button
-                            type="button"
-                            onClick={onDockToggle}
-                            className="flex cursor-pointer items-center justify-center text-[#A3B2BE] transition-opacity hover:opacity-70"
-                            style={{ paddingLeft: 2, paddingRight: 2 }}
-                            title="Expand sidebar"
-                            aria-label="Expand sidebar"
-                        >
-                            <SidebarIcon className="h-[23px] w-[24px]" />
-                        </button>
+                        <SidebarBrandHeaderDocked facilityName={facilityName} onDockToggle={onDockToggle} />
                     )}
                 </div>
 

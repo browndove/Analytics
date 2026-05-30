@@ -26,21 +26,6 @@ interface DropdownProps {
     portalZIndex?: number;
 }
 
-const CheckIcon = ({ className }: { className?: string }) => (
-    <svg
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 20 20"
-        fill="currentColor"
-        className={className}
-    >
-        <path
-            fillRule="evenodd"
-            d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
-            clipRule="evenodd"
-        />
-    </svg>
-);
-
 const Dropdown = ({
     options,
     value,
@@ -70,8 +55,8 @@ const Dropdown = ({
         const rect = triggerRef.current.getBoundingClientRect();
         setMenuPosition({
             top: rect.bottom + 8,
-            left: rect.right - Math.max(rect.width, 160),
-            width: Math.max(rect.width, 160),
+            left: rect.right - Math.max(rect.width, 220),
+            width: Math.max(rect.width, 220),
         });
     };
 
@@ -104,17 +89,17 @@ const Dropdown = ({
         <div
             ref={menuRef}
             className={clsx(
-                "bg-primary border border-tertiary rounded-[10px] shadow-soft overflow-hidden z-50",
-                renderMenuInPortal ? "fixed" : "absolute right-0 mt-2 min-w-[160px]",
+                'overflow-hidden rounded-[12px] border border-[#e8eaef] bg-white shadow-[0_8px_24px_rgba(15,23,42,0.08)] z-50',
+                renderMenuInPortal ? 'fixed' : 'absolute right-0 mt-2 min-w-[220px]',
                 menuClassName
             )}
             style={
                 renderMenuInPortal
-                    ? { top: menuPosition.top, left: menuPosition.left, width: menuPosition.width, zIndex: portalZIndex, padding: '6px 0' }
-                    : { padding: '6px 0' }
+                    ? { top: menuPosition.top, left: menuPosition.left, width: menuPosition.width, zIndex: portalZIndex, padding: '6px' }
+                    : { padding: '6px' }
             }
         >
-            <div className="flex flex-col">
+            <div className="flex flex-col gap-0.5">
                 {options.map((option) => {
                     const isActive = value === option.value;
                     return (
@@ -126,25 +111,40 @@ const Dropdown = ({
                                 setOpen(false);
                             }}
                             className={clsx(
-                                'w-full text-left flex items-center justify-between gap-3 transition-colors duration-150',
-                                isActive ? 'bg-accent-primary/10' : 'hover:bg-secondary'
+                                'relative flex w-full items-center gap-2.5 rounded-[8px] px-3 py-2.5 text-left transition-all duration-150',
+                                isActive
+                                    ? 'bg-accent-primary/8 hover:bg-accent-primary/10'
+                                    : 'hover:bg-secondary/80 active:bg-secondary',
                             )}
-                            style={{ padding: '10px 16px' }}
                         >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                                {option.icon && (
+                            {isActive ? (
+                                <span
+                                    aria-hidden
+                                    className="absolute bottom-2 left-0 top-2 w-[3px] rounded-r-full bg-accent-primary"
+                                />
+                            ) : null}
+                            <div className="flex min-w-0 flex-1 items-center gap-2.5 pl-0.5">
+                                {option.icon ? (
                                     <span className={isActive ? 'text-accent-primary' : 'text-text-secondary'}>
                                         {option.icon}
                                     </span>
-                                )}
+                                ) : null}
                                 <Text
                                     variant={isActive ? 'body-sm-semibold' : 'body-sm'}
-                                    className={isActive ? 'text-accent-primary truncate' : 'text-text-primary truncate'}
+                                    className={clsx(
+                                        'truncate',
+                                        isActive ? 'text-accent-primary' : 'text-text-primary',
+                                    )}
                                 >
                                     {option.label}
                                 </Text>
                             </div>
-                            {isActive && <CheckIcon className="w-4 h-4 text-accent-primary shrink-0" />}
+                            {isActive ? (
+                                <span
+                                    aria-hidden
+                                    className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent-primary"
+                                />
+                            ) : null}
                         </button>
                     );
                 })}
@@ -165,19 +165,37 @@ const Dropdown = ({
                     });
                 }}
                 className={clsx(
-                    'flex items-center gap-2 px-4 py-2.5 h-[40px] rounded-full',
-                    'bg-primary shadow-soft cursor-pointer',
-                    'transition-all duration-200 hover:bg-primary-light',
-                    triggerClassName
+                    'relative flex min-h-[42px] cursor-pointer items-center gap-2.5 rounded-[11px] border px-3.5 py-2.5',
+                    'border-[#e8eaef] bg-white shadow-[0_1px_3px_rgba(15,23,42,0.04)]',
+                    'transition-all duration-200',
+                    'hover:border-accent-primary/25 hover:shadow-[0_2px_10px_rgba(41,128,211,0.08)]',
+                    open && 'border-accent-primary/30 shadow-[0_2px_10px_rgba(41,128,211,0.12)]',
+                    triggerClassName,
                 )}
             >
-                {icon && <span className="text-text-secondary">{icon}</span>}
-                <Text variant="body-sm" color="text-secondary" className="truncate max-w-[140px]">
-                    {selectedOption?.label || placeholder}
-                </Text>
-                {showChevron && (
-                    <IoChevronDown className="w-3 h-3 text-text-secondary" />
-                )}
+                {selectedOption ? (
+                    <span
+                        aria-hidden
+                        className="absolute bottom-2.5 left-0 top-2.5 w-[3px] rounded-r-full bg-accent-primary"
+                    />
+                ) : null}
+                {icon ? <span className="text-text-secondary">{icon}</span> : null}
+                <div className="min-w-0 flex-1 pl-1 text-left">
+                    <Text
+                        variant="body-sm-semibold"
+                        className="truncate text-text-primary"
+                    >
+                        {selectedOption?.label || placeholder}
+                    </Text>
+                </div>
+                {showChevron ? (
+                    <IoChevronDown
+                        className={clsx(
+                            'h-3.5 w-3.5 shrink-0 text-text-tertiary transition-transform duration-200',
+                            open && 'rotate-180 text-accent-primary',
+                        )}
+                    />
+                ) : null}
             </button>
 
             {open && (
