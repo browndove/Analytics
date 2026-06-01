@@ -58,11 +58,12 @@ const KPICard: React.FC<KPICardProps> = ({ title, value, subtitle, trend, indica
     const trendTextColor = trend?.isPositive ? "text-accent-green" : "text-accent-red";
 
     const parsedValue = React.useMemo(() => parseValue(value), [value]);
+    const isLiteralValue = React.useMemo(() => !/\d/.test(value), [value]);
 
     React.useEffect(() => { setIsVisible(true); }, []);
 
     React.useEffect(() => {
-        if (!isVisible) return;
+        if (!isVisible || isLiteralValue) return;
         const duration = 1200;
         const startTime = Date.now();
         const animate = () => {
@@ -74,48 +75,69 @@ const KPICard: React.FC<KPICardProps> = ({ title, value, subtitle, trend, indica
             else setAnimatedNumber(parsedValue.number);
         };
         requestAnimationFrame(animate);
-    }, [isVisible, parsedValue.number]);
+    }, [isVisible, parsedValue.number, isLiteralValue]);
 
     return (
         <DashboardCard
-            className="flex flex-col min-h-[149px] relative"
+            className="relative flex h-full min-h-[149px] flex-col"
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
             {infoText && isHovered && (
-                <div className="absolute top-2 right-2">
+                <div className="absolute top-2 right-2 z-10">
                     <InfoTooltip text={infoText} />
                 </div>
             )}
-            <div className="flex items-start justify-between min-h-0 flex-shrink" style={{ paddingRight: 24, gap: 8 }}>
-                <div className="min-w-0 flex-1" style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                    <Text variant="body-md-semibold" color="text-primary" className="break-words leading-tight">
+            <div className="flex min-h-0 flex-1 flex-col pr-6">
+                <div className="flex items-start justify-between gap-2">
+                    <Text
+                        variant="body-md-semibold"
+                        color="text-primary"
+                        className="min-w-0 flex-1 leading-tight"
+                    >
                         {title}
                     </Text>
-                    <span className={clsx(
-                        "text-[28px] font-bold tracking-tight text-text-primary break-words leading-tight tabular-nums",
+                    <div className="flex shrink-0 items-center gap-1.5">
+                        {trend && (
+                            <div
+                                className={clsx(
+                                    "flex max-w-[140px] items-center rounded-full",
+                                    trendBgColor,
+                                    trendTextColor
+                                )}
+                                style={{ gap: 5, padding: "4px 10px" }}
+                            >
+                                {trend.isPositive ? <IncreaseIcon /> : <DecreaseIcon />}
+                                <span className="truncate text-[12px] font-semibold">{trend.value}</span>
+                            </div>
+                        )}
+                        {indicator === "active" && (
+                            <div className="h-[10px] w-[10px] shrink-0 rounded-[2px] bg-[#00C8B3] animate-breathe" />
+                        )}
+                    </div>
+                </div>
+                <span
+                    className={clsx(
+                        "mt-2 text-[28px] font-bold leading-tight tracking-tight text-text-primary tabular-nums",
                         "transition-transform duration-300",
-                        isHovered && "scale-[1.02] origin-left"
-                    )}>
-                        {parsedValue.prefix}{formatNumber(animatedNumber, parsedValue.decimals)}{parsedValue.suffix}
-                    </span>
-                </div>
-                <div className="shrink-0" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    {trend && (
-                        <div className={`flex items-center rounded-full whitespace-nowrap ${trendBgColor} ${trendTextColor}`} style={{ gap: 5, padding: '4px 10px' }}>
-                            {trend.isPositive ? <IncreaseIcon /> : <DecreaseIcon />}
-                            <span className="text-[12px] font-semibold">{trend.value}</span>
-                        </div>
+                        isHovered && !isLiteralValue && "origin-left scale-[1.02]"
                     )}
-                    {indicator === "active" && (
-                        <div className="w-[10px] h-[10px] rounded-[2px] bg-[#00C8B3] animate-breathe" />
-                    )}
-                </div>
+                >
+                    {isLiteralValue
+                        ? value
+                        : `${parsedValue.prefix}${formatNumber(animatedNumber, parsedValue.decimals)}${parsedValue.suffix}`}
+                </span>
             </div>
-            <div className="border-t-2 border-dashed border-tertiary w-full flex-shrink-0" style={{ marginTop: 28 }} />
-            <Text variant="body-md" color="text-secondary" className="break-words overflow-wrap-anywhere leading-tight flex-shrink" style={{ marginTop: 12 }}>
-                {subtitle}
-            </Text>
+            <div className="mt-auto shrink-0 pt-6">
+                <div className="w-full shrink-0 border-t-2 border-dashed border-tertiary" />
+                <Text
+                    variant="body-md"
+                    color="text-secondary"
+                    className="mt-3 min-h-10 leading-snug"
+                >
+                    {subtitle}
+                </Text>
+            </div>
         </DashboardCard>
     );
 };

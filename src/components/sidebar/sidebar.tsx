@@ -7,11 +7,12 @@ import { API_ENDPOINTS } from "@/lib/config";
 import { resolveClientFacilityName } from "@/lib/client-facility";
 import { IoDownloadOutline, IoLogOut } from "react-icons/io5";
 import { MdSpaceDashboard } from "react-icons/md";
-import { FaUser } from "react-icons/fa6";
+import { FaUser, FaStethoscope, FaRightLeft } from "react-icons/fa6";
 import { BsCreditCardFill } from "react-icons/bs";
-import { PiArrowsLeftRight } from "react-icons/pi";
 
-export type DashboardTab = "executive" | "patient" | "billing" | "transfer";
+const NAV_ICON_SIZE = 18;
+
+export type DashboardTab = "executive" | "patient" | "billing" | "transfer" | "insights";
 
 type DashboardSidebarProps = {
     isDocked: boolean;
@@ -31,7 +32,8 @@ const menuItems: MenuItem[] = [
     { id: "executive", name: "Usage Summary", icon: MdSpaceDashboard },
     { id: "patient", name: "Response Performance", icon: FaUser },
     { id: "billing", name: "Staffing & Coverage", icon: BsCreditCardFill },
-    { id: "transfer", name: "Transfer Insight", icon: PiArrowsLeftRight },
+    { id: "transfer", name: "Transfer Insight", icon: FaRightLeft },
+    { id: "insights", name: "Call Insight", icon: FaStethoscope },
 ];
 
 const SidebarIcon = ({ className }: { className?: string }) => (
@@ -246,10 +248,14 @@ export default function DashboardSidebar({ isDocked, onDockToggle, activeTab, on
                                     title={isDocked ? item.name : undefined}
                                 >
                                     <div className={clsx("flex items-center", isDocked ? "" : "gap-[5px]")}>
-                                        <Icon
-                                            size={item.id === "billing" ? 18 : item.id === "patient" ? 17 : item.id === "transfer" ? 18 : 15}
-                                            className={clsx("shrink-0", isActive ? "text-accent-primary" : "text-text-secondary")}
-                                        />
+                                        <span
+                                            className={clsx(
+                                                "inline-flex shrink-0 items-center justify-center",
+                                                isActive ? "text-accent-primary" : "text-text-secondary"
+                                            )}
+                                        >
+                                            <Icon size={NAV_ICON_SIZE} aria-hidden />
+                                        </span>
                                         {!isDocked && (
                                             <Text
                                                 variant="body-sm-semibold"

@@ -58,11 +58,11 @@ const BillingFinancePage = ({ data, onEditRole }: { data?: any; onEditRole?: (ro
     return (
         <div className="flex w-full min-w-0 flex-col gap-4">
             {/* KPI Cards */}
-            <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid min-w-0 grid-cols-1 items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 {kpiData.map((kpi, index) => (
                     <div
                         key={index}
-                        className="animate-slide-in-up"
+                        className="flex h-full min-h-[149px] animate-slide-in-up"
                         style={{ animationDelay: `${index * 100}ms`, opacity: 0, animationFillMode: 'forwards' }}
                     >
                         <KPICard {...kpi} />

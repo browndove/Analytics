@@ -24,12 +24,14 @@ import { extractTransferMetricsFromUsage } from "@/lib/transfer-metrics";
 const PatientInsightPage = lazy(() => import("@/components/ugmc-dashboard/patient-insight/PatientInsightPage"));
 const BillingFinancePage = lazy(() => import("@/components/ugmc-dashboard/billing-finance/BillingFinancePage"));
 const TransferInsightPage = lazy(() => import("@/components/transfer-insight/TransferInsightPage"));
+const ClinicalOperationsPage = lazy(() => import("@/components/ugmc-dashboard/clinical-operations/ClinicalOperationsPage"));
 
 const TAB_LABELS: Record<DashboardTab, string> = {
     executive: "Usage Summary",
     patient: "Response Performance",
     billing: "Staffing & Coverage",
     transfer: "Transfer Insight",
+    insights: "Call Insight",
 };
 
 export interface AnalyticsData {
@@ -97,6 +99,7 @@ function UsagePageContent() {
         patient: false,
         billing: false,
         transfer: false,
+        insights: false,
     });
     const [isSidebarDocked, setIsSidebarDocked] = useState(false);
     const [revenueFullscreen, setRevenueFullscreen] = useState(false);
@@ -383,6 +386,22 @@ function UsagePageContent() {
                             }
                         >
                             <TransferInsightPage data={transferData} loading={loading} />
+                        </Suspense>
+                    </div>
+                )}
+                {tabMounted.insights && (
+                    <div
+                        className={clsx(activeTab !== "insights" && "hidden")}
+                        aria-hidden={activeTab !== "insights"}
+                    >
+                        <Suspense
+                            fallback={
+                                <div className="flex items-center justify-center py-20">
+                                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent-primary border-t-transparent" />
+                                </div>
+                            }
+                        >
+                            <ClinicalOperationsPage data={data} />
                         </Suspense>
                     </div>
                 )}

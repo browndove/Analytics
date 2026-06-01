@@ -1,18 +1,25 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import DashboardCard from "@/components/ugmc-dashboard/shared/dashboard-card";
 import Text from "@/components/text";
 import dynamic from "next/dynamic";
-import { FaExpandAlt, FaCompressAlt } from "react-icons/fa";
 import { FaTriangleExclamation } from "react-icons/fa6";
-import { IoChevronDown } from "react-icons/io5";
+import { RiExpandDiagonalLine } from "react-icons/ri";
+import { GrContract } from "react-icons/gr";
 import { useTheme } from "next-themes";
 import FullscreenOverlay from "@/components/fullscreen-overlay";
+import clsx from "clsx";
 
 const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
-type TabType = 'all' | 'critical' | 'standard';
+type MessageVolumeTab = 'all' | 'critical' | 'standard';
+
+const MESSAGE_TABS: { id: MessageVolumeTab; label: string }[] = [
+	{ id: 'all', label: 'All' },
+	{ id: 'critical', label: 'Critical' },
+	{ id: 'standard', label: 'Standard' },
+];
 
 const AlertIcon = () => (
 	<div className="w-[32px] h-[32px] flex items-center justify-center rounded-full bg-accent-red/10">
@@ -109,26 +116,143 @@ const PatientSatisfactionScore = ({ data }: { data: any }) => {
 
 const PatientCensusChart = ({ isFullscreen = false, onToggleFullscreen, data }: { isFullscreen?: boolean; onToggleFullscreen?: () => void; data?: any }) => {
 	const { resolvedTheme } = useTheme();
+	const [activeTab, setActiveTab] = useState<MessageVolumeTab>('all');
 
-	const chartData = {
-		all: data?.daily_message_volume?.map((d: any) => d.total_messages) || [],
-	};
-    const categories = data?.daily_message_volume?.map((d: any) => new Date(d.day + 'T00:00:00').toLocaleDateString('en-US', { day: 'numeric', month: 'short' })) || [];
+	const dailyVolume = useMemo(
+		() => (Array.isArray(data?.daily_message_volume) ? data.daily_message_volume : []),
+		[data?.daily_message_volume]
+	);
 
-	const chartOptions: ApexCharts.ApexOptions = {
-		chart: { type: 'area', height: isFullscreen ? 500 : 340, toolbar: { show: false }, zoom: { enabled: false }, animations: { enabled: true, speed: 800 } },
-		colors: ['#3b82f6'],
-		fill: { type: 'gradient', gradient: { shadeIntensity: 1, type: 'vertical', colorStops: [[{ offset: 0, color: '#3b82f6', opacity: 0.15 }, { offset: 100, color: '#3b82f6', opacity: 0.01 }]] } },
-		stroke: { curve: 'smooth', width: 2 },
-		markers: { size: 0, colors: ['#ffffff'], strokeColors: '#3b82f6', strokeWidth: 2, hover: { size: 4 } },
-		dataLabels: { enabled: false },
-		grid: { borderColor: '#e5e7eb', strokeDashArray: 0, xaxis: { lines: { show: false } }, yaxis: { lines: { show: true } }, padding: { left: 10, right: 10 } },
-		xaxis: { categories, tickAmount: 8, axisBorder: { show: false }, axisTicks: { show: false }, labels: { rotate: 0, rotateAlways: false, style: { fontFamily: 'Montserrat', fontWeight: 500, fontSize: '12px', colors: '#9ca3af' }, offsetX: 0 } },
-		yaxis: { min: 0, tickAmount: 4, labels: { style: { fontFamily: 'Montserrat', fontWeight: 500, fontSize: '12px', colors: '#9ca3af' }, formatter: (val) => val.toFixed(0) } },
-		tooltip: { enabled: true, theme: resolvedTheme === "dark" || resolvedTheme === "blue" ? "dark" : "light", style: { fontSize: '12px', fontFamily: "Montserrat" } },
-	};
+	const categories = useMemo(
+		() =>
+			dailyVolume.map((d: { day: string }) =>
+				new Date(`${d.day}T00:00:00`).toLocaleDateString('en-US', {
+					month: 'short',
+					day: 'numeric',
+				})
+			),
+		[dailyVolume]
+	);
 
-	const chartSeries = [{ name: 'Messages', data: chartData.all }];
+	const seriesData = useMemo(() => {
+		if (activeTab === 'critical') {
+			return dailyVolume.map((d: { critical_messages: number }) => Number(d.critical_messages) || 0);
+		}
+		if (activeTab === 'standard') {
+			return dailyVolume.map((d: { standard_messages: number }) => Number(d.standard_messages) || 0);
+		}
+		return dailyVolume.map((d: { total_messages: number }) => Number(d.total_messages) || 0);
+	}, [dailyVolume, activeTab]);
+
+	const chartYMax = useMemo(() => {
+		const maxVal = Math.max(...seriesData, 0);
+		if (maxVal <= 0) return 600;
+		return Math.ceil(maxVal * 1.12 / 50) * 50;
+	}, [seriesData]);
+
+	const showMarkers = seriesData.length > 0 && seriesData.length <= 31;
+
+	const chartOptions: ApexCharts.ApexOptions = useMemo(
+		() => ({
+			chart: {
+				type: 'area',
+				toolbar: { show: false },
+				zoom: { enabled: false },
+				animations: {
+					enabled: true,
+					speed: 1200,
+					animateGradually: { enabled: true, delay: 150 },
+				},
+			},
+			colors: ['var(--accent-primary)'],
+			fill: {
+				type: 'gradient',
+				gradient: {
+					shade: 'light',
+					type: 'vertical',
+					shadeIntensity: 0.35,
+					gradientToColors: ['var(--accent-primary)'],
+					inverseColors: false,
+					opacityFrom: 0.45,
+					opacityTo: 0.05,
+					stops: [0, 100],
+				},
+			},
+			stroke: {
+				curve: 'smooth',
+				width: 3,
+				colors: ['var(--accent-primary)'],
+			},
+			markers: {
+				size: showMarkers ? 5 : 0,
+				colors: ['var(--bg-primary)'],
+				strokeColors: 'var(--accent-primary)',
+				strokeWidth: 2,
+				hover: { size: 7 },
+			},
+			dataLabels: { enabled: false },
+			grid: {
+				show: true,
+				borderColor: 'var(--bg-tertiary)',
+				strokeDashArray: 4,
+				xaxis: { lines: { show: true } },
+				yaxis: { lines: { show: true } },
+				padding: { left: 8, right: 12, top: 4, bottom: 0 },
+			},
+			xaxis: {
+				categories,
+				tickAmount: Math.min(6, Math.max(categories.length - 1, 1)),
+				axisBorder: { show: false },
+				axisTicks: { show: false },
+				labels: {
+					rotate: 0,
+					rotateAlways: false,
+					hideOverlappingLabels: true,
+					style: {
+						fontFamily: 'Montserrat, sans-serif',
+						fontWeight: 500,
+						fontSize: '11px',
+						colors: 'var(--text-secondary)',
+					},
+				},
+			},
+			yaxis: {
+				min: 0,
+				max: chartYMax,
+				tickAmount: 4,
+				labels: {
+					style: {
+						fontFamily: 'Montserrat, sans-serif',
+						fontWeight: 500,
+						fontSize: '11px',
+						colors: 'var(--text-secondary)',
+					},
+					formatter: (val) => Math.round(val).toLocaleString(),
+				},
+			},
+			tooltip: {
+				enabled: true,
+				theme: resolvedTheme === 'dark' || resolvedTheme === 'blue' ? 'dark' : 'light',
+				style: { fontSize: '12px', fontFamily: 'Montserrat, sans-serif' },
+				x: {
+					formatter: (_val, opts) => {
+						const row = dailyVolume[opts?.dataPointIndex ?? 0];
+						if (!row?.day) return _val;
+						return new Date(`${row.day}T00:00:00`).toLocaleDateString('en-US', {
+							month: 'short',
+							day: 'numeric',
+							year: 'numeric',
+						});
+					},
+				},
+				y: { formatter: (val) => `${Math.round(val).toLocaleString()} messages` },
+			},
+		}),
+		[categories, chartYMax, dailyVolume, resolvedTheme, showMarkers]
+	);
+
+	const chartSeries = [{ name: 'Messages', data: seriesData }];
+	const chartHeight = isFullscreen ? 500 : 340;
 
 	useEffect(() => {
 		if (isFullscreen) document.body.style.overflow = 'hidden';
@@ -138,25 +262,58 @@ const PatientCensusChart = ({ isFullscreen = false, onToggleFullscreen, data }: 
 
 	const chartContent = (
 		<>
-			<div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
-				<div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+			<div className="flex flex-row items-start justify-between gap-3 mb-4">
+				<div className="flex flex-col gap-1 min-w-0">
 					<Text variant="body-md-semibold" color="text-primary">Message Volume</Text>
-					<Text variant="body-sm" color="text-secondary">All Departments · Daily Breakdown</Text>
+					<Text variant="body-sm" color="text-secondary">
+						All Departments ·{' '}
+						{data?.window_days ? `Last ${data.window_days} Days` : 'Daily Breakdown'}
+					</Text>
 				</div>
-				<div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-					<button className="rounded-[8px] bg-tertiary flex items-center border-none cursor-pointer" style={{ padding: '8px 12px', gap: 8 }}>
-						<span className="font-medium text-[12px] leading-[100%] text-text-secondary">30 Days</span>
-						<IoChevronDown size={14} className="text-text-secondary" />
-					</button>
+				<div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+					<div className="flex items-center gap-1 rounded-[10px] bg-tertiary p-1">
+						{MESSAGE_TABS.map((tab) => (
+							<button
+								key={tab.id}
+								type="button"
+								onClick={() => setActiveTab(tab.id)}
+								className={clsx(
+									'rounded-[8px] border-none cursor-pointer px-3 py-1.5 text-[12px] font-semibold leading-none transition-colors',
+									activeTab === tab.id
+										? 'bg-accent-primary text-white shadow-sm'
+										: 'bg-transparent text-text-secondary hover:text-text-primary'
+								)}
+							>
+								{tab.label}
+							</button>
+						))}
+					</div>
 					{onToggleFullscreen && (
-						<button onClick={onToggleFullscreen} className="bg-tertiary rounded-[8px] cursor-pointer hover:bg-tertiary/80 transition-colors" style={{ padding: 8, marginLeft: 8 }}>
-							{isFullscreen ? <FaCompressAlt size={14} className="text-text-secondary" /> : <FaExpandAlt size={14} className="text-text-secondary" />}
+						<button
+							type="button"
+							onClick={onToggleFullscreen}
+							className="flex size-[30px] items-center justify-center rounded-[10px] bg-secondary cursor-pointer hover:bg-tertiary transition-colors"
+							aria-label={isFullscreen ? 'Exit fullscreen' : 'Expand chart'}
+						>
+							{isFullscreen ? (
+								<GrContract className="size-4 text-text-primary" />
+							) : (
+								<RiExpandDiagonalLine className="size-4 text-text-primary" />
+							)}
 						</button>
 					)}
 				</div>
 			</div>
 			<div className="flex-1 w-full min-h-0">
-				<Chart options={chartOptions} series={chartSeries} type="area" height={isFullscreen ? 500 : 340} width="100%" />
+				{dailyVolume.length > 0 ? (
+					<Chart options={chartOptions} series={chartSeries} type="area" height={chartHeight} width="100%" />
+				) : (
+					<div className="flex h-full min-h-[280px] items-center justify-center rounded-[12px] bg-tertiary/40">
+						<Text variant="body-sm" color="text-secondary">
+							No message volume data for this period.
+						</Text>
+					</div>
+				)}
 			</div>
 		</>
 	);
