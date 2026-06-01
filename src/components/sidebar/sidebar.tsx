@@ -7,7 +7,7 @@ import { API_ENDPOINTS } from "@/lib/config";
 import { resolveClientFacilityName } from "@/lib/client-facility";
 import { IoDownloadOutline, IoLogOut } from "react-icons/io5";
 import { MdSpaceDashboard } from "react-icons/md";
-import { FaUser, FaStethoscope, FaRightLeft } from "react-icons/fa6";
+import { FaUser, FaPhone, FaRightLeft } from "react-icons/fa6";
 import { BsCreditCardFill } from "react-icons/bs";
 
 const NAV_ICON_SIZE = 18;
@@ -33,7 +33,7 @@ const menuItems: MenuItem[] = [
     { id: "patient", name: "Response Performance", icon: FaUser },
     { id: "billing", name: "Staffing & Coverage", icon: BsCreditCardFill },
     { id: "transfer", name: "Transfer Insight", icon: FaRightLeft },
-    { id: "insights", name: "Call Insight", icon: FaStethoscope },
+    { id: "insights", name: "Call Insight", icon: FaPhone },
 ];
 
 const SidebarIcon = ({ className }: { className?: string }) => (
