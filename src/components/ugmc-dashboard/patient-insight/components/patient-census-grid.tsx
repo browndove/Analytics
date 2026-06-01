@@ -237,7 +237,7 @@ const PatientCensusChart = ({ isFullscreen = false, onToggleFullscreen, data }: 
 				x: {
 					formatter: (_val, opts) => {
 						const row = dailyVolume[opts?.dataPointIndex ?? 0];
-						if (!row?.day) return _val;
+						if (!row?.day) return String(_val ?? '');
 						return new Date(`${row.day}T00:00:00`).toLocaleDateString('en-US', {
 							month: 'short',
 							day: 'numeric',
