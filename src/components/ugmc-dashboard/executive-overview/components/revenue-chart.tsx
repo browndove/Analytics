@@ -10,6 +10,7 @@ import { GrContract } from "react-icons/gr";
 import { useTheme } from "next-themes";
 import clsx from "clsx";
 import FullscreenOverlay from "@/components/fullscreen-overlay";
+import { buildNiceYAxisScale } from "@/lib/nice-chart-axis";
 
 const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
@@ -69,14 +70,7 @@ const RevenueChart = ({ isFullscreen = false, onToggleFullscreen, isHovered = fa
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [volKey, periodDays]);
 
-    // Give the peak ~25% headroom so the line/marker never touches the card's top edge,
-    // then round up to a "nice" step for clean y-axis ticks.
-    const yAxisMax = useMemo(() => {
-        const padded = Math.max(seriesMax * 1.25, 4);
-        const magnitude = Math.pow(10, Math.max(0, Math.floor(Math.log10(padded)) - 1));
-        const step = magnitude;
-        return Math.ceil(padded / step) * step;
-    }, [seriesMax]);
+    const yAxisScale = useMemo(() => buildNiceYAxisScale(seriesMax, 5), [seriesMax]);
 
     // Limit visible x-axis labels
     const tickAmount = periodDays <= 7 ? undefined : periodDays <= 14 ? 7 : 6;
@@ -141,7 +135,10 @@ const RevenueChart = ({ isFullscreen = false, onToggleFullscreen, isHovered = fa
         },
         yaxis: {
             min: 0,
-            max: yAxisMax,
+            max: yAxisScale.max,
+            tickAmount: yAxisScale.tickAmount,
+            forceNiceScale: false,
+            decimalsInFloat: 0,
             labels: {
                 style: {
                     colors: "var(--text-secondary)",
@@ -149,7 +146,16 @@ const RevenueChart = ({ isFullscreen = false, onToggleFullscreen, isHovered = fa
                     fontWeight: 500,
                     fontFamily: "Montserrat",
                 },
-                formatter: (val) => val >= 1000 ? `${val / 1000}k` : `${val}`,
+                formatter: (val) => {
+                    const step = yAxisScale.step;
+                    const snapped = Math.round(val / step) * step;
+                    if (snapped > yAxisScale.max || Math.abs(val - snapped) > step * 0.01) {
+                        return "";
+                    }
+                    return snapped >= 1000
+                        ? `${(snapped / 1000).toFixed(snapped % 1000 === 0 ? 0 : 1)}k`
+                        : String(snapped);
+                },
             },
         },
         grid: {

@@ -10,6 +10,7 @@ import { GrContract } from "react-icons/gr";
 import { useTheme } from "next-themes";
 import FullscreenOverlay from "@/components/fullscreen-overlay";
 import clsx from "clsx";
+import { buildNiceYAxisScale } from "@/lib/nice-chart-axis";
 
 const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
@@ -144,10 +145,9 @@ const PatientCensusChart = ({ isFullscreen = false, onToggleFullscreen, data }: 
 		return dailyVolume.map((d: { total_messages: number }) => Number(d.total_messages) || 0);
 	}, [dailyVolume, activeTab]);
 
-	const chartYMax = useMemo(() => {
+	const yAxisScale = useMemo(() => {
 		const maxVal = Math.max(...seriesData, 0);
-		if (maxVal <= 0) return 600;
-		return Math.ceil(maxVal * 1.12 / 50) * 50;
+		return buildNiceYAxisScale(maxVal, 5);
 	}, [seriesData]);
 
 	const showMarkers = seriesData.length > 0 && seriesData.length <= 31;
@@ -218,8 +218,10 @@ const PatientCensusChart = ({ isFullscreen = false, onToggleFullscreen, data }: 
 			},
 			yaxis: {
 				min: 0,
-				max: chartYMax,
-				tickAmount: 4,
+				max: yAxisScale.max,
+				tickAmount: yAxisScale.tickAmount,
+				forceNiceScale: false,
+				decimalsInFloat: 0,
 				labels: {
 					style: {
 						fontFamily: 'Montserrat, sans-serif',
@@ -227,7 +229,14 @@ const PatientCensusChart = ({ isFullscreen = false, onToggleFullscreen, data }: 
 						fontSize: '11px',
 						colors: 'var(--text-secondary)',
 					},
-					formatter: (val) => Math.round(val).toLocaleString(),
+					formatter: (val) => {
+						const step = yAxisScale.step;
+						const snapped = Math.round(val / step) * step;
+						if (snapped > yAxisScale.max || Math.abs(val - snapped) > step * 0.01) {
+							return '';
+						}
+						return snapped.toLocaleString();
+					},
 				},
 			},
 			tooltip: {
@@ -248,7 +257,7 @@ const PatientCensusChart = ({ isFullscreen = false, onToggleFullscreen, data }: 
 				y: { formatter: (val) => `${Math.round(val).toLocaleString()} messages` },
 			},
 		}),
-		[categories, chartYMax, dailyVolume, resolvedTheme, showMarkers]
+		[categories, yAxisScale, dailyVolume, resolvedTheme, showMarkers]
 	);
 
 	const chartSeries = [{ name: 'Messages', data: seriesData }];

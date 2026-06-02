@@ -238,7 +238,7 @@ export default function InternalFacilityDashboard() {
     const scopeLabel = useMemo(() => {
         if (!data) return "";
         if (data.scope === "global") {
-            return `All facilities (${data.facilities_in_scope ?? 0}) · last ${data.window_days ?? 30} days`;
+            return `All facilities (${data.facilities_in_scope ?? 0})`;
         }
         const f = facilities.find((x) => x.id === data.filter_facility_id);
         return f?.name ?? "Filtered facility";
