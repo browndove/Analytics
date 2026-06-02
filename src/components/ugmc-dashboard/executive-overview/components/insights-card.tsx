@@ -132,7 +132,7 @@ const InsightsCard = ({ data }: InsightsCardProps) => {
                 <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex flex-col gap-0.5">
                         <Text variant="body-md-semibold" color="text-primary" className="font-bold">
-                            Fastest Acknowledgment
+                            Fastest Average Acknowledgment
                         </Text>
                         <Text variant="body-sm" color="text-secondary">
                             Top {TOP_N} roles · Avg critical ack
