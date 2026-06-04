@@ -13,9 +13,16 @@ import { RiExpandDiagonalLine } from "react-icons/ri";
 import { GrContract } from "react-icons/gr";
 import InfoTooltip from "@/components/info-tooltip";
 import FullscreenOverlay from "@/components/fullscreen-overlay";
+import {
+    type CallMetricsSlice,
+    hasBreakdownOutcomes,
+    resolveMissedCallsForBreakdown,
+} from "./call-metrics-helpers";
+
+const TOP_DEPARTMENTS = 6;
 
 const infoText =
-    "Call volume by initiating department, with average call duration and unanswered calls for the selected period.";
+    "Call volume by initiating department, with average call duration and missed calls for the selected period.";
 
 const WarningIcon = () => (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -62,18 +69,8 @@ interface CallMetricsDuration {
     max_duration_seconds?: number;
 }
 
-interface ByDepartment {
-    department_name: string;
-    total_calls_made: number;
-    duration?: CallMetricsDuration;
-}
-
 interface LabTestsVolumeProps {
-    callMetrics?: {
-        total_calls_made?: number;
-        duration?: CallMetricsDuration;
-        by_initiator_department?: ByDepartment[];
-    };
+    callMetrics?: CallMetricsSlice;
 }
 
 const LabTestsVolume: React.FC<LabTestsVolumeProps> = ({ callMetrics }) => {
@@ -90,8 +87,12 @@ const LabTestsVolume: React.FC<LabTestsVolumeProps> = ({ callMetrics }) => {
         duration != null &&
         (totalCalls > 0 || completedCalls > 0 || num(duration.avg_duration_seconds) > 0);
 
-    const unansweredCalls =
-        hasDuration && totalCalls > 0 ? Math.max(0, totalCalls - completedCalls) : null;
+    const missedDefined = (v: unknown) => v !== undefined && v !== null && v !== "";
+    const unansweredCalls = missedDefined(callMetrics?.total_missed_calls)
+        ? num(callMetrics!.total_missed_calls)
+        : hasDuration && totalCalls > 0
+          ? Math.max(0, totalCalls - completedCalls)
+          : null;
 
     const avgSeconds = num(duration?.avg_duration_seconds);
     const avgCallDurationDisplay = hasDuration
@@ -133,31 +134,77 @@ const LabTestsVolume: React.FC<LabTestsVolumeProps> = ({ callMetrics }) => {
         requestAnimationFrame(animate);
     }, [isVisible, unansweredCalls]);
 
-    // Derive chart data from call_metrics.by_initiator_department
     const fallbackCategories = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
     const fallbackData = [120, 480, 220, 320, 580, 340, 560];
 
-    const { chartCategories, chartCategoryFullNames } = React.useMemo(() => {
-        if (!callMetrics?.by_initiator_department?.length) {
-            return { chartCategories: fallbackCategories, chartCategoryFullNames: fallbackCategories };
+    const deptChart = React.useMemo(() => {
+        const depts = Array.isArray(callMetrics?.by_initiator_department)
+            ? [...callMetrics.by_initiator_department]
+                  .filter((d) => num(d.total_calls_made) > 0 || num(d.missed_calls) > 0)
+                  .sort((a, b) => num(b.total_calls_made) - num(a.total_calls_made))
+                  .slice(0, TOP_DEPARTMENTS)
+            : [];
+
+        if (!depts.length) {
+            if (!callMetrics?.by_initiator_department?.length) {
+                return {
+                    mode: "empty" as const,
+                    categories: fallbackCategories,
+                    categoryFullNames: fallbackCategories,
+                    series: [{ name: "Calls", data: fallbackData }],
+                    chartYMax: 600,
+                    hasPerDeptOutcomes: false,
+                };
+            }
+            return {
+                mode: "nodata" as const,
+                categories: [] as string[],
+                categoryFullNames: [] as string[],
+                series: [] as { name: string; data: number[] }[],
+                chartYMax: 0,
+                hasPerDeptOutcomes: false,
+            };
         }
-        const fullNames = callMetrics.by_initiator_department.map((d: ByDepartment) => d.department_name);
-        const categories = fullNames.map((name) =>
+
+        const categoryFullNames = depts.map((d) => d.department_name);
+        const categories = categoryFullNames.map((name) =>
             name.length > 14 ? `${name.slice(0, 12)}…` : name
         );
-        return { chartCategories: categories, chartCategoryFullNames: fullNames };
-    }, [callMetrics?.by_initiator_department]);
 
-    const chartData = React.useMemo(() => {
-        if (!callMetrics?.by_initiator_department?.length) return fallbackData;
-        return callMetrics.by_initiator_department.map((d: ByDepartment) => d.total_calls_made);
-    }, [callMetrics?.by_initiator_department]);
+        const hasPerDeptOutcomes = depts.some(hasBreakdownOutcomes);
 
-    const chartYMax = React.useMemo(() => {
-        const maxVal = Math.max(...chartData, 0);
-        if (maxVal <= 0) return 600;
-        return Math.ceil(maxVal * 1.15 / 50) * 50;
-    }, [chartData]);
+        if (hasPerDeptOutcomes) {
+            const missedData = depts.map((d) => resolveMissedCallsForBreakdown(d));
+            const completedData = depts.map((d) => num(d.duration?.completed_calls));
+            const peak = Math.max(...missedData, ...completedData, 0);
+            const chartYMax = peak <= 0 ? 80 : Math.ceil(peak * 1.15 / 10) * 10;
+
+            return {
+                mode: "outcomes" as const,
+                categories,
+                categoryFullNames,
+                hasPerDeptOutcomes: true,
+                chartYMax,
+                series: [
+                    { name: "Missed", data: missedData },
+                    { name: "Completed", data: completedData },
+                ],
+            };
+        }
+
+        const volumeData = depts.map((d) => num(d.total_calls_made));
+        const peak = Math.max(...volumeData, 0);
+        const chartYMax = peak <= 0 ? 600 : Math.ceil(peak * 1.15 / 50) * 50;
+
+        return {
+            mode: "volume" as const,
+            categories,
+            categoryFullNames,
+            hasPerDeptOutcomes: false,
+            chartYMax,
+            series: [{ name: "Calls", data: volumeData }],
+        };
+    }, [callMetrics?.by_initiator_department]);
 
     // Prevent body scroll when fullscreen
     useEffect(() => {
@@ -173,51 +220,77 @@ const LabTestsVolume: React.FC<LabTestsVolumeProps> = ({ callMetrics }) => {
 
     const chartOptions: ApexCharts.ApexOptions = {
         chart: {
-            type: "area",
+            type: deptChart.mode === "outcomes" ? "bar" : "area",
             toolbar: { show: false },
             sparkline: { enabled: false },
             zoom: { enabled: false },
             animations: {
                 enabled: true,
-                speed: 1500,
+                speed: deptChart.mode === "outcomes" ? 500 : 1500,
                 animateGradually: {
                     enabled: true,
-                    delay: 200
+                    delay: deptChart.mode === "outcomes" ? 250 : 200,
                 },
                 dynamicAnimation: {
                     enabled: true,
-                    speed: 500
-                }
+                    speed: 500,
+                },
             },
         },
-        colors: ["var(--accent-primary)"],
-        fill: {
-            type: "gradient",
-            gradient: {
-                shade: "light",
-                type: "vertical",
-                shadeIntensity: 0.3,
-                gradientToColors: ["var(--accent-primary)"],
-                inverseColors: false,
-                opacityFrom: 0.5,
-                opacityTo: 0.1,
-                stops: [0, 100],
-            },
-        },
-        stroke: {
-            curve: "smooth",
-            width: 3,
-            colors: ["var(--accent-primary)"],
-        },
-        markers: {
-            size: 5,
-            colors: ["var(--accent-primary)"],
-            strokeColors: "var(--bg-primary)",
-            strokeWidth: 2,
-        },
+        colors:
+            deptChart.mode === "outcomes"
+                ? ["var(--accent-red)", "var(--accent-green)"]
+                : ["var(--accent-primary)"],
+        ...(deptChart.mode === "volume" || deptChart.mode === "empty"
+            ? {
+                  fill: {
+                      type: "gradient",
+                      gradient: {
+                          shade: "light",
+                          type: "vertical",
+                          shadeIntensity: 0.3,
+                          gradientToColors: ["var(--accent-primary)"],
+                          inverseColors: false,
+                          opacityFrom: 0.5,
+                          opacityTo: 0.1,
+                          stops: [0, 100],
+                      },
+                  },
+                  stroke: {
+                      curve: "smooth",
+                      width: 3,
+                      colors: ["var(--accent-primary)"],
+                  },
+                  markers: {
+                      size: 5,
+                      colors: ["var(--accent-primary)"],
+                      strokeColors: "var(--bg-primary)",
+                      strokeWidth: 2,
+                  },
+              }
+            : {
+                  plotOptions: {
+                      bar: {
+                          horizontal: false,
+                          columnWidth: "40px",
+                          borderRadius: 4,
+                          borderRadiusApplication: "end",
+                      },
+                  },
+                  stroke: { show: true, width: 3, colors: ["transparent"] },
+              }),
         dataLabels: { enabled: false },
+        legend: {
+            show: deptChart.mode === "outcomes",
+            position: "bottom",
+            horizontalAlign: "center",
+            fontFamily: "Montserrat, sans-serif",
+            fontSize: "11px",
+            fontWeight: 500,
+            labels: { colors: "var(--text-secondary)" },
+        },
         xaxis: {
-            categories: chartCategories,
+            categories: deptChart.categories,
             axisBorder: { show: false },
             axisTicks: { show: false },
             labels: {
@@ -235,7 +308,7 @@ const LabTestsVolume: React.FC<LabTestsVolumeProps> = ({ callMetrics }) => {
         },
         yaxis: {
             min: 0,
-            max: chartYMax,
+            max: deptChart.chartYMax,
             tickAmount: 4,
             labels: {
                 style: {
@@ -277,18 +350,11 @@ const LabTestsVolume: React.FC<LabTestsVolumeProps> = ({ callMetrics }) => {
             },
             x: {
                 formatter: (_val, opts) =>
-                    chartCategoryFullNames[opts?.dataPointIndex ?? 0] ?? _val,
+                    deptChart.categoryFullNames[opts?.dataPointIndex ?? 0] ?? _val,
             },
             y: { formatter: (val) => `${val} calls` },
         },
     };
-
-    const chartSeries = [
-        {
-            name: "Calls",
-            data: chartData,
-        },
-    ];
 
     const ChartContent = ({
         chartHeight,
@@ -330,7 +396,7 @@ const LabTestsVolume: React.FC<LabTestsVolumeProps> = ({ callMetrics }) => {
                     <div className="flex items-center gap-5 bg-tertiary rounded-[10px] px-[15px] py-[8px]">
                         <div className="flex flex-col">
                             <Text variant="body-sm" color="text-secondary">
-                                Unanswered Calls
+                                Missed Calls
                             </Text>
                             {unansweredCalls !== null ? (
                                 <span className="text-[20px] font-bold text-text-primary tabular-nums">
@@ -345,14 +411,22 @@ const LabTestsVolume: React.FC<LabTestsVolumeProps> = ({ callMetrics }) => {
                         <UnansweredCallsIcon />
                     </div>
                 </div>
-                <div style={{height: chartHeight ?? "260px"}} className="w-full">
-                    <Chart
-                        options={chartOptions}
-                        series={chartSeries}
-                        type="area"
-                        width="100%"
-                        height="100%"
-                    />
+                <div style={{ height: chartHeight ?? "260px" }} className="w-full">
+                    {deptChart.mode === "nodata" ? (
+                        <div className="flex h-full items-center justify-center">
+                            <Text variant="body-sm" color="text-secondary">
+                                No department breakdown available for this period.
+                            </Text>
+                        </div>
+                    ) : (
+                        <Chart
+                            options={chartOptions}
+                            series={deptChart.series}
+                            type={deptChart.mode === "outcomes" ? "bar" : "area"}
+                            width="100%"
+                            height="100%"
+                        />
+                    )}
                 </div>
             </div>
         );

@@ -62,6 +62,10 @@ export interface AnalyticsData {
     avg_first_read_minutes_critical: number;
     avg_first_read_minutes_non_critical: number;
     total_calls_made: number;
+    total_missed_calls?: number;
+    call_metrics?: import("@/lib/global-usage-metrics").UsageCallMetrics;
+    by_initiator_role?: import("@/lib/global-usage-metrics").CallInitiatorRoleMetric[];
+    by_initiator_department?: import("@/lib/global-usage-metrics").CallInitiatorDepartmentMetric[];
     window_days: number;
     avg_sign_in_minutes_since_midnight_utc: number;
     avg_sign_out_minutes_since_midnight_utc: number;

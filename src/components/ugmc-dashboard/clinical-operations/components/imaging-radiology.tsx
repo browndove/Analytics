@@ -12,9 +12,14 @@ import { RiExpandDiagonalLine } from "react-icons/ri";
 import { GrContract } from "react-icons/gr";
 import InfoTooltip from "@/components/info-tooltip";
 import FullscreenOverlay from "@/components/fullscreen-overlay";
+import {
+    type CallMetricsSlice,
+    hasBreakdownOutcomes,
+    resolveMissedCallsForBreakdown,
+} from "./call-metrics-helpers";
 
 const infoText =
-    "Call volume by initiating role, comparing completed and unanswered calls for the selected period.";
+    "Call volume by initiating role, comparing completed and missed calls for the selected period.";
 
 const TOP_ROLES = 4;
 
@@ -47,18 +52,8 @@ function truncateLabel(name: string, max = 14): string {
     return `${name.slice(0, max - 1)}…`;
 }
 
-interface ByInitiatorRole {
-    role_name: string;
-    total_calls_made: number;
-    duration?: { completed_calls?: number };
-}
-
 interface ImagingRadiologyProps {
-    callMetrics?: {
-        total_calls_made?: number;
-        duration?: { completed_calls?: number };
-        by_initiator_role?: ByInitiatorRole[];
-    };
+    callMetrics?: CallMetricsSlice;
 }
 
 const ImagingRadiology: React.FC<ImagingRadiologyProps> = ({ callMetrics }) => {
@@ -76,13 +71,17 @@ const ImagingRadiology: React.FC<ImagingRadiologyProps> = ({ callMetrics }) => {
         duration != null &&
         (totalCalls > 0 || completedCalls > 0);
 
-    const unansweredCalls =
-        hasDuration && totalCalls > 0 ? Math.max(0, totalCalls - completedCalls) : null;
+    const missedDefined = (v: unknown) => v !== undefined && v !== null && v !== "";
+    const unansweredCalls = missedDefined(callMetrics?.total_missed_calls)
+        ? num(callMetrics!.total_missed_calls)
+        : hasDuration && totalCalls > 0
+          ? Math.max(0, totalCalls - completedCalls)
+          : null;
 
     const roleChart = useMemo(() => {
         const roles = Array.isArray(callMetrics?.by_initiator_role)
             ? [...callMetrics!.by_initiator_role!]
-                  .filter((r) => num(r.total_calls_made) > 0)
+                  .filter((r) => num(r.total_calls_made) > 0 || num(r.missed_calls) > 0)
                   .sort((a, b) => num(b.total_calls_made) - num(a.total_calls_made))
                   .slice(0, TOP_ROLES)
             : [];
@@ -100,18 +99,16 @@ const ImagingRadiology: React.FC<ImagingRadiologyProps> = ({ callMetrics }) => {
         const roleFullNames = roles.map((r) => formatRoleName(r.role_name));
         const categories = roleFullNames.map((name) => truncateLabel(name));
 
-        const hasPerRoleOutcomes = roles.some((r) => r.duration?.completed_calls != null);
+        const hasPerRoleOutcomes = roles.some(hasBreakdownOutcomes);
 
         if (hasPerRoleOutcomes) {
-            const unansweredData: number[] = [];
+            const missedData: number[] = [];
             const completedData: number[] = [];
             for (const r of roles) {
-                const total = num(r.total_calls_made);
-                const completed = num(r.duration?.completed_calls);
-                completedData.push(completed);
-                unansweredData.push(Math.max(0, total - completed));
+                completedData.push(num(r.duration?.completed_calls));
+                missedData.push(resolveMissedCallsForBreakdown(r));
             }
-            const peak = Math.max(...unansweredData, ...completedData, 0);
+            const peak = Math.max(...missedData, ...completedData, 0);
             const chartYMax = peak <= 0 ? 80 : Math.ceil(peak * 1.15 / 10) * 10;
 
             return {
@@ -120,7 +117,7 @@ const ImagingRadiology: React.FC<ImagingRadiologyProps> = ({ callMetrics }) => {
                 chartYMax,
                 hasPerRoleOutcomes: true,
                 series: [
-                    { name: "Unanswered", data: unansweredData },
+                    { name: "Missed", data: missedData },
                     { name: "Completed", data: completedData },
                 ] as BarChartSeries,
             };
@@ -405,7 +402,7 @@ const ChartStats = ({
         <div className="flex items-center justify-between min-w-[160px] bg-secondary rounded-[10px] px-[15px] py-[8px]">
             <div className="flex flex-col">
                 <Text variant="body-sm" color="text-primary">
-                    Unanswered Calls
+                    Missed Calls
                 </Text>
                 {unansweredCalls !== null ? (
                     <span className="text-[20px] font-bold text-text-primary tabular-nums">

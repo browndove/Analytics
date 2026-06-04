@@ -67,6 +67,38 @@ export type DepartmentMetrics = {
     staff_gender?: StaffGenderBreakdown;
 };
 
+export type CallMetricsDuration = {
+    completed_calls?: number;
+    avg_duration_seconds?: number;
+    avg_duration_minutes?: number;
+    min_duration_seconds?: number;
+    median_duration_seconds?: number;
+    max_duration_seconds?: number;
+};
+
+export type CallInitiatorRoleMetric = {
+    role_name: string;
+    total_calls_made?: number;
+    missed_calls?: number;
+    duration?: CallMetricsDuration;
+};
+
+export type CallInitiatorDepartmentMetric = {
+    department_name: string;
+    total_calls_made?: number;
+    missed_calls?: number;
+    duration?: CallMetricsDuration;
+};
+
+/** Call breakdown on usage-metrics (facility or global). May also appear at usage root. */
+export type UsageCallMetrics = {
+    total_calls_made?: number;
+    total_missed_calls?: number;
+    duration?: CallMetricsDuration;
+    by_initiator_role?: CallInitiatorRoleMetric[];
+    by_initiator_department?: CallInitiatorDepartmentMetric[];
+};
+
 export type GlobalUsageMetricsResponse = {
     scope: "global" | "facility";
     filter_facility_id?: string;
@@ -77,6 +109,10 @@ export type GlobalUsageMetricsResponse = {
 
     total_messages: number;
     total_calls_made: number;
+    total_missed_calls?: number;
+    call_metrics?: UsageCallMetrics;
+    by_initiator_role?: CallInitiatorRoleMetric[];
+    by_initiator_department?: CallInitiatorDepartmentMetric[];
     critical_messages: number;
     standard_messages: number;
     critical_messages_rate_percent: number;

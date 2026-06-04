@@ -1,11 +1,13 @@
 "use client";
 
 import { useMemo } from "react";
+import { normalizeCallMetricsFromUsage } from "@/lib/call-metrics";
 import SubscriptionCard from "./subscription-card";
 
 export type CallKpiInput = {
     total_calls_made?: number;
     call_metrics?: {
+        total_missed_calls?: number;
         duration?: {
             completed_calls?: number;
             avg_duration_seconds?: number;
@@ -44,8 +46,9 @@ function truncateTag(text: string, max = 22): string {
 
 const CallKPIRow = ({ data }: { data?: CallKpiInput }) => {
     const cards = useMemo(() => {
-        const total = num(data?.total_calls_made);
-        const duration = data?.call_metrics?.duration;
+        const callMetrics = normalizeCallMetricsFromUsage(data);
+        const total = num(callMetrics?.total_calls_made ?? data?.total_calls_made);
+        const duration = callMetrics?.duration;
         const completed = num(duration?.completed_calls);
         const hasDuration =
             duration != null && (total > 0 || completed > 0 || num(duration.avg_duration_seconds) > 0);
@@ -60,7 +63,12 @@ const CallKPIRow = ({ data }: { data?: CallKpiInput }) => {
             return best;
         }, null);
 
-        const unanswered = total > 0 && hasDuration ? Math.max(0, total - completed) : 0;
+        const missed =
+            callMetrics?.total_missed_calls !== undefined
+                ? num(callMetrics.total_missed_calls)
+                : total > 0 && hasDuration
+                  ? Math.max(0, total - completed)
+                  : 0;
         const completionRate =
             hasDuration && total > 0 ? ((completed / total) * 100).toFixed(1) : null;
 
@@ -98,10 +106,10 @@ const CallKPIRow = ({ data }: { data?: CallKpiInput }) => {
                 title: "Call Completion Rate",
                 provider: "Completed vs total",
                 displayValue: completionRate != null ? `${completionRate}%` : "—",
-                footerLabel: "Unanswered",
+                footerLabel: "Missed",
                 footerValue:
-                    completionRate != null && unanswered > 0
-                        ? `${unanswered.toLocaleString()} calls`
+                    completionRate != null && missed > 0
+                        ? `${missed.toLocaleString()} calls`
                         : completionRate != null
                           ? "None"
                           : "Not available",

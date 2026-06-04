@@ -56,6 +56,23 @@ export interface AnalyticsData {
     avg_first_read_minutes_critical: number;
     avg_first_read_minutes_non_critical: number;
     total_calls_made: number;
+    total_missed_calls?: number;
+    call_metrics?: {
+        total_calls_made?: number;
+        total_missed_calls?: number;
+        duration?: {
+            completed_calls?: number;
+            avg_duration_seconds?: number;
+            avg_duration_minutes?: number;
+            min_duration_seconds?: number;
+            median_duration_seconds?: number;
+            max_duration_seconds?: number;
+        };
+        by_initiator_role?: { role_name: string; total_calls_made?: number; missed_calls?: number }[];
+        by_initiator_department?: { department_name: string; total_calls_made?: number; missed_calls?: number }[];
+    };
+    by_initiator_role?: { role_name: string; total_calls_made?: number; missed_calls?: number }[];
+    by_initiator_department?: { department_name: string; total_calls_made?: number; missed_calls?: number }[];
     window_days: number;
     avg_sign_in_minutes_since_midnight_utc: number;
     avg_sign_out_minutes_since_midnight_utc: number;

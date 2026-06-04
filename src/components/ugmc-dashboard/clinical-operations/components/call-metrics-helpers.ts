@@ -24,8 +24,9 @@ export function fmtDuration(seconds: number): string {
     return rm > 0 ? `${h}h ${rm}m` : `${h}h`;
 }
 
-export type CallMetricsSlice = {
+export type CallInitiatorBreakdown = {
     total_calls_made?: number;
+    missed_calls?: number;
     duration?: {
         completed_calls?: number;
         avg_duration_seconds?: number;
@@ -34,21 +35,79 @@ export type CallMetricsSlice = {
         median_duration_seconds?: number;
         max_duration_seconds?: number;
     };
-    by_initiator_role?: { role_name: string; total_calls_made: number }[];
-    by_initiator_department?: { department_name: string; total_calls_made: number }[];
 };
+
+export type CallMetricsSlice = {
+    total_calls_made?: number;
+    total_missed_calls?: number;
+    duration?: {
+        completed_calls?: number;
+        avg_duration_seconds?: number;
+        avg_duration_minutes?: number;
+        min_duration_seconds?: number;
+        median_duration_seconds?: number;
+        max_duration_seconds?: number;
+    };
+    by_initiator_role?: (CallInitiatorBreakdown & { role_name: string })[];
+    by_initiator_department?: (CallInitiatorBreakdown & { department_name: string })[];
+};
+
+function missedDefined(v: unknown): boolean {
+    return v !== undefined && v !== null && v !== "";
+}
+
+/** Prefer missed_calls on a role/dept row; otherwise derive from total − completed. */
+export function resolveMissedCallsForBreakdown(item: CallInitiatorBreakdown): number {
+    if (missedDefined(item.missed_calls)) return num(item.missed_calls);
+    const total = num(item.total_calls_made);
+    const completed = num(item.duration?.completed_calls);
+    if (total > 0) return Math.max(0, total - completed);
+    return 0;
+}
+
+export function hasBreakdownOutcomes(item: CallInitiatorBreakdown): boolean {
+    return missedDefined(item.missed_calls) || missedDefined(item.duration?.completed_calls);
+}
+
+/** Prefer backend total_missed_calls; otherwise derive from total − completed. */
+export function resolveMissedCalls(cm?: CallMetricsSlice | null): number {
+    if (missedDefined(cm?.total_missed_calls)) return num(cm!.total_missed_calls);
+    const total = num(cm?.total_calls_made);
+    const completed = num(cm?.duration?.completed_calls);
+    if (total > 0) return Math.max(0, total - completed);
+    return 0;
+}
 
 export function getCallOutcomeTotals(cm?: CallMetricsSlice | null) {
     const total = num(cm?.total_calls_made);
     const completed = num(cm?.duration?.completed_calls);
+    const hasMissedFromApi = missedDefined(cm?.total_missed_calls);
     const hasDuration =
         cm?.duration != null && (total > 0 || completed > 0);
-    const unanswered = hasDuration && total > 0 ? Math.max(0, total - completed) : 0;
+    const hasCallData =
+        total > 0 || completed > 0 || hasMissedFromApi || hasDuration;
+    const missed = hasCallData ? resolveMissedCalls(cm) : 0;
     const completionPct =
-        hasDuration && total > 0
+        hasCallData && total > 0
             ? parseFloat(((completed / total) * 100).toFixed(1))
             : null;
-    return { total, completed, unanswered, hasDuration, completionPct };
+    const missedPct =
+        hasCallData && total > 0
+            ? parseFloat(((missed / total) * 100).toFixed(1))
+            : hasCallData && missed > 0 && total <= 0
+              ? 100
+              : null;
+    return {
+        total,
+        completed,
+        missed,
+        unanswered: missed,
+        hasDuration,
+        hasCallData,
+        hasMissedFromApi,
+        completionPct,
+        missedPct,
+    };
 }
 
 export function getTopRole(cm?: CallMetricsSlice | null) {

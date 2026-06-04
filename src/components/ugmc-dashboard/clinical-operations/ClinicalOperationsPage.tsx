@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { useMemo } from "react";
+import { normalizeCallMetricsFromUsage } from "@/lib/call-metrics";
 import {
 	CallKPIRow,
 	LabTestsVolume,
@@ -15,7 +17,7 @@ import {
 } from "./components";
 
 const ClinicalOperationsPage = ({ data }: { data?: any }) => {
-	const cm = data?.call_metrics;
+	const cm = useMemo(() => normalizeCallMetricsFromUsage(data), [data]);
 
 	return (
 		<div className="w-full flex flex-col gap-[15px]">

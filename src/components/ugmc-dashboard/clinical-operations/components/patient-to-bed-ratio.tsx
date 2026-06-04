@@ -12,7 +12,8 @@ import {
     getCallOutcomeTotals,
 } from "./call-metrics-helpers";
 
-const infoText = "Comparison of completed calls versus unanswered calls for the selected period.";
+const infoText =
+    "Comparison of completed calls versus missed calls for the selected period.";
 
 interface PatientToBedRatioProps {
     callMetrics?: CallMetricsSlice;
@@ -23,9 +24,9 @@ const PatientToBedRatio: React.FC<PatientToBedRatioProps> = ({ callMetrics }) =>
     const [animatedProgress, setAnimatedProgress] = useState(0);
     const [isVisible, setIsVisible] = useState(false);
 
-    const { total, completed, unanswered, hasDuration, completionPct } =
+    const { total, completed, missed, hasCallData, completionPct } =
         getCallOutcomeTotals(callMetrics);
-    const showData = hasDuration && total > 0;
+    const showData = hasCallData && total > 0;
     const targetProgress = completionPct ?? 0;
 
     useEffect(() => {
@@ -63,10 +64,10 @@ const PatientToBedRatio: React.FC<PatientToBedRatioProps> = ({ callMetrics }) =>
             <div className="flex justify-between items-start">
                 <div className="flex flex-col gap-0.5">
                     <Text variant="body-md-semibold" color="text-primary">
-                        Completed vs Unanswered
+                        Completed vs Missed
                     </Text>
                     <Text variant="body-sm" color="text-tertiary">
-                        Call outcomes for the selected period.
+                        Completed and missed call counts.
                     </Text>
                 </div>
                 <div className="flex items-center gap-2">
@@ -91,7 +92,7 @@ const PatientToBedRatio: React.FC<PatientToBedRatioProps> = ({ callMetrics }) =>
                     )}
                 >
                     {showData
-                        ? `${completed.toLocaleString()} : ${unanswered.toLocaleString()}`
+                        ? `${completed.toLocaleString()} : ${missed.toLocaleString()}`
                         : "—"}
                 </span>
             </div>
@@ -110,11 +111,11 @@ const PatientToBedRatio: React.FC<PatientToBedRatioProps> = ({ callMetrics }) =>
                 <div className="flex flex-col gap-1.5">
                     <div className="flex justify-between items-center">
                         <Text variant="body-sm" color="text-secondary">
-                            Unanswered
+                            Missed
                         </Text>
                         <div className="bg-[#00C8B333] px-2 py-0.5 rounded-[6px]">
                             <Text variant="body-sm" color="none" className="text-[#1F988B]">
-                                {showData ? unanswered.toLocaleString() : "—"}
+                                {showData ? missed.toLocaleString() : "—"}
                             </Text>
                         </div>
                     </div>

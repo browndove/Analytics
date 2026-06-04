@@ -6,13 +6,14 @@ import DashboardCard from "@/components/ugmc-dashboard/shared/dashboard-card";
 import { useState, useEffect } from "react";
 import InfoTooltip from "@/components/info-tooltip";
 import clsx from "clsx";
-import { FaPhone } from "react-icons/fa6";
+import { FaPhoneSlash } from "react-icons/fa6";
 import {
     type CallMetricsSlice,
     getCallOutcomeTotals,
 } from "./call-metrics-helpers";
 
-const infoText = "Percentage of placed calls that were marked completed in the selected period.";
+const infoText =
+    "Calls that were not answered or completed in the selected period.";
 
 interface OperatingRoomsUtilizationProps {
     callMetrics?: CallMetricsSlice;
@@ -20,14 +21,14 @@ interface OperatingRoomsUtilizationProps {
 
 const OperatingRoomsUtilization: React.FC<OperatingRoomsUtilizationProps> = ({ callMetrics }) => {
     const [isHovered, setIsHovered] = useState(false);
-    const [animatedPercentage, setAnimatedPercentage] = useState(0);
+    const [animatedMissed, setAnimatedMissed] = useState(0);
     const [animatedProgress, setAnimatedProgress] = useState(0);
     const [isVisible, setIsVisible] = useState(false);
 
-    const { total, completed, hasDuration, completionPct } = getCallOutcomeTotals(callMetrics);
-    const targetPercentage = completionPct ?? 0;
-    const targetProgress = targetPercentage;
-    const showData = hasDuration && total > 0;
+    const { total, missed, hasCallData, missedPct } = getCallOutcomeTotals(callMetrics);
+    const targetMissed = missed;
+    const targetProgress = missedPct ?? 0;
+    const showData = hasCallData && (total > 0 || missed > 0);
 
     useEffect(() => {
         setIsVisible(true);
@@ -44,18 +45,18 @@ const OperatingRoomsUtilization: React.FC<OperatingRoomsUtilizationProps> = ({ c
             const progress = Math.min(elapsed / duration, 1);
             const eased = 1 - Math.pow(1 - progress, 3);
 
-            setAnimatedPercentage(targetPercentage * eased);
+            setAnimatedMissed(Math.round(targetMissed * eased));
             setAnimatedProgress(targetProgress * eased);
 
             if (progress < 1) {
                 requestAnimationFrame(animate);
             } else {
-                setAnimatedPercentage(targetPercentage);
+                setAnimatedMissed(targetMissed);
                 setAnimatedProgress(targetProgress);
             }
         };
         requestAnimationFrame(animate);
-    }, [isVisible, targetPercentage, targetProgress]);
+    }, [isVisible, targetMissed, targetProgress]);
 
     return (
         <DashboardCard
@@ -66,10 +67,10 @@ const OperatingRoomsUtilization: React.FC<OperatingRoomsUtilizationProps> = ({ c
             <div className="flex justify-between items-start">
                 <div className="flex flex-col gap-0.5">
                     <Text variant="body-md-semibold" color="text-primary">
-                        Call Completion Rate
+                        Missed Calls
                     </Text>
                     <Text variant="body-sm" color="text-tertiary">
-                        Completed vs total calls placed.
+                        Calls not answered or completed.
                     </Text>
                 </div>
                 <div className="flex items-center gap-2">
@@ -80,7 +81,7 @@ const OperatingRoomsUtilization: React.FC<OperatingRoomsUtilizationProps> = ({ c
                             isHovered && "scale-110"
                         )}
                     >
-                        <FaPhone className="text-text-primary" size={16} />
+                        <FaPhoneSlash className="text-accent-red" size={16} />
                     </div>
                     <InfoTooltip text={infoText} show={isHovered} />
                 </div>
@@ -88,12 +89,12 @@ const OperatingRoomsUtilization: React.FC<OperatingRoomsUtilizationProps> = ({ c
             <div>
                 <span
                     className={clsx(
-                        "text-[40px] font-bold tracking-tight text-accent-primary tabular-nums",
+                        "text-[40px] font-bold tracking-tight text-accent-red tabular-nums",
                         "transition-transform duration-300",
                         isHovered && "scale-[1.02] origin-left inline-block"
                     )}
                 >
-                    {showData ? `${animatedPercentage.toFixed(1)}%` : "—"}
+                    {showData ? animatedMissed.toLocaleString() : "—"}
                 </span>
             </div>
             <div className="flex flex-col gap-3">
@@ -111,17 +112,19 @@ const OperatingRoomsUtilization: React.FC<OperatingRoomsUtilizationProps> = ({ c
                 <div className="flex flex-col gap-1.5">
                     <div className="flex justify-between items-center">
                         <Text variant="body-sm" color="text-secondary">
-                            Completed
+                            Miss rate
                         </Text>
-                        <div className="bg-accent-primary/20 px-2 py-0.5 rounded-[6px]">
-                            <Text variant="body-sm" color="accent-primary">
-                                {showData ? completed.toLocaleString() : "—"}
+                        <div className="bg-accent-red/20 px-2 py-0.5 rounded-[6px]">
+                            <Text variant="body-sm" color="none" className="text-accent-red">
+                                {showData && missedPct != null
+                                    ? `${animatedProgress.toFixed(1)}%`
+                                    : "—"}
                             </Text>
                         </div>
                     </div>
                     <div className="w-full h-2 bg-secondary rounded-full overflow-hidden">
                         <div
-                            className="h-full rounded-full bg-accent-primary transition-all duration-1000 ease-out"
+                            className="h-full rounded-full bg-accent-red transition-all duration-1000 ease-out"
                             style={{ width: showData ? `${animatedProgress}%` : "0%" }}
                         />
                     </div>
