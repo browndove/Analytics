@@ -126,7 +126,7 @@ const RoleEscalationsTable = ({ data }: { data?: { top_escalated_roles?: Escalat
 									? item.escalation_rate_percent
 									: metrics?.escalation_rate_percent;
 							const rate = num(backendRate);
-							const hasRate = backendRate != null && backendRate !== "";
+							const hasRate = backendRate != null;
 							let rateClass = 'text-text-secondary bg-tertiary';
 							if (hasRate) {
 								if (rate > 15) rateClass = 'text-accent-red bg-accent-red/10';
