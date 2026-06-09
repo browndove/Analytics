@@ -58,11 +58,11 @@ const BillingFinancePage = ({ data, onEditRole }: { data?: any; onEditRole?: (ro
     return (
         <div className="flex w-full min-w-0 flex-col gap-4">
             {/* KPI Cards */}
-            <div className="grid min-w-0 grid-cols-1 items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid w-full min-w-0 grid-cols-1 items-stretch gap-4 sm:grid-cols-[repeat(2,minmax(0,1fr))] xl:grid-cols-[repeat(4,minmax(0,1fr))]">
                 {kpiData.map((kpi, index) => (
                     <div
                         key={index}
-                        className="flex h-full min-h-[149px] animate-slide-in-up"
+                        className="min-w-0 w-full h-full min-h-[149px] [&>*]:min-w-0 [&>*]:w-full animate-slide-in-up"
                         style={{ animationDelay: `${index * 100}ms`, opacity: 0, animationFillMode: 'forwards' }}
                     >
                         <KPICard {...kpi} />
@@ -99,7 +99,7 @@ const BillingFinancePage = ({ data, onEditRole }: { data?: any; onEditRole?: (ro
             {/* Outstanding Reimbursement + Claims Owed */}
             <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
                 <div className="animate-slide-in-up" style={{ animationDelay: '400ms', opacity: 0, animationFillMode: 'forwards' }}>
-                    <OutstandingReimbursement />
+                    <OutstandingReimbursement data={data} />
                 </div>
                 <div className="animate-slide-in-up" style={{ animationDelay: '500ms', opacity: 0, animationFillMode: 'forwards' }}>
                     <ClaimsOwedByDepartment data={data} onEditRole={onEditRole} />

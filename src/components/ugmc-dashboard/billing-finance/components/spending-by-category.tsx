@@ -22,11 +22,15 @@ const MessageVolumeBreakdown: React.FC<{ data?: any }> = ({ data }) => {
     const [animatedTotal, setAnimatedTotal] = React.useState(0);
     const [isVisible, setIsVisible] = React.useState(false);
     
-    // Derived metrics
-    const standard = data?.standard_messages || 12450;
-    const criticalNonEscalated = (data?.critical_messages || 4500) - (data?.escalated_critical_messages || 0);
-    const escalated = data?.escalated_critical_messages || 1800;
-    const totalAmount = data?.total_messages || (standard + criticalNonEscalated + escalated);
+    const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+
+    const standard = num(data?.standard_messages);
+    const escalated = num(data?.escalated_critical_messages);
+    const criticalNonEscalated = Math.max(0, num(data?.critical_messages) - escalated);
+    const totalAmount =
+        data?.total_messages != null
+            ? num(data.total_messages)
+            : standard + criticalNonEscalated + escalated;
 
     const getPercent = (val: number) => totalAmount > 0 ? Math.round((val / totalAmount) * 100) + "%" : "0%";
 

@@ -6,22 +6,59 @@ import Text from "@/components/text";
 import { HiMiniInformationCircle } from "react-icons/hi2";
 import { IoChevronDown } from "react-icons/io5";
 
-const RoleEscalationsTable = ({ data }: { data: any }) => {
+type EscalationRoleRow = {
+    role_name?: string;
+    role_id?: string;
+    escalation_count?: number;
+    total_messages_for_role?: number;
+    escalation_rate_percent?: number;
+};
+
+type RoleMetricRow = {
+    role_id?: string;
+    total_messages?: number;
+    escalation_rate_percent?: number;
+};
+
+function num(v: unknown): number {
+    if (v === null || v === undefined || v === "") return 0;
+    const n = typeof v === "string" ? parseFloat(v) : Number(v);
+    return Number.isFinite(n) ? n : 0;
+}
+
+function fmtEscalationRate(rate: unknown): string {
+    if (rate === null || rate === undefined || rate === "") return "—";
+    const n = num(rate);
+    if (!Number.isFinite(n)) return "—";
+    return `${n.toFixed(1)}%`;
+}
+
+const RoleEscalationsTable = ({ data }: { data?: { top_escalated_roles?: EscalationRoleRow[]; least_escalated_roles?: EscalationRoleRow[]; role_metrics?: RoleMetricRow[] } }) => {
 	const [selectedDomain, setSelectedDomain] = useState('Top Escalated');
 	const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
 	const domainOptions = ['Top Escalated', 'Least Escalated'];
+
+	const roleMetricsById = useMemo(() => {
+		const map = new Map<string, RoleMetricRow>();
+		for (const row of data?.role_metrics ?? []) {
+			const id = String(row?.role_id ?? "").trim();
+			if (id) map.set(id, row);
+		}
+		return map;
+	}, [data?.role_metrics]);
+
 	const itemsList = useMemo(() => {
 		const top = Array.isArray(data?.top_escalated_roles) ? [...data.top_escalated_roles] : [];
 		const least = Array.isArray(data?.least_escalated_roles) ? [...data.least_escalated_roles] : [];
 
-		const sortByEscalationsDesc = (a: any, b: any) => {
-			const diff = (b?.escalation_count ?? 0) - (a?.escalation_count ?? 0);
+		const sortByEscalationsDesc = (a: EscalationRoleRow, b: EscalationRoleRow) => {
+			const diff = num(b?.escalation_count) - num(a?.escalation_count);
 			if (diff !== 0) return diff;
 			return String(a?.role_name ?? "").localeCompare(String(b?.role_name ?? ""));
 		};
-		const sortByEscalationsAsc = (a: any, b: any) => {
-			const diff = (a?.escalation_count ?? 0) - (b?.escalation_count ?? 0);
+		const sortByEscalationsAsc = (a: EscalationRoleRow, b: EscalationRoleRow) => {
+			const diff = num(a?.escalation_count) - num(b?.escalation_count);
 			if (diff !== 0) return diff;
 			return String(a?.role_name ?? "").localeCompare(String(b?.role_name ?? ""));
 		};
@@ -52,7 +89,7 @@ const RoleEscalationsTable = ({ data }: { data: any }) => {
 									key={option}
 									onClick={() => { setSelectedDomain(option); setIsDropdownOpen(false); }}
 									className={`w-full text-left border-none cursor-pointer font-medium text-[12px] text-text-primary transition-colors ${selectedDomain === option ? 'bg-tertiary' : 'bg-transparent hover:bg-tertiary/50'}`}
-											style={{ padding: '10px 12px' }}
+									style={{ padding: '10px 12px' }}
 								>
 									{option}
 								</button>
@@ -74,28 +111,43 @@ const RoleEscalationsTable = ({ data }: { data: any }) => {
 						</tr>
 					</thead>
 					<tbody>
-						{itemsList.map((item: any, index: number) => {
-							const escalations = Number(item.escalation_count) || 0;
-							const messages = Number(item.total_messages_for_role) || 0;
-							const denom = messages + escalations;
-							const rate = denom > 0 ? (escalations / denom) * 100 : 0;
+						{itemsList.map((item, index) => {
+							const roleId = String(item.role_id ?? "").trim();
+							const metrics = roleId ? roleMetricsById.get(roleId) : undefined;
+							const escalations = num(item.escalation_count);
+							const messages =
+								item.total_messages_for_role != null
+									? num(item.total_messages_for_role)
+								 : metrics?.total_messages != null
+									? num(metrics.total_messages)
+									: null;
+							const backendRate =
+								item.escalation_rate_percent != null
+									? item.escalation_rate_percent
+									: metrics?.escalation_rate_percent;
+							const rate = num(backendRate);
+							const hasRate = backendRate != null && backendRate !== "";
 							let rateClass = 'text-text-secondary bg-tertiary';
-							if (rate > 15) rateClass = 'text-accent-red bg-accent-red/10';
-							else if (rate > 5) rateClass = 'text-accent-primary bg-accent-primary/10';
-							else if (selectedDomain === 'Least Escalated' && rate === 0) rateClass = 'text-accent-green bg-accent-green/10';
+							if (hasRate) {
+								if (rate > 15) rateClass = 'text-accent-red bg-accent-red/10';
+								else if (rate > 5) rateClass = 'text-accent-primary bg-accent-primary/10';
+								else if (selectedDomain === 'Least Escalated' && rate === 0) rateClass = 'text-accent-green bg-accent-green/10';
+							}
 
 							return (
-							<tr key={index} className={`${index % 2 === 0 ? 'bg-primary' : 'bg-tertiary'} ${index < itemsList.length - 1 ? 'border-b border-tertiary' : ''}`}>
+							<tr key={roleId || `${item.role_name}-${index}`} className={`${index % 2 === 0 ? 'bg-primary' : 'bg-tertiary'} ${index < itemsList.length - 1 ? 'border-b border-tertiary' : ''}`}>
 								<td className="align-middle" style={{ padding: '10px 20px' }}>
 									<div className="w-8 h-8 rounded-[8px] bg-tertiary flex items-center justify-center font-semibold text-[12px] text-text-secondary">{index + 1}</div>
 								</td>
 								<td className="align-middle font-medium text-[12px] leading-[100%] text-text-primary" style={{ padding: '10px 20px' }}>{item.role_name}</td>
 								<td className="align-middle font-medium text-[12px] leading-[100%] text-text-secondary" style={{ padding: '10px 20px' }}>{item.role_id}</td>
-								<td className="align-middle font-semibold text-[12px] leading-[100%] text-text-primary" style={{ padding: '10px 20px' }}>{item.escalation_count}</td>
-								<td className="align-middle font-medium text-[12px] leading-[100%] text-text-primary" style={{ padding: '10px 20px' }}>{item.total_messages_for_role}</td>
+								<td className="align-middle font-semibold text-[12px] leading-[100%] text-text-primary" style={{ padding: '10px 20px' }}>{escalations}</td>
+								<td className="align-middle font-medium text-[12px] leading-[100%] text-text-primary" style={{ padding: '10px 20px' }}>
+									{messages !== null ? messages : "—"}
+								</td>
 								<td className="align-middle" style={{ padding: '10px 20px' }}>
 									<div className={`inline-flex items-center rounded-[7px] font-bold text-[12px] ${rateClass}`} style={{ padding: '4px 8px' }}>
-										{rate.toFixed(1)}%
+										{fmtEscalationRate(backendRate)}
 									</div>
 								</td>
 							</tr>
@@ -108,7 +160,7 @@ const RoleEscalationsTable = ({ data }: { data: any }) => {
 	);
 };
 
-const DiagnosisGrid = ({ data }: { data: any }) => {
+const DiagnosisGrid = ({ data }: { data?: { top_escalated_roles?: EscalationRoleRow[]; least_escalated_roles?: EscalationRoleRow[]; role_metrics?: RoleMetricRow[] } }) => {
 	return (
 		<div className="w-full">
 			<RoleEscalationsTable data={data} />

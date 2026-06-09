@@ -5,21 +5,61 @@ import Text from "@/components/text";
 import DashboardCard from "@/components/ugmc-dashboard/shared/dashboard-card";
 import FullscreenOverlay from "@/components/fullscreen-overlay";
 
-type DeptCoverageData = {
+type DeptCoverageRow = {
     name: string;
-    outstanding: number;
-    paid: number;
+    unfilled: number;
+    filled: number;
     total: number;
 };
 
-const deptCoverageData: DeptCoverageData[] = [
-    { name: "Emergency", outstanding: 3, paid: 12, total: 15 },
-    { name: "Surgery", outstanding: 2, paid: 16, total: 18 },
-    { name: "Diagnostics", outstanding: 4, paid: 10, total: 14 },
-    { name: "Outpatient", outstanding: 1, paid: 9, total: 10 },
-    { name: "Medicine", outstanding: 3, paid: 8, total: 11 },
-    { name: "Pharmacy", outstanding: 1, paid: 7, total: 8 },
-];
+type DepartmentMetricInput = {
+    department_name?: string;
+    filled_roles?: number;
+    total_roles?: number;
+};
+
+function num(v: unknown): number {
+    if (v === null || v === undefined || v === "") return 0;
+    const n = typeof v === "string" ? parseFloat(v) : Number(v);
+    return Number.isFinite(n) ? n : 0;
+}
+
+function truncateDeptName(name: string, max = 18): string {
+    if (name.length <= max) return name;
+    return `${name.slice(0, max - 1)}…`;
+}
+
+function buildDeptCoverageRows(departments?: DepartmentMetricInput[]): DeptCoverageRow[] {
+    if (!Array.isArray(departments) || !departments.length) return [];
+
+    return [...departments]
+        .map((d) => {
+            const total = Math.round(num(d.total_roles));
+            const filled = Math.min(Math.round(num(d.filled_roles)), total);
+            const unfilled = total > 0 ? Math.max(0, total - filled) : 0;
+            const name = String(d.department_name || "").trim();
+            if (!name || total <= 0) return null;
+            return { name, unfilled, filled, total };
+        })
+        .filter((row): row is DeptCoverageRow => row !== null)
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 6);
+}
+
+function niceAxisMax(maxValue: number): number {
+    if (maxValue <= 0) return 20;
+    const step = maxValue <= 10 ? 2 : maxValue <= 25 ? 4 : 5;
+    return Math.ceil(maxValue / step) * step;
+}
+
+function axisTicks(max: number): number[] {
+    if (max <= 0) return [0, 4, 8, 12, 16, 20];
+    const step = max <= 10 ? 2 : max <= 25 ? 4 : Math.ceil(max / 5);
+    const ticks: number[] = [];
+    for (let v = 0; v <= max; v += step) ticks.push(v);
+    if (ticks[ticks.length - 1] !== max) ticks.push(max);
+    return ticks;
+}
 
 const MaximizeIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -34,76 +74,161 @@ const CloseIcon = () => (
     </svg>
 );
 
-const OutstandingReimbursement: React.FC = () => {
+interface OutstandingReimbursementProps {
+    data?: { department_metrics?: DepartmentMetricInput[] };
+}
+
+const OutstandingReimbursement: React.FC<OutstandingReimbursementProps> = ({ data }) => {
     const [isMaximized, setIsMaximized] = React.useState(false);
-    const [animatedBars, setAnimatedBars] = React.useState(deptCoverageData.map(() => ({ outstanding: 0, paid: 0 })));
+    const [animatedBars, setAnimatedBars] = React.useState<{ unfilled: number; filled: number }[]>([]);
     const [animatedTotal, setAnimatedTotal] = React.useState(0);
     const [isVisible, setIsVisible] = React.useState(false);
 
-    const maxValue = Math.max(...deptCoverageData.map(i => i.total));
-    const totalUnfilled = deptCoverageData.reduce((sum, i) => sum + i.outstanding, 0);
+    const deptRows = React.useMemo(
+        () => buildDeptCoverageRows(data?.department_metrics),
+        [data?.department_metrics]
+    );
 
-    React.useEffect(() => { setIsVisible(true); }, []);
+    const maxValue = React.useMemo(
+        () => niceAxisMax(Math.max(...deptRows.map((i) => i.total), 0)),
+        [deptRows]
+    );
+
+    const totalUnfilled = React.useMemo(
+        () => deptRows.reduce((sum, i) => sum + i.unfilled, 0),
+        [deptRows]
+    );
+
+    const xTicks = React.useMemo(() => axisTicks(maxValue), [maxValue]);
 
     React.useEffect(() => {
-        if (!isVisible) return;
+        setIsVisible(true);
+    }, []);
+
+    React.useEffect(() => {
+        if (!isVisible || !deptRows.length) {
+            setAnimatedBars([]);
+            setAnimatedTotal(0);
+            return;
+        }
+
         const duration = 2500;
         const startTime = Date.now();
+
         const animate = () => {
             const elapsed = Date.now() - startTime;
             const progress = Math.min(elapsed / duration, 1);
             const eased = 1 - Math.pow(1 - progress, 3);
-            setAnimatedBars(deptCoverageData.map(item => ({ outstanding: (item.outstanding / maxValue) * 100 * eased, paid: (item.paid / maxValue) * 100 * eased })));
+
+            setAnimatedBars(
+                deptRows.map((item) => ({
+                    unfilled: (item.unfilled / maxValue) * 100 * eased,
+                    filled: (item.filled / maxValue) * 100 * eased,
+                }))
+            );
             setAnimatedTotal(Math.round(totalUnfilled * eased));
-            if (progress < 1) requestAnimationFrame(animate);
-            else { setAnimatedBars(deptCoverageData.map(item => ({ outstanding: (item.outstanding / maxValue) * 100, paid: (item.paid / maxValue) * 100 }))); setAnimatedTotal(totalUnfilled); }
+
+            if (progress < 1) {
+                requestAnimationFrame(animate);
+            } else {
+                setAnimatedBars(
+                    deptRows.map((item) => ({
+                        unfilled: (item.unfilled / maxValue) * 100,
+                        filled: (item.filled / maxValue) * 100,
+                    }))
+                );
+                setAnimatedTotal(totalUnfilled);
+            }
         };
+
         requestAnimationFrame(animate);
-    }, [isVisible, maxValue, totalUnfilled]);
+    }, [isVisible, deptRows, maxValue, totalUnfilled]);
 
     const chartContent = (isModal: boolean = false) => (
         <>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <Text variant={isModal ? "body-lg-semibold" : "body-md-semibold"} color="text-primary" className="font-bold">Dept. Coverage & Escalations</Text>
-                    <Text variant="body-sm" color="text-secondary">Filled vs Unfilled Roles by Department</Text>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                    <Text variant={isModal ? "body-lg-semibold" : "body-md-semibold"} color="text-primary" className="font-bold">
+                        Dept. Coverage & Escalations
+                    </Text>
+                    <Text variant="body-sm" color="text-secondary">
+                        Filled vs Unfilled Roles by Department
+                    </Text>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div className="bg-accent-primary/10 rounded-[5px] whitespace-nowrap" style={{ padding: '4px 7px' }}>
-                        <Text variant="body-md-semibold" color="accent-primary"><span className="tabular-nums">{animatedTotal}</span> Unfilled</Text>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div className="bg-accent-primary/10 rounded-[5px] whitespace-nowrap" style={{ padding: "4px 7px" }}>
+                        <Text variant="body-md-semibold" color="accent-primary">
+                            <span className="tabular-nums">{deptRows.length ? animatedTotal : "—"}</span> Unfilled
+                        </Text>
                     </div>
                     {!isModal && (
-                        <button onClick={() => setIsMaximized(true)} className="flex items-center justify-center size-[30px] bg-secondary rounded-[10px] cursor-pointer hover:bg-tertiary transition-colors" title="Maximize"><MaximizeIcon /></button>
+                        <button
+                            onClick={() => setIsMaximized(true)}
+                            className="flex items-center justify-center size-[30px] bg-secondary rounded-[10px] cursor-pointer hover:bg-tertiary transition-colors"
+                            title="Maximize"
+                        >
+                            <MaximizeIcon />
+                        </button>
                     )}
                     {isModal && (
-                        <button onClick={() => setIsMaximized(false)} className="flex items-center justify-center size-[30px] bg-secondary rounded-[10px] cursor-pointer hover:bg-tertiary transition-colors" title="Close"><CloseIcon /></button>
+                        <button
+                            onClick={() => setIsMaximized(false)}
+                            className="flex items-center justify-center size-[30px] bg-secondary rounded-[10px] cursor-pointer hover:bg-tertiary transition-colors"
+                            title="Close"
+                        >
+                            <CloseIcon />
+                        </button>
                     )}
                 </div>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
-                {deptCoverageData.map((dept, index) => (
-                    <div key={dept.name} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <Text variant="body-sm" color="text-secondary" className="w-[120px] shrink-0">{dept.name}</Text>
-                        <div className="flex-1 h-[30px] rounded-[5px] overflow-hidden flex">
-                            <div className="h-full bg-accent-red shrink-0 rounded-l-[5px] transition-all duration-100" style={{ width: `${animatedBars[index]?.outstanding || 0}%` }} />
-                            <div className="h-full bg-accent-green shrink-0 rounded-r-[5px] transition-all duration-100" style={{ width: `${animatedBars[index]?.paid || 0}%` }} />
-                        </div>
+
+            {deptRows.length === 0 ? (
+                <Text variant="body-sm" color="text-secondary" className="py-8 text-center">
+                    No department role coverage data for this period.
+                </Text>
+            ) : (
+                <>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 15 }}>
+                        {deptRows.map((dept, index) => (
+                            <div key={dept.name} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                <Text variant="body-sm" color="text-secondary" className="w-[120px] shrink-0" title={dept.name}>
+                                    {truncateDeptName(dept.name)}
+                                </Text>
+                                <div className="flex-1 h-[30px] rounded-[5px] overflow-hidden flex">
+                                    <div
+                                        className="h-full bg-accent-red shrink-0 rounded-l-[5px] transition-all duration-100"
+                                        style={{ width: `${animatedBars[index]?.unfilled || 0}%` }}
+                                    />
+                                    <div
+                                        className="h-full bg-accent-green shrink-0 rounded-r-[5px] transition-all duration-100"
+                                        style={{ width: `${animatedBars[index]?.filled || 0}%` }}
+                                    />
+                                </div>
+                            </div>
+                        ))}
                     </div>
-                ))}
-            </div>
-            <div className="flex justify-between ml-[130px]">
-                {[0, 4, 8, 12, 16, 20].map((val) => (
-                    <Text key={val} variant="body-xs" color="text-tertiary">{val}</Text>
-                ))}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 20, paddingTop: 8 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <div className="flex justify-between ml-[130px]">
+                        {xTicks.map((val) => (
+                            <Text key={val} variant="body-xs" color="text-tertiary">
+                                {val}
+                            </Text>
+                        ))}
+                    </div>
+                </>
+            )}
+
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 20, paddingTop: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                     <div className="w-[10px] h-[10px] rounded-[2px] bg-accent-red" />
-                    <Text variant="body-sm" color="text-primary">Unfilled</Text>
+                    <Text variant="body-sm" color="text-primary">
+                        Unfilled
+                    </Text>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                     <div className="w-[10px] h-[10px] rounded-[2px] bg-accent-green" />
-                    <Text variant="body-sm" color="text-primary">Filled</Text>
+                    <Text variant="body-sm" color="text-primary">
+                        Filled
+                    </Text>
                 </div>
             </div>
         </>
@@ -111,10 +236,15 @@ const OutstandingReimbursement: React.FC = () => {
 
     return (
         <>
-            <DashboardCard className="flex flex-col flex-1" padding="none" style={{ padding: 20, gap: 15 }}>{chartContent(false)}</DashboardCard>
+            <DashboardCard className="flex flex-col flex-1" padding="none" style={{ padding: 20, gap: 15 }}>
+                {chartContent(false)}
+            </DashboardCard>
             {isMaximized && (
                 <FullscreenOverlay onClose={() => setIsMaximized(false)}>
-                    <div className="bg-primary rounded-[20px] w-full max-w-5xl max-h-[90vh] overflow-auto flex flex-col shadow-2xl" style={{ padding: 24, gap: 15 }}>
+                    <div
+                        className="bg-primary rounded-[20px] w-full max-w-5xl max-h-[90vh] overflow-auto flex flex-col shadow-2xl"
+                        style={{ padding: 24, gap: 15 }}
+                    >
                         {chartContent(true)}
                     </div>
                 </FullscreenOverlay>

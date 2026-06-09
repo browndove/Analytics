@@ -88,12 +88,12 @@ const KPICard: React.FC<KPICardProps> = ({ title, value, subtitle, trend, indica
                     <InfoTooltip text={infoText} />
                 </div>
             )}
-            <div className="flex min-h-0 flex-1 flex-col pr-6">
-                <div className="flex items-start justify-between gap-2">
+            <div className="flex min-h-0 flex-1 flex-col gap-3 pr-6">
+                <div className="flex min-h-[52px] items-start justify-between gap-2">
                     <Text
                         variant="body-md-semibold"
                         color="text-primary"
-                        className="min-w-0 flex-1 leading-tight"
+                        className="min-w-0 flex-1 min-h-[2.5rem] leading-tight"
                     >
                         {title}
                     </Text>
@@ -116,24 +116,26 @@ const KPICard: React.FC<KPICardProps> = ({ title, value, subtitle, trend, indica
                         )}
                     </div>
                 </div>
-                <span
-                    className={clsx(
-                        "mt-2 text-[28px] font-bold leading-tight tracking-tight text-text-primary tabular-nums",
-                        "transition-transform duration-300",
-                        isHovered && !isLiteralValue && "origin-left scale-[1.02]"
-                    )}
-                >
-                    {isLiteralValue
-                        ? value
-                        : `${parsedValue.prefix}${formatNumber(animatedNumber, parsedValue.decimals)}${parsedValue.suffix}`}
-                </span>
+                <div className="flex min-h-[40px] items-center">
+                    <span
+                        className={clsx(
+                            "text-[28px] font-bold leading-none tracking-tight text-text-primary tabular-nums",
+                            "transition-transform duration-300",
+                            isHovered && !isLiteralValue && "origin-left scale-[1.02]"
+                        )}
+                    >
+                        {isLiteralValue
+                            ? value
+                            : `${parsedValue.prefix}${formatNumber(animatedNumber, parsedValue.decimals)}${parsedValue.suffix}`}
+                    </span>
+                </div>
             </div>
-            <div className="mt-auto shrink-0 pt-6">
+            <div className="mt-auto shrink-0 pt-4">
                 <div className="w-full shrink-0 border-t-2 border-dashed border-tertiary" />
                 <Text
                     variant="body-md"
                     color="text-secondary"
-                    className="mt-3 min-h-10 leading-snug"
+                    className="mt-3 min-h-[44px] leading-snug"
                 >
                     {subtitle}
                 </Text>

@@ -18,29 +18,47 @@ function num(v: unknown): number {
     return Number.isFinite(n) ? n : 0;
 }
 
+function pickReadMinutes(data: Record<string, unknown> | undefined, ...keys: string[]): number | null {
+    if (!data) return null;
+    for (const key of keys) {
+        if (!(key in data)) continue;
+        const v = data[key];
+        if (v === null || v === undefined || v === "") continue;
+        const n = num(v);
+        if (Number.isFinite(n) && n >= 0) return n;
+    }
+    return null;
+}
+
 const KPIGrid = ({ data }: { data?: Record<string, unknown> }) => {
     const kpiData = React.useMemo(() => {
         const totalMessages = num(data?.total_messages);
         const criticalMessages = num(data?.critical_messages);
         const escalated = num(data?.escalated_critical_messages);
         const escalationPct = data?.escalation_rate_percent;
+        const readAll = pickReadMinutes(data, "avg_first_read_minutes_all", "avg_read_minutes_all");
+        const readCritical = pickReadMinutes(
+            data,
+            "avg_first_read_minutes_critical",
+            "avg_read_minutes_critical"
+        );
 
         return [
             {
-                title: "Average Response Time",
-                value: data ? fmtMin(num(data.avg_reply_response_minutes_all)) : "—",
-                subtitle: "Average reply time for all messages sent.",
+                title: "Average Read Time",
+                value: data ? fmtMin(readAll) : "—",
+                subtitle: "Average time to read all messages sent.",
                 trend: {
                     type: "up" as const,
                     value: totalMessages > 0 ? `${totalMessages.toLocaleString()} messages` : "No volume",
                     isPositive: true,
                 },
-                infoText: "Average reply time for all messages sent.",
+                infoText: "Average time to read all messages sent.",
             },
             {
-                title: "Critical Response",
-                value: data ? fmtMin(num(data.avg_reply_response_minutes_critical)) : "—",
-                subtitle: "Average reply time for critical messages.",
+                title: "Critical Read",
+                value: data ? fmtMin(readCritical) : "—",
+                subtitle: "Average time to read critical messages.",
                 trend: {
                     type: "up" as const,
                     value:
@@ -49,7 +67,7 @@ const KPIGrid = ({ data }: { data?: Record<string, unknown> }) => {
                             : "No critical msgs",
                     isPositive: true,
                 },
-                infoText: "Average reply time for critical messages.",
+                infoText: "Average time to read critical messages.",
             },
             {
                 title: "Critical Acknowledgment",
@@ -84,11 +102,11 @@ const KPIGrid = ({ data }: { data?: Record<string, unknown> }) => {
 
     return (
         <div className="w-full">
-            <div className="grid min-w-0 grid-cols-1 items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid w-full min-w-0 grid-cols-1 items-stretch gap-4 sm:grid-cols-[repeat(2,minmax(0,1fr))] xl:grid-cols-[repeat(4,minmax(0,1fr))]">
                 {kpiData.map((kpi, index) => (
                     <div
                         key={kpi.title}
-                        className="flex h-full min-h-[149px] animate-slide-in-up"
+                        className="min-w-0 w-full h-full min-h-[149px] [&>*]:min-w-0 [&>*]:w-full animate-slide-in-up"
                         style={{
                             animationDelay: `${index * 100}ms`,
                             opacity: 0,

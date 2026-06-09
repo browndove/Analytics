@@ -42,12 +42,16 @@ const SubscriptionSpend: React.FC<{ data?: Record<string, unknown> }> = ({ data 
         : data) as Record<string, unknown> | undefined;
 
     const ack = pickNum(root, "avg_critical_ack_minutes");
-    const replyAll = pickNum(root, "avg_reply_response_minutes_all", "avg_first_read_minutes_all");
-    const replyCritical = pickNum(root, "avg_reply_response_minutes_critical", "avg_first_read_minutes_critical");
-    const replyStandard = pickNum(
+    const readAll = pickNum(root, "avg_first_read_minutes_all", "avg_read_minutes_all");
+    const readCritical = pickNum(
         root,
-        "avg_reply_response_minutes_non_critical",
-        "avg_first_read_minutes_non_critical"
+        "avg_first_read_minutes_critical",
+        "avg_read_minutes_critical"
+    );
+    const readStandard = pickNum(
+        root,
+        "avg_first_read_minutes_non_critical",
+        "avg_read_minutes_non_critical"
     );
     const calls = pickNum(root, "total_calls_made");
 
@@ -59,19 +63,19 @@ const SubscriptionSpend: React.FC<{ data?: Record<string, unknown> }> = ({ data 
                 value: fmtMin(ack),
             },
             {
-                name: "Average Reply Time (All)",
-                description: "Average first reply across all messages",
-                value: fmtMin(replyAll),
+                name: "Average Read Time (All)",
+                description: "Average time to read all messages",
+                value: fmtMin(readAll),
             },
             {
-                name: "Average Reply Time (Critical)",
-                description: "Average first reply to critical messages",
-                value: fmtMin(replyCritical),
+                name: "Average Read Time (Critical)",
+                description: "Average time to read critical messages",
+                value: fmtMin(readCritical),
             },
             {
-                name: "Average Reply Time (Standard)",
-                description: "Average first reply to non-critical messages",
-                value: fmtMin(replyStandard),
+                name: "Average Read Time (Standard)",
+                description: "Average time to read non-critical messages",
+                value: fmtMin(readStandard),
             },
             {
                 name: "Total Calls Made",
@@ -79,21 +83,21 @@ const SubscriptionSpend: React.FC<{ data?: Record<string, unknown> }> = ({ data 
                 value: calls !== undefined ? String(Math.round(calls)) : "—",
             },
         ],
-        [ack, replyAll, replyCritical, replyStandard, calls]
+        [ack, readAll, readCritical, readStandard, calls]
     );
 
     const insight = React.useMemo(() => {
         const a = ack ?? NaN;
-        const s = replyStandard ?? NaN;
-        const all = replyAll ?? NaN;
+        const s = readStandard ?? NaN;
+        const all = readAll ?? NaN;
         if (Number.isFinite(a) && a > 0 && Number.isFinite(s) && s > 0 && s > a * 1.5) {
-            return `Critical message acknowledgement averages ${fmtMin(a)}. Standard replies average ${fmtMin(s)}.`;
+            return `Critical message acknowledgement averages ${fmtMin(a)}. Standard read time averages ${fmtMin(s)}.`;
         }
         if (Number.isFinite(a) && a > 0 && Number.isFinite(all) && all > 0) {
-            return `Critical acknowledgement averages ${fmtMin(a)}; overall reply time is ${fmtMin(all)}.`;
+            return `Critical acknowledgement averages ${fmtMin(a)}; overall read time is ${fmtMin(all)}.`;
         }
         return "Response times reflect messaging activity in the selected date range.";
-    }, [ack, replyStandard, replyAll]);
+    }, [ack, readStandard, readAll]);
 
     return (
         <DashboardCard className="flex flex-col flex-1" padding="none" style={{ padding: 20, gap: 12, height: 680 }}>
