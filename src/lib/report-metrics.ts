@@ -45,6 +45,7 @@ export const REPORT_METRICS: ReportMetricDef[] = [
     { id: "scalar_avg_first_read_minutes_all", group: "Response times", label: "Avg first read — all messages (minutes)", kind: "scalar", field: "avg_first_read_minutes_all" },
     { id: "scalar_avg_first_read_minutes_critical", group: "Response times", label: "Avg first read — critical (minutes)", kind: "scalar", field: "avg_first_read_minutes_critical" },
     { id: "scalar_avg_first_read_minutes_non_critical", group: "Response times", label: "Avg first read — non-critical (minutes)", kind: "scalar", field: "avg_first_read_minutes_non_critical" },
+    { id: "scalar_avg_read_minutes_standard", group: "Response times", label: "Avg read — standard messages (minutes)", kind: "scalar", field: "avg_read_minutes_standard" },
     { id: "scalar_total_calls_made", group: "Response times", label: "Total calls made", kind: "scalar", field: "total_calls_made" },
 
     { id: "scalar_avg_sign_in_minutes_since_midnight_utc", group: "Scheduling", label: "Avg sign-in (minutes since midnight UTC)", kind: "scalar", field: "avg_sign_in_minutes_since_midnight_utc" },

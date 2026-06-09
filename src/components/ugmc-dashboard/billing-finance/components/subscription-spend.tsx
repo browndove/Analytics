@@ -50,6 +50,7 @@ const SubscriptionSpend: React.FC<{ data?: Record<string, unknown> }> = ({ data 
     );
     const readStandard = pickNum(
         root,
+        "avg_read_minutes_standard",
         "avg_first_read_minutes_non_critical",
         "avg_read_minutes_non_critical"
     );

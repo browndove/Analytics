@@ -61,6 +61,7 @@ export interface AnalyticsData {
     avg_first_read_minutes_all: number;
     avg_first_read_minutes_critical: number;
     avg_first_read_minutes_non_critical: number;
+    avg_read_minutes_standard?: number;
     total_calls_made: number;
     total_missed_calls?: number;
     call_metrics?: import("@/lib/global-usage-metrics").UsageCallMetrics;

@@ -125,6 +125,7 @@ export type GlobalUsageMetricsResponse = {
 
     avg_read_minutes_all: number;
     avg_read_minutes_critical: number;
+    avg_read_minutes_standard?: number;
     avg_reply_response_minutes_all: number;
     avg_reply_response_minutes_critical: number;
 
