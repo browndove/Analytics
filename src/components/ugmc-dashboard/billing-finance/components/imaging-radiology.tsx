@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import DashboardCard from "@/components/ugmc-dashboard/shared/dashboard-card";
 import Text from "@/components/text";
+import { buildNiceTimeAxisScale } from "@/lib/nice-chart-axis";
 import { IoCheckmarkCircle, IoTrailSign } from "react-icons/io5";
 
 const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
@@ -15,6 +16,21 @@ const LIGHT = {
     grid: "#e2e8f0",
     cardBg: "#ffffff",
 } as const;
+
+type RoleSignMetric = {
+    role_id?: string;
+    role_name?: string;
+    department_name?: string;
+    priority?: string;
+    avg_sign_in_minutes_since_midnight_utc?: number | null;
+    avg_sign_out_minutes_since_midnight_utc?: number | null;
+};
+
+type SignInOutData = {
+    avg_sign_in_minutes_since_midnight_utc?: number | null;
+    avg_sign_out_minutes_since_midnight_utc?: number | null;
+    role_metrics?: RoleSignMetric[];
+};
 
 function useNarrowViewport(breakpointPx = 640) {
     const [narrow, setNarrow] = useState(false);
@@ -34,19 +50,15 @@ function shortenCategory(label: string, maxLen: number) {
     return `${t.slice(0, Math.max(0, maxLen - 1))}…`;
 }
 
-type RoleMetric = {
-    role_name?: string;
-    avg_sign_in_minutes_since_midnight_utc?: number;
-    avg_sign_out_minutes_since_midnight_utc?: number;
-};
-
-function toHours(minutes?: number): number {
-    if (!minutes || minutes <= 0) return 0;
-    return Number((minutes / 60).toFixed(2));
+function roleMinuteValue(v: unknown): number | null {
+    if (v === null || v === undefined || v === "") return null;
+    const n = typeof v === "string" ? parseFloat(v) : Number(v);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    return n;
 }
 
-function formatClock(minutes?: number): string {
-    if (!minutes || minutes <= 0) return "—";
+function formatClock(minutes?: number | null): string {
+    if (minutes == null || minutes <= 0) return "—";
     const h = Math.floor(minutes / 60);
     const m = Math.floor(minutes % 60);
     const ampm = h >= 12 ? "PM" : "AM";
@@ -54,22 +66,56 @@ function formatClock(minutes?: number): string {
     return `${hour12}:${m.toString().padStart(2, "0")} ${ampm}`;
 }
 
-export default function ImagingRadiology({ data }: { data?: any }) {
-    const narrow = useNarrowViewport(640);
-    const globalSignIn = data?.avg_sign_in_minutes_since_midnight_utc ?? 0;
-    const globalSignOut = data?.avg_sign_out_minutes_since_midnight_utc ?? 0;
-    const roleMetrics: RoleMetric[] = Array.isArray(data?.role_metrics) ? data.role_metrics : [];
-    const selectedRoles = roleMetrics.slice(0, 4);
-    const categories = selectedRoles.map((r, idx) => r.role_name || `Role ${idx + 1}`);
-    const chartCategories = categories.map((c) => (narrow ? shortenCategory(c, 20) : c));
-    const signInHours = selectedRoles.map((r) => toHours(r.avg_sign_in_minutes_since_midnight_utc ?? globalSignIn));
-    const signOutHours = selectedRoles.map((r) => toHours(r.avg_sign_out_minutes_since_midnight_utc ?? globalSignOut));
-    const allValues = [...signInHours, ...signOutHours].filter((v) => Number.isFinite(v));
-    const maxValue = allValues.length ? Math.max(...allValues) : 0;
-    const yAxisMax = maxValue > 0 ? Number((maxValue * 1.15).toFixed(2)) : 1;
-    const roleCount = categories.length || 4;
+function formatClockAxis(minutes: number): string {
+    const h = Math.floor(minutes / 60);
+    const m = Math.floor(minutes % 60);
+    const hour12 = h % 12 || 12;
+    const ampm = h >= 12 ? "PM" : "AM";
+    if (m === 0) return `${hour12} ${ampm}`;
+    return `${hour12}:${m.toString().padStart(2, "0")} ${ampm}`;
+}
 
+export default function ImagingRadiology({ data }: { data?: SignInOutData }) {
+    const narrow = useNarrowViewport(640);
+    const globalSignIn = roleMinuteValue(data?.avg_sign_in_minutes_since_midnight_utc);
+    const globalSignOut = roleMinuteValue(data?.avg_sign_out_minutes_since_midnight_utc);
+
+    const selectedRoles = useMemo(() => {
+        const rows = Array.isArray(data?.role_metrics) ? data.role_metrics : [];
+        return rows.slice(0, 4);
+    }, [data?.role_metrics]);
+
+    const categories = useMemo(
+        () => selectedRoles.map((r, idx) => r.role_name?.trim() || `Role ${idx + 1}`),
+        [selectedRoles]
+    );
+    const chartCategories = categories.map((c) => (narrow ? shortenCategory(c, 20) : c));
+
+    const signInMinutes = useMemo(
+        () => selectedRoles.map((r) => roleMinuteValue(r.avg_sign_in_minutes_since_midnight_utc)),
+        [selectedRoles]
+    );
+    const signOutMinutes = useMemo(
+        () => selectedRoles.map((r) => roleMinuteValue(r.avg_sign_out_minutes_since_midnight_utc)),
+        [selectedRoles]
+    );
+
+    const plottedMinutes = useMemo(
+        () =>
+            [...signInMinutes, ...signOutMinutes].filter(
+                (v): v is number => v !== null && Number.isFinite(v)
+            ),
+        [signInMinutes, signOutMinutes]
+    );
+
+    const { min: yAxisMin, max: yAxisMax, stepSize: yAxisStep } = useMemo(
+        () => buildNiceTimeAxisScale(plottedMinutes),
+        [plottedMinutes]
+    );
+
+    const roleCount = selectedRoles.length;
     const chartHeight = narrow ? 170 : 210;
+    const hasChartData = plottedMinutes.length > 0 && categories.length > 0;
 
     const options: ApexCharts.ApexOptions = {
         theme: { mode: "light" },
@@ -91,25 +137,25 @@ export default function ImagingRadiology({ data }: { data?: any }) {
         dataLabels: { enabled: false },
         stroke: { show: false },
         xaxis: {
-            categories: chartCategories.length ? chartCategories : ["Role 1", "Role 2", "Role 3", "Role 4"],
+            categories: chartCategories.length ? chartCategories : [],
             labels: {
                 style: { colors: LIGHT.muted, fontSize: narrow ? "9px" : "11px", fontFamily: "Montserrat" },
-                rotate: 0,
-                rotateAlways: false,
-                hideOverlappingLabels: true,
-                trim: false,
-                maxHeight: narrow ? 48 : 56,
+                rotate: narrow ? -35 : 0,
+                rotateAlways: narrow,
+                hideOverlappingLabels: false,
+                trim: true,
+                maxHeight: narrow ? 56 : 64,
             },
             axisBorder: { show: false },
             axisTicks: { show: false },
         },
         yaxis: {
-            min: 0,
+            min: yAxisMin,
             max: yAxisMax,
-            tickAmount: 6,
+            stepSize: yAxisStep,
             labels: {
                 style: { colors: LIGHT.muted, fontSize: narrow ? "9px" : "10px", fontFamily: "Montserrat" },
-                formatter: (v) => `${Math.round(v)}h`,
+                formatter: (v) => formatClockAxis(v),
             },
         },
         grid: {
@@ -130,14 +176,20 @@ export default function ImagingRadiology({ data }: { data?: any }) {
         tooltip: {
             theme: "light",
             y: {
-                formatter: (v) => `${v.toFixed(2)}h`,
+                formatter: (v) => (v > 0 ? formatClock(v) : "—"),
             },
         },
     };
 
     const series = [
-        { name: "Avg Sign-In", data: signInHours.length ? signInHours : [0, 0, 0, 0] },
-        { name: "Avg Sign-Out", data: signOutHours.length ? signOutHours : [0, 0, 0, 0] },
+        {
+            name: "Avg Sign-In",
+            data: signInMinutes.length ? signInMinutes : [],
+        },
+        {
+            name: "Avg Sign-Out",
+            data: signOutMinutes.length ? signOutMinutes : [],
+        },
     ];
 
     return (
@@ -186,7 +238,18 @@ export default function ImagingRadiology({ data }: { data?: any }) {
             </div>
 
             <div className="min-h-0 min-w-0 w-full" style={{ height: chartHeight }}>
-                <Chart options={options} series={series} type="bar" height={chartHeight} width="100%" />
+                {hasChartData ? (
+                    <Chart options={options} series={series} type="bar" height={chartHeight} width="100%" />
+                ) : (
+                    <div
+                        className="flex h-full items-center justify-center rounded-[8px] border border-dashed"
+                        style={{ borderColor: LIGHT.grid, backgroundColor: "#f8fafc" }}
+                    >
+                        <Text variant="body-sm" color="text-secondary">
+                            No per-role sign-in or sign-out data for this period.
+                        </Text>
+                    </div>
+                )}
             </div>
         </DashboardCard>
     );

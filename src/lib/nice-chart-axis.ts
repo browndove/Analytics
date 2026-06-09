@@ -33,3 +33,54 @@ export function buildNiceYAxisScale(dataMax: number, targetTickCount = 5) {
 
     return { max, step, tickAmount };
 }
+
+const NICE_TIME_STEPS_MINUTES = [15, 30, 60, 120, 180, 240, 360, 480, 720] as const;
+
+function pickNiceTimeStep(rangeMinutes: number, targetTickCount = 5): number {
+    if (rangeMinutes <= 0) return 60;
+    const rough = rangeMinutes / targetTickCount;
+    for (const step of NICE_TIME_STEPS_MINUTES) {
+        if (rough <= step * 1.25) return step;
+    }
+    return NICE_TIME_STEPS_MINUTES[NICE_TIME_STEPS_MINUTES.length - 1];
+}
+
+/**
+ * Y-axis bounds for clock-time charts (minutes since midnight).
+ * Snaps to clean intervals like 30m or 1h so labels read 2 PM, 3 PM, etc.
+ */
+export function buildNiceTimeAxisScale(
+    values: number[],
+    targetTickCount = 5
+): { min: number; max: number; stepSize: number } {
+    const defaultDayWindow = { min: 6 * 60, max: 18 * 60, stepSize: 120 };
+
+    if (!values.length) return defaultDayWindow;
+
+    const dataMin = Math.min(...values);
+    const dataMax = Math.max(...values);
+    const span = Math.max(dataMax - dataMin, 30);
+    const padding = Math.max(30, span * 0.1);
+
+    let roughMin = dataMin - padding;
+    let roughMax = dataMax + padding;
+    const range = Math.max(roughMax - roughMin, 60);
+    const stepSize = pickNiceTimeStep(range, targetTickCount);
+
+    const axisMin = Math.max(0, Math.floor(roughMin / stepSize) * stepSize);
+    let axisMax = Math.ceil(roughMax / stepSize) * stepSize;
+
+    if (axisMax <= axisMin) axisMax = axisMin + stepSize;
+
+    // Cap tick count by widening step if needed.
+    const tickCount = (axisMax - axisMin) / stepSize + 1;
+    if (tickCount > targetTickCount + 2) {
+        const widerStep = pickNiceTimeStep(range * 1.5, Math.max(4, targetTickCount - 1));
+        const widerMin = Math.max(0, Math.floor(roughMin / widerStep) * widerStep);
+        let widerMax = Math.ceil(roughMax / widerStep) * widerStep;
+        if (widerMax <= widerMin) widerMax = widerMin + widerStep;
+        return { min: widerMin, max: widerMax, stepSize: widerStep };
+    }
+
+    return { min: axisMin, max: axisMax, stepSize };
+}
