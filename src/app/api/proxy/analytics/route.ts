@@ -7,7 +7,10 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3
 // GET /api/proxy/analytics — Fetch facility analytics
 export async function GET(req: NextRequest) {
     try {
-        const facilityId = await resolveFacilityId(req, API_BASE_URL);
+        const { searchParams } = new URL(req.url);
+        // Allow explicit facility_id param (internal admin filtering by facility)
+        const explicitFacilityId = searchParams.get('facility_id')?.trim() || null;
+        const facilityId = explicitFacilityId || await resolveFacilityId(req, API_BASE_URL);
         if (!facilityId) {
             return NextResponse.json(
                 { error: 'Unable to resolve facility for current session. Please log in again.' },
@@ -15,7 +18,6 @@ export async function GET(req: NextRequest) {
             );
         }
 
-        const { searchParams } = new URL(req.url);
         const url = new URL(`${API_BASE_URL}/api/v1/facilities/${facilityId}/usage-metrics`);
 
         // Forward optional range — backend accepts RFC3339 UTC timestamps.

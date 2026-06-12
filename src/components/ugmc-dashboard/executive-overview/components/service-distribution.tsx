@@ -149,6 +149,7 @@ const ServiceDistribution = ({ departments = [] }: ServiceDistributionProps) => 
                                 </Text>
                             </div>
                         )}
+
                     </div>
                 </div>
 

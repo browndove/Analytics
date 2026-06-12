@@ -9,7 +9,11 @@ export type ReportMetricKind =
     | "table_department"
     | "table_roles_escalated"
     | "table_roles_escalated_least"
-    | "table_roles_metrics";
+    | "table_roles_metrics"
+    | "table_call_by_role"
+    | "table_call_by_department"
+    | "table_transfer_by_counterparty"
+    | "table_transfer_by_role";
 
 export type ReportMetricDef = {
     id: string;
@@ -58,6 +62,34 @@ export const REPORT_METRICS: ReportMetricDef[] = [
     { id: "table_top_escalated_roles", group: "Tables", label: "Top escalated roles", kind: "table_roles_escalated" },
     { id: "table_least_escalated_roles", group: "Tables", label: "Least escalated roles", kind: "table_roles_escalated_least" },
     { id: "table_role_metrics", group: "Tables", label: "Role metrics (detail rows)", kind: "table_roles_metrics" },
+
+    // Call metrics (scalars)
+    { id: "scalar_call_total_calls_made", group: "Calls", label: "Total calls made", kind: "scalar", field: "call_metrics.total_calls_made" },
+    { id: "scalar_call_completed_calls", group: "Calls", label: "Completed calls", kind: "scalar", field: "call_metrics.duration.completed_calls" },
+    { id: "scalar_call_avg_duration_seconds", group: "Calls", label: "Avg call duration (seconds)", kind: "scalar", field: "call_metrics.duration.avg_duration_seconds" },
+    { id: "scalar_call_avg_duration_minutes", group: "Calls", label: "Avg call duration (minutes)", kind: "scalar", field: "call_metrics.duration.avg_duration_minutes" },
+    { id: "scalar_call_min_duration_seconds", group: "Calls", label: "Min call duration (seconds)", kind: "scalar", field: "call_metrics.duration.min_duration_seconds" },
+    { id: "scalar_call_median_duration_seconds", group: "Calls", label: "Median call duration (seconds)", kind: "scalar", field: "call_metrics.duration.median_duration_seconds" },
+    { id: "scalar_call_q1_duration_seconds", group: "Calls", label: "Q1 call duration (seconds)", kind: "scalar", field: "call_metrics.duration.q1_duration_seconds" },
+    { id: "scalar_call_q3_duration_seconds", group: "Calls", label: "Q3 call duration (seconds)", kind: "scalar", field: "call_metrics.duration.q3_duration_seconds" },
+    { id: "scalar_call_max_duration_seconds", group: "Calls", label: "Max call duration (seconds)", kind: "scalar", field: "call_metrics.duration.max_duration_seconds" },
+
+    // Call tables
+    { id: "table_call_by_role", group: "Calls", label: "Calls by initiator role", kind: "table_call_by_role" },
+    { id: "table_call_by_department", group: "Calls", label: "Calls by initiator department", kind: "table_call_by_department" },
+
+    // Transfer metrics (scalars)
+    { id: "scalar_transfer_total", group: "Transfers", label: "Total transfer requests", kind: "scalar", field: "transfer_metrics.total_transfer_requests" },
+    { id: "scalar_transfer_sent", group: "Transfers", label: "Transfer requests sent", kind: "scalar", field: "transfer_metrics.transfer_requests_sent" },
+    { id: "scalar_transfer_outbound", group: "Transfers", label: "Transfer requests outbound", kind: "scalar", field: "transfer_metrics.transfer_requests_outbound" },
+    { id: "scalar_transfer_inbound", group: "Transfers", label: "Transfer requests inbound", kind: "scalar", field: "transfer_metrics.transfer_requests_inbound" },
+    { id: "scalar_transfer_accepted", group: "Transfers", label: "Transfer requests accepted", kind: "scalar", field: "transfer_metrics.transfer_requests_accepted" },
+    { id: "scalar_transfer_declined", group: "Transfers", label: "Transfer requests declined", kind: "scalar", field: "transfer_metrics.transfer_requests_declined" },
+    { id: "scalar_transfer_pending", group: "Transfers", label: "Transfer requests pending", kind: "scalar", field: "transfer_metrics.transfer_requests_pending" },
+
+    // Transfer tables
+    { id: "table_transfer_by_counterparty", group: "Transfers", label: "Transfers by counterparty facility", kind: "table_transfer_by_counterparty" },
+    { id: "table_transfer_by_role", group: "Transfers", label: "Transfers by role", kind: "table_transfer_by_role" },
 ];
 
 export function defaultMetricSelection(): Record<string, boolean> {
@@ -76,6 +108,15 @@ function csvCell(v: unknown): string {
 type AnalyticsRow = Record<string, unknown>;
 
 function getScalar(data: AnalyticsRow, field: string): unknown {
+    if (field.includes(".")) {
+        const parts = field.split(".");
+        let cur: unknown = data;
+        for (const p of parts) {
+            if (cur == null || typeof cur !== "object") return undefined;
+            cur = (cur as Record<string, unknown>)[p];
+        }
+        return cur;
+    }
     return data[field];
 }
 
@@ -97,6 +138,58 @@ const DEPARTMENT_METRIC_HEADERS = [
 ] as const;
 
 const DAILY_VOLUME_HEADERS = ["day", "total_messages", "critical_messages", "standard_messages"] as const;
+
+const CALL_BY_ROLE_HEADERS = [
+    "role_name",
+    "role_id",
+    "facility_name",
+    "facility_id",
+    "total_calls_made",
+    "completed_calls",
+    "avg_duration_seconds",
+    "avg_duration_minutes",
+    "min_duration_seconds",
+    "median_duration_seconds",
+    "max_duration_seconds",
+] as const;
+
+const CALL_BY_DEPT_HEADERS = [
+    "department_name",
+    "department_id",
+    "facility_name",
+    "facility_id",
+    "total_calls_made",
+    "completed_calls",
+    "avg_duration_seconds",
+    "avg_duration_minutes",
+    "min_duration_seconds",
+    "median_duration_seconds",
+    "max_duration_seconds",
+] as const;
+
+const TRANSFER_COUNTERPARTY_HEADERS = [
+    "counterparty_facility_name",
+    "counterparty_facility_id",
+    "total_transfer_requests",
+    "outbound_transfer_requests",
+    "inbound_transfer_requests",
+    "accepted_transfer_requests",
+    "declined_transfer_requests",
+    "pending_transfer_requests",
+] as const;
+
+const TRANSFER_ROLE_HEADERS = [
+    "role_name",
+    "role_id",
+    "facility_name",
+    "facility_id",
+    "total_transfer_requests",
+    "outbound_transfer_requests",
+    "inbound_transfer_requests",
+    "accepted_transfer_requests",
+    "declined_transfer_requests",
+    "pending_transfer_requests",
+] as const;
 
 const ESCALATION_ROLE_HEADERS = ["role_name", "role_id", "escalation_count"] as const;
 
@@ -201,6 +294,82 @@ export function collectReportData(data: AnalyticsRow, selected: Record<string, b
         }
     }
 
+    let callByRole: ReportTableSection | null = null;
+    if (selected.table_call_by_role) {
+        const head = [...CALL_BY_ROLE_HEADERS];
+        const body: string[][] = [];
+        const cm = data.call_metrics as Record<string, unknown> | undefined;
+        const list = cm?.by_initiator_role;
+        if (Array.isArray(list)) {
+            for (const item of list) {
+                if (!item || typeof item !== "object") continue;
+                const r = item as Record<string, unknown>;
+                const dur = r.duration as Record<string, unknown> | undefined;
+                body.push(head.map((h) => {
+                    if (dur && ["completed_calls", "avg_duration_seconds", "avg_duration_minutes", "min_duration_seconds", "median_duration_seconds", "max_duration_seconds"].includes(h)) {
+                        const v = dur[h]; return v == null ? "" : String(v);
+                    }
+                    const v = r[h]; return v == null ? "" : String(v);
+                }));
+            }
+        }
+        callByRole = { title: "Calls by initiator role", head, body };
+    }
+
+    let callByDept: ReportTableSection | null = null;
+    if (selected.table_call_by_department) {
+        const head = [...CALL_BY_DEPT_HEADERS];
+        const body: string[][] = [];
+        const cm = data.call_metrics as Record<string, unknown> | undefined;
+        const list = cm?.by_initiator_department;
+        if (Array.isArray(list)) {
+            for (const item of list) {
+                if (!item || typeof item !== "object") continue;
+                const r = item as Record<string, unknown>;
+                const dur = r.duration as Record<string, unknown> | undefined;
+                body.push(head.map((h) => {
+                    if (dur && ["completed_calls", "avg_duration_seconds", "avg_duration_minutes", "min_duration_seconds", "median_duration_seconds", "max_duration_seconds"].includes(h)) {
+                        const v = dur[h]; return v == null ? "" : String(v);
+                    }
+                    const v = r[h]; return v == null ? "" : String(v);
+                }));
+            }
+        }
+        callByDept = { title: "Calls by initiator department", head, body };
+    }
+
+    let transferByCounterparty: ReportTableSection | null = null;
+    if (selected.table_transfer_by_counterparty) {
+        const head = [...TRANSFER_COUNTERPARTY_HEADERS];
+        const body: string[][] = [];
+        const tm = data.transfer_metrics as Record<string, unknown> | undefined;
+        const list = tm?.transfer_by_counterparty_facility;
+        if (Array.isArray(list)) {
+            for (const item of list) {
+                if (!item || typeof item !== "object") continue;
+                const r = item as Record<string, unknown>;
+                body.push(head.map((h) => (r[h] == null ? "" : String(r[h]))));
+            }
+        }
+        transferByCounterparty = { title: "Transfers by counterparty facility", head, body };
+    }
+
+    let transferByRole: ReportTableSection | null = null;
+    if (selected.table_transfer_by_role) {
+        const head = [...TRANSFER_ROLE_HEADERS];
+        const body: string[][] = [];
+        const tm = data.transfer_metrics as Record<string, unknown> | undefined;
+        const list = tm?.transfer_by_role;
+        if (Array.isArray(list)) {
+            for (const item of list) {
+                if (!item || typeof item !== "object") continue;
+                const r = item as Record<string, unknown>;
+                body.push(head.map((h) => (r[h] == null ? "" : String(r[h]))));
+            }
+        }
+        transferByRole = { title: "Transfers by role", head, body };
+    }
+
     return {
         scalarRows,
         daily,
@@ -208,6 +377,10 @@ export function collectReportData(data: AnalyticsRow, selected: Record<string, b
         topEscalated,
         leastEscalated,
         roleMetrics,
+        callByRole,
+        callByDept,
+        transferByCounterparty,
+        transferByRole,
     };
 }
 
@@ -247,6 +420,10 @@ export function buildAnalyticsReportCsv(
     appendTableCsv(collected.topEscalated);
     appendTableCsv(collected.leastEscalated);
     appendTableCsv(collected.roleMetrics);
+    appendTableCsv(collected.callByRole);
+    appendTableCsv(collected.callByDept);
+    appendTableCsv(collected.transferByCounterparty);
+    appendTableCsv(collected.transferByRole);
 
     return lines.join("\n");
 }

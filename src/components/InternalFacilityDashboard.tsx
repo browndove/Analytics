@@ -204,13 +204,25 @@ export default function InternalFacilityDashboard() {
         }
 
         try {
-            const qs = params.toString();
-            const url = `${API_ENDPOINTS.USAGE_METRICS}${qs ? `?${qs}` : ""}`;
+            let url: string;
+            if (facilityId) {
+                // Use facility-specific endpoint for complete data (includes role_metrics)
+                const facilityParams = new URLSearchParams();
+                if (dateFrom && dateTo) {
+                    appendUsageMetricsRange(facilityParams, dateFrom, dateTo);
+                }
+                const qs = facilityParams.toString();
+                url = `/api/proxy/analytics?facility_id=${facilityId}${qs ? `&${qs}` : ""}`;
+            } else {
+                // Use global usage-metrics endpoint for all-facilities view
+                const qs = params.toString();
+                url = `${API_ENDPOINTS.USAGE_METRICS}${qs ? `?${qs}` : ""}`;
+            }
             console.log("[internal-dashboard] Fetching:", url);
             const res = await fetch(url, { credentials: "include", cache: "no-store" });
             if (res.ok) {
                 const json = (await res.json()) as AnalyticsData;
-                console.log("[internal-dashboard] Response window_days:", json.window_days, "total_messages:", json.total_messages);
+                console.log("[internal-dashboard] Response window_days:", json.window_days, "total_messages:", json.total_messages, "role_metrics:", json.role_metrics?.length ?? 0);
                 analyticsCacheRef.current.set(cacheKey, json);
                 setData(json);
             }

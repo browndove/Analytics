@@ -15,6 +15,8 @@ const GROUP_ORDER: string[] = [
     "Escalation",
     "Roles",
     "Response times",
+    "Calls",
+    "Transfers",
     "Scheduling",
     "Window",
     "Tables",

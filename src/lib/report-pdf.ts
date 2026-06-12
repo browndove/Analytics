@@ -178,6 +178,14 @@ export function buildAnalyticsReportPdfBlob(
         addDataTable(collected.leastEscalated.title, collected.leastEscalated.head, collected.leastEscalated.body);
     if (collected.roleMetrics)
         addDataTable(collected.roleMetrics.title, collected.roleMetrics.head, collected.roleMetrics.body);
+    if (collected.callByRole)
+        addDataTable(collected.callByRole.title, collected.callByRole.head, collected.callByRole.body);
+    if (collected.callByDept)
+        addDataTable(collected.callByDept.title, collected.callByDept.head, collected.callByDept.body);
+    if (collected.transferByCounterparty)
+        addDataTable(collected.transferByCounterparty.title, collected.transferByCounterparty.head, collected.transferByCounterparty.body);
+    if (collected.transferByRole)
+        addDataTable(collected.transferByRole.title, collected.transferByRole.head, collected.transferByRole.body);
 
     // — Footer on every page
     const total = doc.getNumberOfPages();
