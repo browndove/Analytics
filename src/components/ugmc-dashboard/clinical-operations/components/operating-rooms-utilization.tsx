@@ -100,7 +100,7 @@ const OperatingRoomsUtilization: React.FC<OperatingRoomsUtilizationProps> = ({ c
             <div className="flex flex-col gap-3">
                 <div className="flex justify-between items-center">
                     <Text variant="body-sm" color="text-secondary">
-                        Total Calls
+                        Total Calls Placed
                     </Text>
                     <div className="bg-accent-primary/20 px-2 py-0.5 rounded-[6px]">
                         <Text variant="body-sm" color="accent-primary">

@@ -76,7 +76,7 @@ const CallKPIRow = ({ data }: { data?: CallKpiInput }) => {
             {
                 badge: "TC",
                 badgeColor: "purple" as const,
-                title: "Total Calls",
+                title: "Total Calls Placed",
                 provider: hasDuration && completed > 0 ? "Facility call volume" : "Across all roles",
                 amount: data != null ? String(total) : undefined,
                 displayValue: data == null ? "—" : undefined,
