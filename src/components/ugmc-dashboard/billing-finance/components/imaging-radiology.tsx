@@ -5,6 +5,11 @@ import dynamic from "next/dynamic";
 import DashboardCard from "@/components/ugmc-dashboard/shared/dashboard-card";
 import Text from "@/components/text";
 import { buildNiceTimeAxisScale } from "@/lib/nice-chart-axis";
+import {
+    minutesSinceMidnightToClock,
+    resolveSignInMinutes,
+    resolveSignOutMinutes,
+} from "@/lib/distribution-metrics";
 import { IoCheckmarkCircle, IoTrailSign } from "react-icons/io5";
 
 const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
@@ -22,13 +27,13 @@ type RoleSignMetric = {
     role_name?: string;
     department_name?: string;
     priority?: string;
+    sign_in_minutes?: { median_minutes?: number };
+    sign_out_minutes?: { median_minutes?: number };
     avg_sign_in_minutes_since_midnight_utc?: number | null;
     avg_sign_out_minutes_since_midnight_utc?: number | null;
 };
 
-type SignInOutData = {
-    avg_sign_in_minutes_since_midnight_utc?: number | null;
-    avg_sign_out_minutes_since_midnight_utc?: number | null;
+type SignInOutData = Record<string, unknown> & {
     role_metrics?: RoleSignMetric[];
 };
 
@@ -50,35 +55,21 @@ function shortenCategory(label: string, maxLen: number) {
     return `${t.slice(0, Math.max(0, maxLen - 1))}…`;
 }
 
-function roleMinuteValue(v: unknown): number | null {
-    if (v === null || v === undefined || v === "") return null;
-    const n = typeof v === "string" ? parseFloat(v) : Number(v);
-    if (!Number.isFinite(n) || n <= 0) return null;
-    return n;
-}
-
 function formatClock(minutes?: number | null): string {
     if (minutes == null || minutes <= 0) return "—";
-    const h = Math.floor(minutes / 60);
-    const m = Math.floor(minutes % 60);
-    const ampm = h >= 12 ? "PM" : "AM";
-    const hour12 = h % 12 || 12;
-    return `${hour12}:${m.toString().padStart(2, "0")} ${ampm}`;
+    return minutesSinceMidnightToClock(minutes);
 }
 
 function formatClockAxis(minutes: number): string {
-    const h = Math.floor(minutes / 60);
-    const m = Math.floor(minutes % 60);
-    const hour12 = h % 12 || 12;
-    const ampm = h >= 12 ? "PM" : "AM";
-    if (m === 0) return `${hour12} ${ampm}`;
-    return `${hour12}:${m.toString().padStart(2, "0")} ${ampm}`;
+    const formatted = minutesSinceMidnightToClock(minutes);
+    return formatted.replace(" UTC", "");
 }
 
 export default function ImagingRadiology({ data }: { data?: SignInOutData }) {
     const narrow = useNarrowViewport(640);
-    const globalSignIn = roleMinuteValue(data?.avg_sign_in_minutes_since_midnight_utc);
-    const globalSignOut = roleMinuteValue(data?.avg_sign_out_minutes_since_midnight_utc);
+    const root = data as Record<string, unknown> | undefined;
+    const globalSignIn = resolveSignInMinutes(root);
+    const globalSignOut = resolveSignOutMinutes(root);
 
     const selectedRoles = useMemo(() => {
         const rows = Array.isArray(data?.role_metrics) ? data.role_metrics : [];
@@ -92,12 +83,12 @@ export default function ImagingRadiology({ data }: { data?: SignInOutData }) {
     const chartCategories = categories.map((c) => (narrow ? shortenCategory(c, 20) : c));
 
     const signInMinutes = useMemo(
-        () => selectedRoles.map((r) => roleMinuteValue(r.avg_sign_in_minutes_since_midnight_utc)),
-        [selectedRoles]
+        () => selectedRoles.map((r) => resolveSignInMinutes(root, r as Record<string, unknown>)),
+        [selectedRoles, root]
     );
     const signOutMinutes = useMemo(
-        () => selectedRoles.map((r) => roleMinuteValue(r.avg_sign_out_minutes_since_midnight_utc)),
-        [selectedRoles]
+        () => selectedRoles.map((r) => resolveSignOutMinutes(root, r as Record<string, unknown>)),
+        [selectedRoles, root]
     );
 
     const plottedMinutes = useMemo(

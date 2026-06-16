@@ -2,6 +2,11 @@
 
 import { useMemo } from "react";
 import { normalizeCallMetricsFromUsage } from "@/lib/call-metrics";
+import {
+    formatDurationSeconds,
+    pickTypicalSeconds,
+    typicalSecondsRange,
+} from "@/lib/distribution-metrics";
 import SubscriptionCard from "./subscription-card";
 
 export type CallKpiInput = {
@@ -24,17 +29,6 @@ function num(v: unknown): number {
     return Number.isFinite(n) ? n : 0;
 }
 
-function fmtDuration(seconds: number): string {
-    if (!seconds || seconds <= 0) return "—";
-    if (seconds < 60) return `${Math.round(seconds)}s`;
-    const m = Math.floor(seconds / 60);
-    const s = Math.round(seconds % 60);
-    if (m < 60) return s > 0 ? `${m}m ${s}s` : `${m}m`;
-    const h = Math.floor(m / 60);
-    const rm = m % 60;
-    return rm > 0 ? `${h}h ${rm}m` : `${h}h`;
-}
-
 function formatRoleName(name: string): string {
     return name.replace(/^HH\s*-\s*/i, "").trim() || name;
 }
@@ -48,10 +42,19 @@ const CallKPIRow = ({ data }: { data?: CallKpiInput }) => {
     const cards = useMemo(() => {
         const callMetrics = normalizeCallMetricsFromUsage(data);
         const total = num(callMetrics?.total_calls_made ?? data?.total_calls_made);
+        const answered = callMetrics?.answered;
+        const answeredCount = num(answered?.answered_calls);
+        const hasAnswered =
+            answered != null &&
+            (answeredCount > 0 ||
+                num(answered.median_duration_seconds) > 0 ||
+                num(answered.avg_duration_seconds) > 0);
+        const typicalSeconds = pickTypicalSeconds(answered);
         const duration = callMetrics?.duration;
         const completed = num(duration?.completed_calls);
         const hasDuration =
-            duration != null && (total > 0 || completed > 0 || num(duration.avg_duration_seconds) > 0);
+            hasAnswered ||
+            (duration != null && (total > 0 || completed > 0 || num(duration.avg_duration_seconds) > 0));
 
         const roles = Array.isArray(data?.role_metrics) ? data!.role_metrics! : [];
         const topRole = roles.reduce<{ name: string; calls: number } | null>((best, r) => {
@@ -80,25 +83,40 @@ const CallKPIRow = ({ data }: { data?: CallKpiInput }) => {
                 provider: hasDuration && completed > 0 ? "Facility call volume" : "Across all roles",
                 amount: data != null ? String(total) : undefined,
                 displayValue: data == null ? "—" : undefined,
-                footerLabel: "Completed",
+                footerLabel: "Answered",
                 footerValue:
-                    hasDuration && completed > 0
-                        ? `${completed.toLocaleString()} calls`
-                        : "—",
+                    hasAnswered && answeredCount > 0
+                        ? `${answeredCount.toLocaleString()} calls`
+                        : hasDuration && completed > 0
+                          ? `${completed.toLocaleString()} calls`
+                          : "—",
                 infoText: "Total phone calls placed in the selected period.",
             },
             {
                 badge: "AD",
                 badgeColor: "teal" as const,
                 title: "Avg Call Duration",
-                provider: "Mean call length",
-                displayValue: hasDuration ? fmtDuration(num(duration?.avg_duration_seconds)) : "—",
-                footerLabel: "In minutes",
+                provider: hasAnswered ? "Typical answered call" : "Mean call length",
+                displayValue:
+                    hasAnswered && typicalSeconds != null
+                        ? formatDurationSeconds(typicalSeconds)
+                        : hasDuration
+                          ? formatDurationSeconds(num(duration?.avg_duration_seconds))
+                          : "—",
+                footerLabel: "Typical range",
                 footerValue:
-                    hasDuration && duration?.avg_duration_minutes != null
-                        ? `~${num(duration.avg_duration_minutes).toFixed(1)} min`
-                        : "Not available",
-                infoText: "Average duration of completed calls.",
+                    hasAnswered
+                        ? typicalSecondsRange(
+                              num(answered?.q1_duration_seconds),
+                              num(answered?.q3_duration_seconds)
+                          )
+                        : hasDuration && answered?.avg_duration_minutes != null
+                          ? `~${num(answered.avg_duration_minutes).toFixed(1)} min avg`
+                          : hasDuration && duration?.avg_duration_minutes != null
+                            ? `~${num(duration.avg_duration_minutes).toFixed(1)} min`
+                            : "Not available",
+                infoText:
+                    "Median duration of answered calls. Middle 50% lasted between Q1 and Q3.",
             },
             {
                 badge: "CR",

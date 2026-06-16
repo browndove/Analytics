@@ -1,3 +1,11 @@
+import {
+    type CallAnsweredDistribution,
+    answeredDistributionHasData,
+    formatDurationSeconds,
+    pickTypicalSeconds,
+    typicalSecondsRange,
+} from "@/lib/distribution-metrics";
+
 export function num(v: unknown): number {
     if (v === null || v === undefined || v === "") return 0;
     const n = typeof v === "string" ? parseFloat(v) : Number(v);
@@ -14,43 +22,46 @@ export function truncateLabel(name: string, max = 22): string {
 }
 
 export function fmtDuration(seconds: number): string {
-    if (!seconds || seconds <= 0) return "—";
-    if (seconds < 60) return `${Math.round(seconds)}s`;
-    const m = Math.floor(seconds / 60);
-    const s = Math.round(seconds % 60);
-    if (m < 60) return s > 0 ? `${m}m ${s}s` : `${m}m`;
-    const h = Math.floor(m / 60);
-    const rm = m % 60;
-    return rm > 0 ? `${h}h ${rm}m` : `${h}h`;
+    return formatDurationSeconds(seconds);
 }
+
+export type CallDurationSpread = {
+    completed_calls?: number;
+    avg_duration_seconds?: number;
+    avg_duration_minutes?: number;
+    min_duration_seconds?: number;
+    q1_duration_seconds?: number;
+    median_duration_seconds?: number;
+    q3_duration_seconds?: number;
+    max_duration_seconds?: number;
+};
 
 export type CallInitiatorBreakdown = {
     total_calls_made?: number;
     missed_calls?: number;
-    duration?: {
-        completed_calls?: number;
-        avg_duration_seconds?: number;
-        avg_duration_minutes?: number;
-        min_duration_seconds?: number;
-        median_duration_seconds?: number;
-        max_duration_seconds?: number;
-    };
+    duration?: CallDurationSpread;
 };
 
 export type CallMetricsSlice = {
     total_calls_made?: number;
     total_missed_calls?: number;
-    duration?: {
-        completed_calls?: number;
-        avg_duration_seconds?: number;
-        avg_duration_minutes?: number;
-        min_duration_seconds?: number;
-        median_duration_seconds?: number;
-        max_duration_seconds?: number;
-    };
+    /** Answered-call duration spread — preferred for call duration UI. */
+    answered?: CallAnsweredDistribution;
+    /** @deprecated Legacy — use `answered` for duration UI. */
+    duration?: CallDurationSpread;
     by_initiator_role?: (CallInitiatorBreakdown & { role_name: string })[];
     by_initiator_department?: (CallInitiatorBreakdown & { department_name: string })[];
 };
+
+export function hasAnsweredDuration(cm?: CallMetricsSlice | null): boolean {
+    return answeredDistributionHasData(cm?.answered);
+}
+
+export function getAnsweredSpread(cm?: CallMetricsSlice | null): CallAnsweredDistribution | undefined {
+    return hasAnsweredDuration(cm) ? cm?.answered : undefined;
+}
+
+export { pickTypicalSeconds, typicalSecondsRange };
 
 function missedDefined(v: unknown): boolean {
     return v !== undefined && v !== null && v !== "";

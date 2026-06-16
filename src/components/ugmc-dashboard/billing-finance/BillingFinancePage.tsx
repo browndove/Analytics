@@ -14,13 +14,15 @@ import {
     ImagingRadiology,
 } from "./components";
 
-function formatTime(minutes: number): string {
-    if (!minutes || minutes <= 0) return '—';
-    const h = Math.floor(minutes / 60);
-    const m = Math.floor(minutes % 60);
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    const hour12 = h % 12 || 12;
-    return `${hour12}:${m.toString().padStart(2, '0')} ${ampm}`;
+import {
+    minutesSinceMidnightToClock,
+    resolveSignInMinutes,
+    resolveSignOutMinutes,
+} from "@/lib/distribution-metrics";
+
+function formatTime(minutes: number | null): string {
+    if (minutes == null || minutes <= 0) return '—';
+    return minutesSinceMidnightToClock(minutes).replace(" UTC", "");
 }
 
 const BillingFinancePage = ({ data, onEditRole }: { data?: any; onEditRole?: (role: any) => void }) => {
@@ -48,9 +50,9 @@ const BillingFinancePage = ({ data, onEditRole }: { data?: any; onEditRole?: (ro
         },
         {
             title: "Average Sign-In Time",
-            value: formatTime(data?.avg_sign_in_minutes_since_midnight_utc || 0),
-            subtitle: "Average start time of shift.",
-            trend: { type: "neutral" as const, value: `Out: ${formatTime(data?.avg_sign_out_minutes_since_midnight_utc || 0)}`, isPositive: true },
+            value: formatTime(resolveSignInMinutes(data)),
+            subtitle: "Typical start time of shift (UTC).",
+            trend: { type: "neutral" as const, value: `Out: ${formatTime(resolveSignOutMinutes(data))}`, isPositive: true },
             infoText: "Mean UTC clock time at which staff members sign into their roles.",
         },
     ];

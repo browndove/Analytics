@@ -10,12 +10,15 @@ import clsx from "clsx";
 import {
     type CallMetricsSlice,
     fmtDuration,
-    getCallOutcomeTotals,
+    getAnsweredSpread,
+    hasAnsweredDuration,
     num,
+    pickTypicalSeconds,
+    typicalSecondsRange,
 } from "./call-metrics-helpers";
 
-const avgInfo = "Mean duration of completed calls in the selected period.";
-const rangeInfo = "Shortest and longest completed call durations recorded.";
+const avgInfo = "Median duration of answered calls in the selected period.";
+const rangeInfo = "Middle 50% of answered call lengths (Q1 to Q3). Min and max show extremes.";
 
 interface ICUVacantBedsProps {
     callMetrics?: CallMetricsSlice;
@@ -26,18 +29,19 @@ const ICUVacantBeds: React.FC<ICUVacantBedsProps> = ({ callMetrics }) => {
     const [isRangeHovered, setIsRangeHovered] = useState(false);
     const [isVisible, setIsVisible] = useState(false);
 
-    const duration = callMetrics?.duration;
-    const avgSeconds = num(duration?.avg_duration_seconds);
-    const minSeconds = num(duration?.min_duration_seconds);
-    const maxSeconds = num(duration?.max_duration_seconds);
-    const medianSeconds = num(duration?.median_duration_seconds);
-    const { completed, hasDuration } = getCallOutcomeTotals(callMetrics);
-    const showData = hasDuration && (avgSeconds > 0 || completed > 0);
+    const answered = getAnsweredSpread(callMetrics);
+    const hasAnswered = hasAnsweredDuration(callMetrics);
+    const typicalSeconds = pickTypicalSeconds(answered) ?? 0;
+    const avgSeconds = num(answered?.avg_duration_seconds);
+    const q1 = num(answered?.q1_duration_seconds);
+    const q3 = num(answered?.q3_duration_seconds);
+    const minSeconds = num(answered?.min_duration_seconds);
+    const maxSeconds = num(answered?.max_duration_seconds);
+    const answeredCount = num(answered?.answered_calls);
+    const showData = hasAnswered;
 
     const rangePct =
-        maxSeconds > 0 && minSeconds >= 0
-            ? Math.min(100, Math.round((minSeconds / maxSeconds) * 100))
-            : 0;
+        q3 > 0 && q1 >= 0 ? Math.min(100, Math.round((q1 / Math.max(q3, 1)) * 100)) : 0;
 
     useEffect(() => {
         setIsVisible(true);
@@ -56,7 +60,7 @@ const ICUVacantBeds: React.FC<ICUVacantBedsProps> = ({ callMetrics }) => {
                             Avg Call Duration
                         </Text>
                         <Text variant="body-sm" color="text-secondary">
-                            Completed calls
+                            Answered calls
                         </Text>
                     </div>
                     <div className="flex items-center gap-2">
@@ -80,20 +84,20 @@ const ICUVacantBeds: React.FC<ICUVacantBedsProps> = ({ callMetrics }) => {
                             isAvgHovered && isVisible && "scale-[1.02] origin-left inline-block"
                         )}
                     >
-                        {showData ? fmtDuration(avgSeconds) : "—"}
+                        {showData ? fmtDuration(typicalSeconds) : "—"}
                     </span>
                 </div>
                 <div className="flex flex-col gap-2">
                     <div className="flex justify-between items-center">
                         <Text variant="body-sm" color="text-secondary">
                             {showData
-                                ? `${completed.toLocaleString()} calls completed`
+                                ? `${answeredCount.toLocaleString()} answered`
                                 : "No duration data"}
                         </Text>
-                        {medianSeconds > 0 && (
+                        {avgSeconds > 0 && (
                             <div className="bg-accent-primary/20 px-2 py-0.5 rounded-[6px]">
                                 <Text variant="body-sm" color="accent-primary">
-                                    Median {fmtDuration(medianSeconds)}
+                                    Avg {fmtDuration(avgSeconds)}
                                 </Text>
                             </div>
                         )}
@@ -112,7 +116,7 @@ const ICUVacantBeds: React.FC<ICUVacantBedsProps> = ({ callMetrics }) => {
                             Call Duration Range
                         </Text>
                         <Text variant="body-sm" color="text-secondary">
-                            Shortest to longest
+                            Typical range (Q1–Q3)
                         </Text>
                     </div>
                     <div className="flex items-center gap-2">
@@ -131,22 +135,24 @@ const ICUVacantBeds: React.FC<ICUVacantBedsProps> = ({ callMetrics }) => {
                 <div className="flex flex-col gap-2">
                     <div className="flex justify-between items-center">
                         <Text variant="body-sm" color="text-secondary">
-                            Shortest
+                            Usual spread
                         </Text>
                         <div className="bg-accent-green/20 px-2 py-0.5 rounded-[4px]">
                             <span className="text-accent-green text-sm font-semibold">
-                                {showData && minSeconds > 0 ? fmtDuration(minSeconds) : "—"}
+                                {showData ? typicalSecondsRange(q1, q3) : "—"}
                             </span>
                         </div>
                     </div>
                     <div className="w-full h-px bg-quaternary" />
                     <div className="flex justify-between items-center">
                         <Text variant="body-sm" color="text-secondary">
-                            Longest
+                            Shortest · Longest
                         </Text>
                         <span className="bg-quaternary px-1.5 py-0.5 rounded-[4px]">
                             <Text variant="body-sm" color="text-primary">
-                                {showData && maxSeconds > 0 ? fmtDuration(maxSeconds) : "—"}
+                                {showData && minSeconds > 0 && maxSeconds > 0
+                                    ? `${fmtDuration(minSeconds)} · ${fmtDuration(maxSeconds)}`
+                                    : "—"}
                             </Text>
                         </span>
                     </div>

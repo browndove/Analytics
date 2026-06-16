@@ -3,6 +3,7 @@ import {
     type CallInitiatorBreakdown,
     type CallMetricsSlice,
 } from "@/components/ugmc-dashboard/clinical-operations/components/call-metrics-helpers";
+import { mapCallAnsweredDistribution } from "@/lib/distribution-metrics";
 
 function num(v: unknown): number {
     if (v === null || v === undefined || v === "") return 0;
@@ -56,7 +57,9 @@ function mapDuration(raw: unknown): CallMetricsSlice["duration"] | undefined {
         avg_duration_seconds: avgSeconds,
         avg_duration_minutes: pickDefinedNum(raw, "avg_duration_minutes", "avgDurationMinutes"),
         min_duration_seconds: pickDefinedNum(raw, "min_duration_seconds", "minDurationSeconds"),
+        q1_duration_seconds: pickDefinedNum(raw, "q1_duration_seconds", "q1DurationSeconds"),
         median_duration_seconds: pickDefinedNum(raw, "median_duration_seconds", "medianDurationSeconds"),
+        q3_duration_seconds: pickDefinedNum(raw, "q3_duration_seconds", "q3DurationSeconds"),
         max_duration_seconds: pickDefinedNum(raw, "max_duration_seconds", "maxDurationSeconds"),
     };
 }
@@ -180,6 +183,15 @@ export function normalizeCallMetricsFromUsage(payload: unknown): CallMetricsSlic
 
     const duration = durationFromSource(src);
 
+    const callMetricsRecord = isRecord(root.call_metrics)
+        ? root.call_metrics
+        : isRecord(root.callMetrics)
+          ? root.callMetrics
+          : undefined;
+    const answered =
+        mapCallAnsweredDistribution(callMetricsRecord?.answered) ??
+        mapCallAnsweredDistribution(src.answered);
+
     const by_initiator_role = mapRowArray(pickBreakdownArray(src, true), mapRoleRow);
     const by_initiator_department = mapRowArray(pickBreakdownArray(src, false), mapDepartmentRow);
 
@@ -190,6 +202,7 @@ export function normalizeCallMetricsFromUsage(payload: unknown): CallMetricsSlic
     const hasCallMetrics =
         total_calls_made !== undefined ||
         total_missed_calls !== undefined ||
+        answered != null ||
         duration != null ||
         by_initiator_role.length > 0 ||
         by_initiator_department.length > 0 ||
@@ -201,6 +214,7 @@ export function normalizeCallMetricsFromUsage(payload: unknown): CallMetricsSlic
     return {
         total_calls_made,
         total_missed_calls,
+        answered,
         duration,
         by_initiator_role: by_initiator_role.length ? by_initiator_role : undefined,
         by_initiator_department: by_initiator_department.length ? by_initiator_department : undefined,

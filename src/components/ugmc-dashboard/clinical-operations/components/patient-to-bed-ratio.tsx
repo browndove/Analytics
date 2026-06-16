@@ -10,11 +10,15 @@ import clsx from "clsx";
 import {
     type CallMetricsSlice,
     fmtDuration,
+    getAnsweredSpread,
+    hasAnsweredDuration,
     num,
+    pickTypicalSeconds,
+    typicalSecondsRange,
 } from "./call-metrics-helpers";
 
 const infoText =
-    "Median call length and range for completed calls in the selected period.";
+    "Based on answered calls (someone other than the caller joined). Median length with middle 50% between Q1 and Q3.";
 
 interface CallDurationCardProps {
     callMetrics?: CallMetricsSlice;
@@ -25,18 +29,15 @@ const CallDurationCard: React.FC<CallDurationCardProps> = ({ callMetrics }) => {
     const [animatedProgress, setAnimatedProgress] = useState(0);
     const [isVisible, setIsVisible] = useState(false);
 
-    const duration = callMetrics?.duration;
-    const avgSeconds = num(duration?.avg_duration_seconds);
-    const medianSeconds = num(duration?.median_duration_seconds);
-    const minSeconds = num(duration?.min_duration_seconds);
-    const maxSeconds = num(duration?.max_duration_seconds);
-    const completed = num(duration?.completed_calls);
-    const hasDuration =
-        duration != null &&
-        (avgSeconds > 0 || medianSeconds > 0 || minSeconds > 0 || maxSeconds > 0 || completed > 0);
-    const heroSeconds = medianSeconds > 0 ? medianSeconds : avgSeconds;
+    const answered = getAnsweredSpread(callMetrics);
+    const hasData = hasAnsweredDuration(callMetrics);
+    const heroSeconds = pickTypicalSeconds(answered) ?? 0;
+    const avgSeconds = num(answered?.avg_duration_seconds);
+    const q1 = num(answered?.q1_duration_seconds);
+    const q3 = num(answered?.q3_duration_seconds);
+    const maxSeconds = num(answered?.max_duration_seconds);
     const targetProgress =
-        hasDuration && maxSeconds > 0 && heroSeconds > 0
+        hasData && maxSeconds > 0 && heroSeconds > 0
             ? Math.min(100, (heroSeconds / maxSeconds) * 100)
             : 0;
 
@@ -78,7 +79,7 @@ const CallDurationCard: React.FC<CallDurationCardProps> = ({ callMetrics }) => {
                         Call Duration
                     </Text>
                     <Text variant="body-sm" color="text-tertiary">
-                        Median and range for completed calls.
+                        Typical length of answered calls.
                     </Text>
                 </div>
                 <div className="flex items-center gap-2">
@@ -102,7 +103,7 @@ const CallDurationCard: React.FC<CallDurationCardProps> = ({ callMetrics }) => {
                         isHovered && "scale-[1.02] origin-left inline-block"
                     )}
                 >
-                    {hasDuration && heroSeconds > 0 ? fmtDuration(heroSeconds) : "—"}
+                    {hasData && heroSeconds > 0 ? fmtDuration(heroSeconds) : "—"}
                 </span>
             </div>
             <div className="flex flex-col gap-3">
@@ -112,7 +113,7 @@ const CallDurationCard: React.FC<CallDurationCardProps> = ({ callMetrics }) => {
                     </Text>
                     <div className="bg-[#00C8B333] px-2 py-0.5 rounded-[6px]">
                         <Text variant="body-sm" color="none" className="text-[#1F988B]">
-                            {hasDuration && avgSeconds > 0 ? fmtDuration(avgSeconds) : "—"}
+                            {hasData && avgSeconds > 0 ? fmtDuration(avgSeconds) : "—"}
                         </Text>
                     </div>
                 </div>
@@ -120,20 +121,18 @@ const CallDurationCard: React.FC<CallDurationCardProps> = ({ callMetrics }) => {
                 <div className="flex flex-col gap-1.5">
                     <div className="flex justify-between items-center">
                         <Text variant="body-sm" color="text-secondary">
-                            Shortest · Longest
+                            Typical range (Q1–Q3)
                         </Text>
                         <div className="bg-[#00C8B333] px-2 py-0.5 rounded-[6px]">
                             <Text variant="body-sm" color="none" className="text-[#1F988B]">
-                                {hasDuration && minSeconds > 0 && maxSeconds > 0
-                                    ? `${fmtDuration(minSeconds)} · ${fmtDuration(maxSeconds)}`
-                                    : "—"}
+                                {hasData ? typicalSecondsRange(q1, q3) : "—"}
                             </Text>
                         </div>
                     </div>
                     <div className="w-full h-2 bg-secondary rounded-full overflow-hidden">
                         <div
                             className="h-full rounded-full bg-[#00C8B3] transition-all duration-1000 ease-out"
-                            style={{ width: hasDuration ? `${animatedProgress}%` : "0%" }}
+                            style={{ width: hasData ? `${animatedProgress}%` : "0%" }}
                         />
                     </div>
                 </div>

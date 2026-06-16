@@ -3,6 +3,13 @@
 import * as React from "react";
 import Text from "@/components/text";
 import DashboardCard from "@/components/ugmc-dashboard/shared/dashboard-card";
+import {
+    formatMinutes,
+    pickTypicalMinutes,
+    resolveCriticalAckMinutes,
+    resolveReadMinutes,
+    typicalMinutesRange,
+} from "@/lib/distribution-metrics";
 
 const ClockIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" className="shrink-0">
@@ -22,16 +29,9 @@ function pickNum(obj: Record<string, unknown> | undefined, ...keys: string[]): n
     return undefined;
 }
 
-function fmtMin(minutes: number | undefined | null): string {
-    if (minutes === null || minutes === undefined) return "—";
-    const m = Number(minutes);
-    if (!Number.isFinite(m) || m < 0) return "—";
-    if (m === 0) return "0 min";
-    if (m < 1) return "<1 min";
-    if (m < 60) return `${Math.round(m)} min`;
-    const h = Math.floor(m / 60);
-    const min = Math.round(m % 60);
-    return min > 0 ? `${h}h ${min}m` : `${h}h`;
+function fmtMin(minutes: number | null | undefined): string {
+    if (minutes == null) return "—";
+    return formatMinutes(minutes);
 }
 
 type ResponseMetric = { name: string; description: string; value: string };
@@ -41,42 +41,44 @@ const SubscriptionSpend: React.FC<{ data?: Record<string, unknown> }> = ({ data 
         ? (data.data as Record<string, unknown>)
         : data) as Record<string, unknown> | undefined;
 
-    const ack = pickNum(root, "avg_critical_ack_minutes");
-    const readAll = pickNum(root, "avg_first_read_minutes_all", "avg_read_minutes_all");
-    const readCritical = pickNum(
-        root,
-        "avg_first_read_minutes_critical",
-        "avg_read_minutes_critical"
-    );
-    const readStandard = pickNum(
-        root,
-        "avg_read_minutes_standard",
-        "avg_first_read_minutes_non_critical",
-        "avg_read_minutes_non_critical"
-    );
+    const ackDist = resolveCriticalAckMinutes(root);
+    const readAllDist = resolveReadMinutes(root, "all");
+    const readCriticalDist = resolveReadMinutes(root, "critical");
+    const readStandardDist = resolveReadMinutes(root, "standard");
     const calls = pickNum(root, "total_calls_made");
+
+    const ackTypical = pickTypicalMinutes(ackDist);
+    const readAllTypical = pickTypicalMinutes(readAllDist);
+    const readCriticalTypical = pickTypicalMinutes(readCriticalDist);
+    const readStandardTypical = pickTypicalMinutes(readStandardDist);
 
     const responseMetrics: ResponseMetric[] = React.useMemo(
         () => [
             {
-                name: "Average Critical Acknowledgment Time",
-                description: "Time to acknowledge critical messages",
-                value: fmtMin(ack),
+                name: "Typical Critical Acknowledgment",
+                description: "Median time to acknowledge critical messages",
+                value: fmtMin(ackTypical),
             },
             {
-                name: "Average Read Time (All)",
-                description: "Average time to read all messages",
-                value: fmtMin(readAll),
+                name: "Typical Read Time (All)",
+                description: readAllDist
+                    ? `Most reads between ${typicalMinutesRange(readAllDist.q1_minutes, readAllDist.q3_minutes)}`
+                    : "Median time to read all messages",
+                value: fmtMin(readAllTypical),
             },
             {
-                name: "Average Read Time (Critical)",
-                description: "Average time to read critical messages",
-                value: fmtMin(readCritical),
+                name: "Typical Read Time (Critical)",
+                description: readCriticalDist
+                    ? `Most reads between ${typicalMinutesRange(readCriticalDist.q1_minutes, readCriticalDist.q3_minutes)}`
+                    : "Median time to read critical messages",
+                value: fmtMin(readCriticalTypical),
             },
             {
-                name: "Average Read Time (Standard)",
-                description: "Average time to read non-critical messages",
-                value: fmtMin(readStandard),
+                name: "Typical Read Time (Standard)",
+                description: readStandardDist
+                    ? `Most reads between ${typicalMinutesRange(readStandardDist.q1_minutes, readStandardDist.q3_minutes)}`
+                    : "Median time to read non-critical messages",
+                value: fmtMin(readStandardTypical),
             },
             {
                 name: "Total Calls Made",
@@ -84,33 +86,39 @@ const SubscriptionSpend: React.FC<{ data?: Record<string, unknown> }> = ({ data 
                 value: calls !== undefined ? String(Math.round(calls)) : "—",
             },
         ],
-        [ack, readAll, readCritical, readStandard, calls]
+        [
+            ackTypical,
+            readAllTypical,
+            readCriticalTypical,
+            readStandardTypical,
+            readAllDist,
+            readCriticalDist,
+            readStandardDist,
+            calls,
+        ]
     );
 
     const insight = React.useMemo(() => {
-        const a = ack ?? NaN;
-        const s = readStandard ?? NaN;
-        const all = readAll ?? NaN;
-        if (Number.isFinite(a) && a > 0 && Number.isFinite(s) && s > 0 && s > a * 1.5) {
-            return `Critical message acknowledgement averages ${fmtMin(a)}. Standard read time averages ${fmtMin(s)}.`;
-        }
-        if (Number.isFinite(a) && a > 0 && Number.isFinite(all) && all > 0) {
-            return `Critical acknowledgement averages ${fmtMin(a)}; overall read time is ${fmtMin(all)}.`;
+        if (ackTypical != null && readAllTypical != null) {
+            const ackRange = ackDist
+                ? typicalMinutesRange(ackDist.q1_minutes, ackDist.q3_minutes)
+                : "—";
+            return `Median critical ack is ${fmtMin(ackTypical)}${ackRange !== "—" ? ` (usual ${ackRange})` : ""}. Median read time is ${fmtMin(readAllTypical)}.`;
         }
         return "Response times reflect messaging activity in the selected date range.";
-    }, [ack, readStandard, readAll]);
+    }, [ackTypical, readAllTypical, ackDist]);
 
     return (
         <DashboardCard className="flex flex-col flex-1" padding="none" style={{ padding: 20, gap: 12, height: 680 }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                     <Text variant="body-md-semibold" color="text-primary" className="font-bold">Response Time by Priority</Text>
-                    <Text variant="body-sm" color="text-secondary">Facility averages · current window</Text>
+                    <Text variant="body-sm" color="text-secondary">Median times · current window</Text>
                 </div>
             </div>
             <div className="bg-secondary rounded-[10px] flex flex-col items-center" style={{ padding: 12, gap: 8 }}>
-                <Text variant="body-md-semibold" color="text-secondary">Average Critical Acknowledgment</Text>
-                <span className="text-[32px] font-bold text-[#2980D3] tabular-nums">{fmtMin(ack)}</span>
+                <Text variant="body-md-semibold" color="text-secondary">Typical Critical Acknowledgment</Text>
+                <span className="text-[32px] font-bold text-[#2980D3] tabular-nums">{fmtMin(ackTypical)}</span>
             </div>
             <div className="flex-1" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {responseMetrics.map((metric, index) => (

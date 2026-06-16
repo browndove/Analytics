@@ -6,8 +6,14 @@ import InfoTooltip from "@/components/info-tooltip";
 import { IoSearch } from "react-icons/io5";
 import { HiOutlineBellAlert, HiOutlineClock, HiOutlineEnvelopeOpen, HiOutlineChartBar, HiOutlinePhone } from "react-icons/hi2";
 import clsx from "clsx";
+import {
+    formatMinutes,
+    pickTypicalMinutes,
+    resolveCriticalAckMinutes,
+    resolveReadMinutes,
+} from "@/lib/distribution-metrics";
 
-const infoText = "Average response and acknowledgment times for critical and non-critical messages across the facility.";
+const infoText = "Median response and acknowledgment times for critical and non-critical messages.";
 
 export interface ResponseTimesData {
     avg_critical_ack_minutes: number;
@@ -21,41 +27,44 @@ interface LiveUpdatesProps {
     responseTimes?: ResponseTimesData;
 }
 
-function fmtMin(minutes: number): string {
-    if (minutes < 1) return '<1 min';
-    if (minutes < 60) return `${Math.round(minutes)} min`;
-    const h = Math.floor(minutes / 60);
-    const m = Math.round(minutes % 60);
-    return m > 0 ? `${h}h ${m}m` : `${h}h`;
+function fmtMin(minutes: number | null | undefined): string {
+    if (minutes == null) return "—";
+    return formatMinutes(minutes);
 }
 
 const LiveUpdates = ({ responseTimes }: LiveUpdatesProps) => {
     const [isHovered, setIsHovered] = useState(false);
     const [visibleUpdates, setVisibleUpdates] = useState<number[]>([]);
 
+    const root = responseTimes as Record<string, unknown> | undefined;
+    const ackTypical = pickTypicalMinutes(resolveCriticalAckMinutes(root));
+    const readCriticalTypical = pickTypicalMinutes(resolveReadMinutes(root, "critical"));
+    const readStandardTypical = pickTypicalMinutes(resolveReadMinutes(root, "standard"));
+    const readAllTypical = pickTypicalMinutes(resolveReadMinutes(root, "all"));
+
     const rtKey = JSON.stringify(responseTimes);
     const items = useMemo(() => [
         {
             label: "Critical Ack Time",
-            value: fmtMin(responseTimes?.avg_critical_ack_minutes ?? 0),
+            value: fmtMin(ackTypical),
             icon: <HiOutlineBellAlert className="w-[18px] h-[18px] text-accent-red" />,
             bg: "bg-[rgba(255,95,87,0.1)]",
         },
         {
             label: "Critical Read Time",
-            value: fmtMin(responseTimes?.avg_first_read_minutes_critical ?? 0),
+            value: fmtMin(readCriticalTypical),
             icon: <HiOutlineClock className="w-[18px] h-[18px] text-accent-primary" />,
             bg: "bg-[rgba(41,128,211,0.1)]",
         },
         {
             label: "Non-Critical Read Time",
-            value: fmtMin(responseTimes?.avg_first_read_minutes_non_critical ?? 0),
+            value: fmtMin(readStandardTypical),
             icon: <HiOutlineEnvelopeOpen className="w-[18px] h-[18px] text-accent-green" />,
             bg: "bg-[rgba(0,200,179,0.1)]",
         },
         {
             label: "Overall Read Time",
-            value: fmtMin(responseTimes?.avg_first_read_minutes_all ?? 0),
+            value: fmtMin(readAllTypical),
             icon: <HiOutlineChartBar className="w-[18px] h-[18px] text-accent-violet" />,
             bg: "bg-[rgba(105,116,247,0.1)]",
         },
@@ -66,7 +75,7 @@ const LiveUpdates = ({ responseTimes }: LiveUpdatesProps) => {
             bg: "bg-[rgba(232,155,0,0.1)]",
         },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    ], [rtKey]);
+    ], [rtKey, ackTypical, readCriticalTypical, readStandardTypical, readAllTypical, responseTimes?.total_calls_made]);
 
     useEffect(() => {
         setVisibleUpdates([]);
