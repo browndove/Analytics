@@ -63,7 +63,7 @@ const OperatingRoomsUtilization: React.FC<OperatingRoomsUtilizationProps> = ({ c
             <div className="flex justify-between items-start">
                 <div className="flex flex-col gap-0.5">
                     <Text variant="body-md-semibold" color="text-primary">
-                        Missed Calls
+                        Missed Incoming Calls
                     </Text>
                     <Text variant="body-sm" color="text-tertiary">
                         Incoming rings not picked up.

@@ -5,22 +5,21 @@ import { type CallMetricsSlice } from "./call-metrics-helpers";
 import CallOutcomeBarChart from "./call-outcome-bar-chart";
 
 const infoText =
-    "Outbound calls we placed, by initiating role — answered vs unanswered sessions.";
+    "Incoming calls we received, by signed-in recipient role — answered vs missed (per person).";
 
-interface OutboundCallsByRoleProps {
+interface InboundCallsByRoleProps {
     callMetrics?: CallMetricsSlice;
 }
 
-const OutboundCallsByRole: React.FC<OutboundCallsByRoleProps> = ({ callMetrics }) => (
+const InboundCallsByRole: React.FC<InboundCallsByRoleProps> = ({ callMetrics }) => (
     <CallOutcomeBarChart
         callMetrics={callMetrics}
-        direction="outbound"
+        direction="inbound"
         dimension="role"
-        title="Outbound Calls by Role"
+        title="Incoming Calls by Role"
         infoText={infoText}
         limit={4}
-        showLiveBadge
     />
 );
 
-export default OutboundCallsByRole;
+export default InboundCallsByRole;

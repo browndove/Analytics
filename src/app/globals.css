@@ -1504,3 +1504,44 @@ select.input {
   animation: ripple 2s ease-out infinite;
   background: inherit;
 }
+
+/* Call Insight bar charts — solid tooltip so bars don't show through */
+.call-outcome-chart .apexcharts-tooltip {
+  background: #ffffff !important;
+  border: 1px solid var(--border-default, #e2e6ec) !important;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.1) !important;
+  color: var(--text-primary, #1a2332) !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+.call-outcome-chart .apexcharts-tooltip.apexcharts-theme-light,
+.call-outcome-chart .apexcharts-tooltip.apexcharts-theme-dark {
+  background: #ffffff !important;
+  border: 1px solid var(--border-default, #e2e6ec) !important;
+  color: var(--text-primary, #1a2332) !important;
+}
+
+.call-outcome-chart .apexcharts-tooltip-title {
+  background: #f7f8fa !important;
+  border-bottom: 1px solid var(--border-default, #e2e6ec) !important;
+  color: var(--text-primary, #1a2332) !important;
+  font-weight: 600 !important;
+  padding: 8px 12px !important;
+  margin-bottom: 0 !important;
+}
+
+.call-outcome-chart .apexcharts-tooltip-series-group {
+  background: #ffffff !important;
+  padding: 8px 12px !important;
+}
+
+.call-outcome-chart .apexcharts-tooltip-series-group:last-child {
+  padding-bottom: 10px !important;
+}
+
+.call-outcome-chart .apexcharts-tooltip-text,
+.call-outcome-chart .apexcharts-tooltip-text-y-value,
+.call-outcome-chart .apexcharts-tooltip-text-y-label {
+  color: var(--text-primary, #1a2332) !important;
+}

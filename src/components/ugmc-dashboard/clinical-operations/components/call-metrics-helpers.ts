@@ -184,6 +184,54 @@ export function sortOutboundRolesByVolume(
         .slice(0, limit);
 }
 
+export function sortInboundDepartmentsByVolume(
+    cm?: CallMetricsSlice | null,
+    limit = 6
+): CallInboundDepartmentMetric[] {
+    const depts = cm?.by_inbound_department;
+    if (!Array.isArray(depts) || !depts.length) return [];
+    return [...depts]
+        .filter((d) => hasInboundOutcomes(d))
+        .sort(
+            (a, b) =>
+                num(b.answered_calls) +
+                num(b.missed_calls) -
+                (num(a.answered_calls) + num(a.missed_calls))
+        )
+        .slice(0, limit);
+}
+
+export function sortInboundRolesByVolume(
+    cm?: CallMetricsSlice | null,
+    limit = 4
+): CallInboundRoleMetric[] {
+    const roles = cm?.by_inbound_role;
+    if (!Array.isArray(roles) || !roles.length) return [];
+    return [...roles]
+        .filter((r) => hasInboundOutcomes(r))
+        .sort(
+            (a, b) =>
+                num(b.answered_calls) +
+                num(b.missed_calls) -
+                (num(a.answered_calls) + num(a.missed_calls))
+        )
+        .slice(0, limit);
+}
+
+export function sumInboundAnswered(cm?: CallMetricsSlice | null): number {
+    const roles = cm?.by_inbound_role;
+    if (!Array.isArray(roles) || !roles.length) return 0;
+    return roles.reduce((sum, r) => sum + num(r.answered_calls), 0);
+}
+
+export function sumInboundMissed(cm?: CallMetricsSlice | null): number {
+    const fromApi = cm?.total_missed_calls;
+    if (fromApi != null) return num(fromApi);
+    const roles = cm?.by_inbound_role;
+    if (!Array.isArray(roles) || !roles.length) return 0;
+    return roles.reduce((sum, r) => sum + num(r.missed_calls), 0);
+}
+
 export function getTopDepartments(cm?: CallMetricsSlice | null, limit = 4): CallOutboundDepartmentMetric[] {
     const depts = cm?.by_outbound_department;
     if (!Array.isArray(depts) || !depts.length) return [];

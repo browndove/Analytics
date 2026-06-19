@@ -14,7 +14,7 @@ import {
     truncateLabel,
 } from "./call-metrics-helpers";
 
-const infoText = "Distribution of call volume across initiating departments.";
+const infoText = "Distribution of outbound call volume across initiating departments.";
 
 const CHART_COLORS = [
     "var(--accent-primary)",

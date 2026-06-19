@@ -90,10 +90,10 @@ const CallKPIRow = ({ data }: { data?: CallKpiInput }) => {
                 badge: "AR",
                 badgeColor: "coral" as const,
                 title: "Answer Rate",
-                provider: "Answered vs unanswered sessions",
+                provider: "Outbound sessions — answered vs unanswered",
                 displayValue:
                     answerRate != null && hasCallData ? `${answerRate.toFixed(1)}%` : "—",
-                footerLabel: "Unanswered",
+                footerLabel: "Unanswered (outbound)",
                 footerValue:
                     hasCallData && unanswered > 0
                         ? `${unanswered.toLocaleString()} calls`
