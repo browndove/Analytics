@@ -156,11 +156,13 @@ export default function InternalFacilityDashboard() {
     const loadFacilities = useCallback(async () => {
         setFacilitiesLoading(true);
         try {
-            const res = await fetch(API_ENDPOINTS.FACILITIES, { credentials: "include" });
+            const res = await fetch(API_ENDPOINTS.INTERNAL_FACILITIES, { credentials: "include" });
             const json = await res.json();
             if (res.ok) {
                 const rows = Array.isArray(json) ? (json as ApiFacility[]) : [];
-                setFacilities(mapApiList(rows));
+                setFacilities(
+                    mapApiList(rows).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }))
+                );
             }
         } catch {
             // Facilities picker may be unavailable — dashboard still works
@@ -170,6 +172,21 @@ export default function InternalFacilityDashboard() {
     }, []);
 
     useEffect(() => { loadFacilities(); }, [loadFacilities]);
+
+    // Legacy act-as sessions should start on the All-facilities view.
+    useEffect(() => {
+        fetch(API_ENDPOINTS.INTERNAL_ACT_AS, { credentials: "include" })
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data: { support_mode?: boolean } | null) => {
+                if (data?.support_mode) {
+                    fetch(API_ENDPOINTS.INTERNAL_EXIT_ACT_AS, {
+                        method: "POST",
+                        credentials: "include",
+                    }).catch(() => undefined);
+                }
+            })
+            .catch(() => undefined);
+    }, []);
 
     const fetchAnalytics = useCallback(async () => {
         const params = new URLSearchParams();
@@ -248,18 +265,18 @@ export default function InternalFacilityDashboard() {
     const totalRoles = data?.total_roles ?? 0;
 
     const facilityOptions: DropdownOption[] = useMemo(() => [
-        { value: "", label: "All Facilities" },
+        { value: "", label: "All" },
         ...facilities.map((f) => ({ value: f.id, label: f.name })),
     ], [facilities]);
 
     const scopeLabel = useMemo(() => {
         if (!data) return "";
-        if (data.scope === "global") {
-            return `All facilities (${data.facilities_in_scope ?? 0})`;
+        if (data.scope === "global" || !facilityId) {
+            return `All facilities (${data.facilities_in_scope ?? facilities.length})`;
         }
-        const f = facilities.find((x) => x.id === data.filter_facility_id);
+        const f = facilities.find((x) => x.id === (data.filter_facility_id ?? facilityId));
         return f?.name ?? "Filtered facility";
-    }, [data, facilities]);
+    }, [data, facilities, facilityId]);
 
     return (
         <div style={{ ["--sidebar-width" as string]: isSidebarDocked ? "58px" : "243px" }}>
@@ -302,7 +319,7 @@ export default function InternalFacilityDashboard() {
                                 options={facilityOptions}
                                 value={facilityId ?? ""}
                                 onChange={(v) => setFacilityId(v || null)}
-                                placeholder="All Facilities"
+                                placeholder="All"
                                 renderMenuInPortal
                                 portalZIndex={10000}
                             />

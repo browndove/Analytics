@@ -137,7 +137,7 @@ export default function InternalAdminLogin() {
                 setError((data.message as string) || (data.error as string) || "OTP verification failed");
                 return;
             }
-            router.push("/internal/dashboard");
+            router.push("/");
         } catch {
             setError("Network error. Please try again.");
         } finally {
@@ -152,8 +152,8 @@ export default function InternalAdminLogin() {
                     <p className="text-xs font-semibold uppercase tracking-widest text-blue-300">Helix Internal</p>
                     <h1 className="mt-4 text-3xl font-semibold leading-tight text-white">Analytics support access</h1>
                     <p className="mt-3 max-w-md text-sm text-slate-300">
-                        Sign in with your internal admin account, then choose a facility to view usage, performance,
-                        staffing, and transfer analytics for that tenant.
+                        Sign in with your internal admin account to view cross-facility analytics. Filter by a
+                        specific facility anytime from the dashboard.
                     </p>
                 </div>
                 <p className="text-xs text-slate-400">Platform staff only. All act-as sessions are audited.</p>

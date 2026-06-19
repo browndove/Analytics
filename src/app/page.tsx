@@ -20,6 +20,8 @@ import DashboardSidebar, { type DashboardTab } from "@/components/sidebar/sideba
 import GenerateReportModal from "@/components/report/GenerateReportModal";
 import { appendUsageMetricsRange } from "@/lib/usage-metrics-range";
 import { extractTransferMetricsFromUsage } from "@/lib/transfer-metrics";
+import { API_ENDPOINTS } from "@/lib/config";
+import InternalFacilityDashboard from "@/components/InternalFacilityDashboard";
 
 const PatientInsightPage = lazy(() => import("@/components/ugmc-dashboard/patient-insight/PatientInsightPage"));
 const BillingFinancePage = lazy(() => import("@/components/ugmc-dashboard/billing-finance/BillingFinancePage"));
@@ -470,6 +472,30 @@ function UsagePageContent() {
     );
 }
 
+function HomePageRouter() {
+    const [mode, setMode] = useState<"loading" | "facility" | "internal">("loading");
+
+    useEffect(() => {
+        fetch(API_ENDPOINTS.INTERNAL_ACT_AS, { credentials: "include" })
+            .then((res) => setMode(res.ok ? "internal" : "facility"))
+            .catch(() => setMode("facility"));
+    }, []);
+
+    if (mode === "loading") {
+        return (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: "var(--bg-secondary)" }}>
+                <div style={{ width: 32, height: 32, border: "2px solid #4b5563", borderTop: "2px solid #8b8faa", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+            </div>
+        );
+    }
+
+    if (mode === "internal") {
+        return <InternalFacilityDashboard />;
+    }
+
+    return <UsagePageContent />;
+}
+
 export default function HomePage() {
     return (
         <Suspense fallback={
@@ -477,7 +503,7 @@ export default function HomePage() {
                 <div style={{ width: 32, height: 32, border: '2px solid #4b5563', borderTop: '2px solid #8b8faa', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
             </div>
         }>
-            <UsagePageContent />
+            <HomePageRouter />
         </Suspense>
     );
 }

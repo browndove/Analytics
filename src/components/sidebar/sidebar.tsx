@@ -134,13 +134,17 @@ function SidebarBrandHeaderDocked({
 
 export default function DashboardSidebar({ isDocked, onDockToggle, activeTab, onTabChange, onGenerateReport }: DashboardSidebarProps) {
     const [inSupportMode, setInSupportMode] = useState(false);
+    const [isInternalAdmin, setIsInternalAdmin] = useState(false);
     const [facilityName, setFacilityName] = useState<string | null>(null);
 
     useEffect(() => {
         fetch(API_ENDPOINTS.INTERNAL_ACT_AS, { credentials: "include" })
             .then((res) => (res.ok ? res.json() : null))
             .then((data: { support_mode?: boolean } | null) => {
-                setInSupportMode(data?.support_mode === true);
+                if (data) {
+                    setIsInternalAdmin(true);
+                    setInSupportMode(data.support_mode === true);
+                }
             })
             .catch(() => undefined);
 
@@ -174,7 +178,7 @@ export default function DashboardSidebar({ isDocked, onDockToggle, activeTab, on
         } catch {
             /* redirect anyway */
         } finally {
-            window.location.replace("/internal/dashboard");
+            window.location.replace("/");
         }
     };
 
@@ -182,6 +186,7 @@ export default function DashboardSidebar({ isDocked, onDockToggle, activeTab, on
 
     const handleLogout = async () => {
         const wasSupport = inSupportMode;
+        const internalSession = isInternalAdmin;
         try {
             if (wasSupport) {
                 await fetch(API_ENDPOINTS.INTERNAL_EXIT_ACT_AS, {
@@ -196,7 +201,7 @@ export default function DashboardSidebar({ isDocked, onDockToggle, activeTab, on
         } catch {
             /* still redirect — server may have cleared cookies */
         } finally {
-            window.location.replace(wasSupport ? "/internal/login" : "/login");
+            window.location.replace(internalSession || wasSupport ? "/internal/login" : "/login");
         }
     };
 

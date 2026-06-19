@@ -12,7 +12,6 @@ import FullscreenOverlay from "@/components/fullscreen-overlay";
 import {
     type CallMetricsSlice,
     formatRoleName,
-    getCallSummary,
     hasInboundOutcomes,
     hasOutboundOutcomes,
     num,
@@ -20,8 +19,6 @@ import {
     sortInboundRolesByVolume,
     sortOutboundDepartmentsByVolume,
     sortOutboundRolesByVolume,
-    sumInboundAnswered,
-    sumInboundMissed,
     truncateLabel,
 } from "./call-metrics-helpers";
 
@@ -32,28 +29,40 @@ export type CallChartDimension = "department" | "role";
 
 type BarChartSeries = { name: string; data: number[] }[];
 
-export type CallOutcomeBarChartProps = {
-    callMetrics?: CallMetricsSlice;
-    direction: CallChartDirection;
-    dimension: CallChartDimension;
-    title: string;
-    infoText: string;
-    limit?: number;
-    showLiveBadge?: boolean;
-    headerExtra?: React.ReactNode;
-    emptyLabel?: string;
+type ChartBuildResult = {
+    categories: string[];
+    fullNames: string[];
+    series: BarChartSeries;
+    chartYMax: number;
+    hasOutcomes: boolean;
+    summaryAnswered: number;
+    summaryNegative: number;
 };
 
 function truncateCategory(name: string, max = 14): string {
     return truncateLabel(name, max);
 }
 
+function sumSeries(data: number[]): number {
+    return data.reduce((sum, n) => sum + n, 0);
+}
+
+const EMPTY_CHART: ChartBuildResult = {
+    categories: [],
+    fullNames: [],
+    series: [],
+    chartYMax: 80,
+    hasOutcomes: false,
+    summaryAnswered: 0,
+    summaryNegative: 0,
+};
+
 function buildChartData(
     callMetrics: CallMetricsSlice | undefined,
     direction: CallChartDirection,
     dimension: CallChartDimension,
     limit: number
-) {
+): ChartBuildResult {
     const isOutbound = direction === "outbound";
     const isRole = dimension === "role";
 
@@ -62,15 +71,7 @@ function buildChartData(
             ? sortOutboundRolesByVolume(callMetrics, limit)
             : sortOutboundDepartmentsByVolume(callMetrics, limit);
 
-        if (!rows.length) {
-            return {
-                categories: [] as string[],
-                fullNames: [] as string[],
-                series: [] as BarChartSeries,
-                chartYMax: 80,
-                hasOutcomes: false,
-            };
-        }
+        if (!rows.length) return EMPTY_CHART;
 
         const fullNames = isRole
             ? (rows as ReturnType<typeof sortOutboundRolesByVolume>).map((r) =>
@@ -82,17 +83,19 @@ function buildChartData(
 
         if (hasOutcomes) {
             const answeredData = rows.map((r) => num(r.answered_calls));
-            const negativeData = rows.map((r) => num(r.unanswered_calls));
-            const peak = Math.max(...answeredData, ...negativeData, 0);
+            const unansweredData = rows.map((r) => num(r.unanswered_calls));
+            const peak = Math.max(...answeredData, ...unansweredData, 0);
             return {
                 categories,
                 fullNames,
                 chartYMax: peak <= 0 ? 80 : Math.ceil((peak * 1.15) / 10) * 10,
                 hasOutcomes: true,
+                summaryAnswered: sumSeries(answeredData),
+                summaryNegative: sumSeries(unansweredData),
                 series: [
                     { name: "Answered", data: answeredData },
-                    { name: "Unanswered", data: negativeData },
-                ] as BarChartSeries,
+                    { name: "Unanswered", data: unansweredData },
+                ],
             };
         }
 
@@ -103,7 +106,9 @@ function buildChartData(
             fullNames,
             chartYMax: peak <= 0 ? 80 : Math.ceil((peak * 1.15) / 10) * 10,
             hasOutcomes: false,
-            series: [{ name: "Calls placed", data: volumeData }] as BarChartSeries,
+            summaryAnswered: sumSeries(volumeData),
+            summaryNegative: 0,
+            series: [{ name: "Calls placed", data: volumeData }],
         };
     }
 
@@ -111,15 +116,7 @@ function buildChartData(
         ? sortInboundRolesByVolume(callMetrics, limit)
         : sortInboundDepartmentsByVolume(callMetrics, limit);
 
-    if (!rows.length) {
-        return {
-            categories: [] as string[],
-            fullNames: [] as string[],
-            series: [] as BarChartSeries,
-            chartYMax: 80,
-            hasOutcomes: false,
-        };
-    }
+    if (!rows.length) return EMPTY_CHART;
 
     const fullNames = isRole
         ? (rows as ReturnType<typeof sortInboundRolesByVolume>).map((r) => formatRoleName(r.role_name))
@@ -134,12 +131,26 @@ function buildChartData(
         fullNames,
         chartYMax: peak <= 0 ? 80 : Math.ceil((peak * 1.15) / 10) * 10,
         hasOutcomes: rows.some(hasInboundOutcomes),
+        summaryAnswered: sumSeries(answeredData),
+        summaryNegative: sumSeries(missedData),
         series: [
             { name: "Answered", data: answeredData },
             { name: "Missed", data: missedData },
-        ] as BarChartSeries,
+        ],
     };
 }
+
+export type CallOutcomeBarChartProps = {
+    callMetrics?: CallMetricsSlice;
+    direction: CallChartDirection;
+    dimension: CallChartDimension;
+    title: string;
+    infoText: string;
+    limit?: number;
+    showLiveBadge?: boolean;
+    headerExtra?: React.ReactNode;
+    emptyLabel?: string;
+};
 
 const CallOutcomeBarChart: React.FC<CallOutcomeBarChartProps> = ({
     callMetrics,
@@ -158,15 +169,7 @@ const CallOutcomeBarChart: React.FC<CallOutcomeBarChartProps> = ({
     const [animatedPositive, setAnimatedPositive] = useState(0);
     const [animatedNegative, setAnimatedNegative] = useState(0);
 
-    const { answered, unanswered, hasCallData } = getCallSummary(callMetrics);
     const isOutbound = direction === "outbound";
-
-    const positiveTotal = isOutbound ? answered : sumInboundAnswered(callMetrics);
-    const negativeTotal = isOutbound ? unanswered : sumInboundMissed(callMetrics);
-    const showStats = isOutbound
-        ? hasCallData
-        : positiveTotal > 0 || negativeTotal > 0 || num(callMetrics?.total_missed_calls) > 0;
-
     const positiveLabel = "Answered";
     const negativeLabel = isOutbound ? "Unanswered" : "Missed";
 
@@ -174,6 +177,12 @@ const CallOutcomeBarChart: React.FC<CallOutcomeBarChartProps> = ({
         () => buildChartData(callMetrics, direction, dimension, limit),
         [callMetrics, direction, dimension, limit]
     );
+
+    const positiveTotal = chart.summaryAnswered;
+    const negativeTotal = chart.summaryNegative;
+    const showStats =
+        chart.categories.length > 0 &&
+        (positiveTotal > 0 || negativeTotal > 0 || chart.series.some((s) => s.data.some((v) => v > 0)));
 
     useEffect(() => {
         setIsVisible(true);
