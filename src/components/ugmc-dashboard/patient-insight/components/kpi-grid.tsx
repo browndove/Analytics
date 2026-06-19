@@ -3,11 +3,13 @@
 import * as React from "react";
 import KPICard from "@/components/ugmc-dashboard/billing-finance/components/kpi-card";
 import {
+    buildMinutesSpreadForKpi,
     formatMinutes,
+    mergeInfoWithSpread,
     pickTypicalMinutes,
     resolveCriticalAckMinutes,
     resolveReadMinutes,
-    typicalMinutesRange,
+    type MinutesDistribution,
 } from "@/lib/distribution-metrics";
 
 function fmtMin(minutes?: number | null): string {
@@ -21,13 +23,13 @@ function num(v: unknown): number {
     return Number.isFinite(n) ? n : 0;
 }
 
-function readSubtitle(dist: ReturnType<typeof resolveReadMinutes>): string {
-    if (!dist) return "No read data for this period.";
-    const q1 = dist.q1_minutes;
-    const q3 = dist.q3_minutes;
-    const range = typicalMinutesRange(q1, q3);
-    if (range !== "—") return `Most reads between ${range}.`;
-    return "Typical time to read messages sent.";
+function spreadProps(dist: MinutesDistribution | undefined, baseInfo: string) {
+    const spread = buildMinutesSpreadForKpi(dist);
+    return {
+        spreadStats: spread.inline.length ? spread.inline : undefined,
+        spreadStatsOverflow: spread.overflow.length ? spread.overflow : undefined,
+        infoText: mergeInfoWithSpread(baseInfo, spread.infoDetail),
+    };
 }
 
 const KPIGrid = ({ data }: { data?: Record<string, unknown> }) => {
@@ -45,22 +47,35 @@ const KPIGrid = ({ data }: { data?: Record<string, unknown> }) => {
         const readCriticalTypical = pickTypicalMinutes(readCriticalDist);
         const ackTypical = pickTypicalMinutes(ackDist);
 
+        const readAllSpread = spreadProps(
+            readAllDist,
+            "Median time to read all messages. Middle 50% fell between Q1 and Q3."
+        );
+        const readCriticalSpread = spreadProps(
+            readCriticalDist,
+            "Median time to read critical messages."
+        );
+        const ackSpread = spreadProps(
+            ackDist,
+            "Median time to acknowledge critical messages before expiry."
+        );
+
         return [
             {
-                title: "Typical Read Time",
+                title: "Average Read Time",
                 value: data ? fmtMin(readAllTypical) : "—",
-                subtitle: readSubtitle(readAllDist),
+                subtitle: "Median time to read all messages.",
                 trend: {
                     type: "up" as const,
                     value: totalMessages > 0 ? `${totalMessages.toLocaleString()} messages` : "No volume",
                     isPositive: true,
                 },
-                infoText: "Median time to read all messages. Middle 50% fell between Q1 and Q3.",
+                ...readAllSpread,
             },
             {
-                title: "Critical Read",
+                title: "Average Read Time (Critical)",
                 value: data ? fmtMin(readCriticalTypical) : "—",
-                subtitle: readSubtitle(readCriticalDist),
+                subtitle: "Median time to read critical messages.",
                 trend: {
                     type: "up" as const,
                     value:
@@ -69,20 +84,18 @@ const KPIGrid = ({ data }: { data?: Record<string, unknown> }) => {
                             : "No critical msgs",
                     isPositive: true,
                 },
-                infoText: "Median time to read critical messages.",
+                ...readCriticalSpread,
             },
             {
-                title: "Critical Acknowledgment",
+                title: "Average Acknowledgment Time",
                 value: data ? fmtMin(ackTypical) : "—",
-                subtitle: ackDist
-                    ? `Most acks between ${typicalMinutesRange(ackDist.q1_minutes, ackDist.q3_minutes)}.`
-                    : "Average confirmation time for critical messages.",
+                subtitle: "Median time to acknowledge critical messages.",
                 trend: {
                     type: "up" as const,
                     value: criticalMessages > 0 ? "Critical channel" : "No critical msgs",
                     isPositive: true,
                 },
-                infoText: "Median time to acknowledge critical messages before expiry.",
+                ...ackSpread,
             },
             {
                 title: "Escalation Rate",
@@ -110,7 +123,7 @@ const KPIGrid = ({ data }: { data?: Record<string, unknown> }) => {
                 {kpiData.map((kpi, index) => (
                     <div
                         key={kpi.title}
-                        className="min-w-0 w-full h-full min-h-[149px] [&>*]:min-w-0 [&>*]:w-full animate-slide-in-up"
+                        className="min-w-0 w-full h-full min-h-[200px] [&>*]:min-w-0 [&>*]:w-full animate-slide-in-up"
                         style={{
                             animationDelay: `${index * 100}ms`,
                             opacity: 0,

@@ -7,142 +7,112 @@ import {
     pickTypicalSeconds,
     typicalSecondsRange,
 } from "@/lib/distribution-metrics";
+import {
+    formatRoleName,
+    getCallSummary,
+    getTopOutboundRole,
+    hasAnsweredDuration,
+    truncateLabel,
+} from "./call-metrics-helpers";
 import SubscriptionCard from "./subscription-card";
 
 export type CallKpiInput = {
     total_calls_made?: number;
-    call_metrics?: {
-        total_missed_calls?: number;
-        duration?: {
-            completed_calls?: number;
-            avg_duration_seconds?: number;
-            avg_duration_minutes?: number;
-            median_duration_seconds?: number;
-        };
-    };
+    call_metrics?: Record<string, unknown>;
     role_metrics?: { role_name?: string; total_calls_made?: number }[];
 };
-
-function num(v: unknown): number {
-    if (v === null || v === undefined || v === "") return 0;
-    const n = typeof v === "string" ? parseFloat(v) : Number(v);
-    return Number.isFinite(n) ? n : 0;
-}
-
-function formatRoleName(name: string): string {
-    return name.replace(/^HH\s*-\s*/i, "").trim() || name;
-}
-
-function truncateTag(text: string, max = 22): string {
-    if (text.length <= max) return text;
-    return `${text.slice(0, max - 1)}…`;
-}
 
 const CallKPIRow = ({ data }: { data?: CallKpiInput }) => {
     const cards = useMemo(() => {
         const callMetrics = normalizeCallMetricsFromUsage(data);
-        const total = num(callMetrics?.total_calls_made ?? data?.total_calls_made);
-        const answered = callMetrics?.answered;
-        const answeredCount = num(answered?.answered_calls);
-        const hasAnswered =
-            answered != null &&
-            (answeredCount > 0 ||
-                num(answered.median_duration_seconds) > 0 ||
-                num(answered.avg_duration_seconds) > 0);
-        const typicalSeconds = pickTypicalSeconds(answered);
-        const duration = callMetrics?.duration;
-        const completed = num(duration?.completed_calls);
-        const hasDuration =
-            hasAnswered ||
-            (duration != null && (total > 0 || completed > 0 || num(duration.avg_duration_seconds) > 0));
+        const { total, answered, unanswered, answerRate, hasCallData } = getCallSummary(callMetrics);
+        const displayTotal = callMetrics?.total_calls_made ?? data?.total_calls_made ?? total;
+        const hasAnswered = hasAnsweredDuration(callMetrics);
+        const answeredSpread = callMetrics?.answered;
+        const typicalSeconds = pickTypicalSeconds(answeredSpread);
 
-        const roles = Array.isArray(data?.role_metrics) ? data!.role_metrics! : [];
-        const topRole = roles.reduce<{ name: string; calls: number } | null>((best, r) => {
-            const calls = num(r.total_calls_made);
-            if (calls <= 0) return best;
-            const name = formatRoleName(String(r.role_name || "").trim());
-            if (!name) return best;
-            if (!best || calls > best.calls) return { name, calls };
-            return best;
-        }, null);
-
-        const missed =
-            callMetrics?.total_missed_calls !== undefined
-                ? num(callMetrics.total_missed_calls)
-                : total > 0 && hasDuration
-                  ? Math.max(0, total - completed)
-                  : 0;
-        const completionRate =
-            hasDuration && total > 0 ? ((completed / total) * 100).toFixed(1) : null;
+        const topOutbound = getTopOutboundRole(callMetrics);
+        const topRoleFromMetrics = data?.role_metrics?.reduce<{ name: string; calls: number } | null>(
+            (best, r) => {
+                const calls = Number(r.total_calls_made) || 0;
+                if (calls <= 0) return best;
+                const name = formatRoleName(String(r.role_name || "").trim());
+                if (!name) return best;
+                if (!best || calls > best.calls) return { name, calls };
+                return best;
+            },
+            null
+        );
+        const topRole = topOutbound
+            ? {
+                  name: formatRoleName(topOutbound.role_name),
+                  calls: Number(topOutbound.total_calls_made) || 0,
+              }
+            : topRoleFromMetrics;
 
         return [
             {
                 badge: "TC",
                 badgeColor: "purple" as const,
                 title: "Total Calls Placed",
-                provider: hasDuration && completed > 0 ? "Facility call volume" : "Across all roles",
-                amount: data != null ? String(total) : undefined,
+                provider: hasCallData ? "Facility call volume" : "Across all roles",
+                amount: data != null ? String(displayTotal) : undefined,
                 displayValue: data == null ? "—" : undefined,
                 footerLabel: "Answered",
                 footerValue:
-                    hasAnswered && answeredCount > 0
-                        ? `${answeredCount.toLocaleString()} calls`
-                        : hasDuration && completed > 0
-                          ? `${completed.toLocaleString()} calls`
+                    hasCallData && answered > 0
+                        ? `${answered.toLocaleString()} calls`
+                        : hasCallData
+                          ? "None"
                           : "—",
-                infoText: "Total phone calls placed in the selected period.",
+                infoText: "All call sessions started in the selected period.",
             },
             {
                 badge: "AD",
                 badgeColor: "teal" as const,
                 title: "Avg Call Duration",
-                provider: hasAnswered ? "Typical answered call" : "Mean call length",
+                provider: hasAnswered ? "Typical answered call" : "Answered sessions only",
                 displayValue:
                     hasAnswered && typicalSeconds != null
                         ? formatDurationSeconds(typicalSeconds)
-                        : hasDuration
-                          ? formatDurationSeconds(num(duration?.avg_duration_seconds))
-                          : "—",
+                        : "—",
                 footerLabel: "Typical range",
-                footerValue:
-                    hasAnswered
-                        ? typicalSecondsRange(
-                              num(answered?.q1_duration_seconds),
-                              num(answered?.q3_duration_seconds)
-                          )
-                        : hasDuration && answered?.avg_duration_minutes != null
-                          ? `~${num(answered.avg_duration_minutes).toFixed(1)} min avg`
-                          : hasDuration && duration?.avg_duration_minutes != null
-                            ? `~${num(duration.avg_duration_minutes).toFixed(1)} min`
-                            : "Not available",
+                footerValue: hasAnswered
+                    ? typicalSecondsRange(
+                          Number(answeredSpread?.q1_duration_seconds) || 0,
+                          Number(answeredSpread?.q3_duration_seconds) || 0
+                      )
+                    : "Not available",
                 infoText:
                     "Median duration of answered calls. Middle 50% lasted between Q1 and Q3.",
             },
             {
-                badge: "CR",
+                badge: "AR",
                 badgeColor: "coral" as const,
-                title: "Call Completion Rate",
-                provider: "Completed vs total",
-                displayValue: completionRate != null ? `${completionRate}%` : "—",
-                footerLabel: "Missed",
+                title: "Answer Rate",
+                provider: "Answered vs unanswered sessions",
+                displayValue:
+                    answerRate != null && hasCallData ? `${answerRate.toFixed(1)}%` : "—",
+                footerLabel: "Unanswered",
                 footerValue:
-                    completionRate != null && missed > 0
-                        ? `${missed.toLocaleString()} calls`
-                        : completionRate != null
+                    hasCallData && unanswered > 0
+                        ? `${unanswered.toLocaleString()} calls`
+                        : hasCallData
                           ? "None"
                           : "Not available",
-                infoText: "Share of calls marked completed versus total calls.",
+                infoText:
+                    "Share of resolved calls that connected. Still-ringing calls are excluded from the denominator.",
             },
             {
                 badge: "TR",
                 badgeColor: "green" as const,
                 title: "Top Calling Role",
-                provider: topRole ? truncateTag(topRole.name) : "No role data",
+                provider: topRole ? truncateLabel(topRole.name) : "No role data",
                 amount: topRole ? String(topRole.calls) : undefined,
                 displayValue: topRole ? undefined : "—",
-                footerLabel: "Role volume",
-                footerValue: topRole ? `${topRole.calls.toLocaleString()} calls` : "—",
-                infoText: "Role with the highest call volume in this period.",
+                footerLabel: "Outbound volume",
+                footerValue: topRole ? `${topRole.calls.toLocaleString()} calls placed` : "—",
+                infoText: "Role with the highest outbound call volume in this period.",
             },
         ];
     }, [data]);

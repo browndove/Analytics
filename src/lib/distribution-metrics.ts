@@ -141,6 +141,17 @@ export function formatMinutes(m: number): string {
     return min > 0 ? `${h}h ${min}m` : `${h}h`;
 }
 
+/** Shorter label for tight KPI spread cells — drops minutes when hours are large. */
+export function formatMinutesCompact(m: number): string {
+    if (!m || m <= 0) return "—";
+    if (m < 1) return `${Math.round(m * 60)}s`;
+    if (m < 60) return `${m.toFixed(1)}m`;
+    const h = Math.floor(m / 60);
+    const min = Math.round(m % 60);
+    if (h >= 24) return `${h}h`;
+    return min > 0 ? `${h}h${min}m` : `${h}h`;
+}
+
 export function typicalSecondsRange(q1: number, q3: number): string {
     if (q1 <= 0 && q3 <= 0) return "—";
     return `${formatDurationSeconds(q1)} – ${formatDurationSeconds(q3)}`;
@@ -325,4 +336,61 @@ export function pickTypicalSeconds(answered?: CallAnsweredDistribution | null): 
     if (median > 0) return median;
     const avg = num(answered.avg_duration_seconds);
     return avg > 0 ? avg : null;
+}
+
+export type SpreadStatItem = { label: string; value: string };
+
+function spreadMinuteValue(m: number, compact = false): string {
+    return m > 0 ? (compact ? formatMinutesCompact(m) : formatMinutes(m)) : "—";
+}
+
+/** Build min / Q1 / median / Q3 / max rows for KPI cards. */
+export function buildMinutesSpreadForKpi(dist?: MinutesDistribution | null): {
+    inline: SpreadStatItem[];
+    overflow: SpreadStatItem[];
+    infoDetail: string;
+} {
+    if (!dist || !minutesDistributionHasData(dist)) {
+        return { inline: [], overflow: [], infoDetail: "" };
+    }
+
+    const stats: SpreadStatItem[] = [
+        { label: "Min", value: spreadMinuteValue(dist.min_minutes) },
+        { label: "Q1", value: spreadMinuteValue(dist.q1_minutes, true) },
+        { label: "Median", value: spreadMinuteValue(dist.median_minutes, true) },
+        { label: "Q3", value: spreadMinuteValue(dist.q3_minutes, true) },
+        { label: "Max", value: spreadMinuteValue(dist.max_minutes) },
+    ];
+
+    const hasSpread =
+        num(dist.q1_minutes) > 0 ||
+        num(dist.q3_minutes) > 0 ||
+        num(dist.min_minutes) > 0 ||
+        num(dist.max_minutes) > 0;
+
+    const detailLines = [...stats.map((s) => `${s.label}: ${s.value}`)];
+    if (num(dist.avg_minutes) > 0) {
+        detailLines.push(`Avg: ${formatMinutes(dist.avg_minutes)}`);
+    }
+
+    if (!hasSpread) {
+        const medianOnly = stats.filter((s) => s.label === "Median");
+        return {
+            inline: medianOnly,
+            overflow: [],
+            infoDetail: detailLines.join("\n"),
+        };
+    }
+
+    // Card: Q1 / median / Q3 only. Min & max live in the info popup to avoid crowding.
+    return {
+        inline: stats.filter((s) => s.label === "Q1" || s.label === "Median" || s.label === "Q3"),
+        overflow: stats.filter((s) => s.label === "Min" || s.label === "Max"),
+        infoDetail: detailLines.join("\n"),
+    };
+}
+
+export function mergeInfoWithSpread(base: string, infoDetail: string): string {
+    if (!infoDetail.trim()) return base;
+    return `${base}\n\n${infoDetail}`;
 }

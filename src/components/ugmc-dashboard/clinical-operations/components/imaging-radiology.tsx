@@ -14,12 +14,16 @@ import InfoTooltip from "@/components/info-tooltip";
 import FullscreenOverlay from "@/components/fullscreen-overlay";
 import {
     type CallMetricsSlice,
-    hasBreakdownOutcomes,
-    resolveMissedCallsForBreakdown,
+    formatRoleName,
+    getCallSummary,
+    hasOutboundOutcomes,
+    num,
+    sortOutboundRolesByVolume,
+    truncateLabel,
 } from "./call-metrics-helpers";
 
 const infoText =
-    "Call volume by initiating role, comparing completed and missed calls for the selected period.";
+    "Outbound calls by initiating role — answered vs unanswered sessions for the selected period.";
 
 const TOP_ROLES = 4;
 
@@ -37,19 +41,8 @@ const UnansweredIcon = () => (
     </svg>
 );
 
-function num(v: unknown): number {
-    if (v === null || v === undefined || v === "") return 0;
-    const n = typeof v === "string" ? parseFloat(v) : Number(v);
-    return Number.isFinite(n) ? n : 0;
-}
-
-function formatRoleName(name: string): string {
-    return name.replace(/^HH\s*-\s*/i, "").trim() || name;
-}
-
-function truncateLabel(name: string, max = 14): string {
-    if (name.length <= max) return name;
-    return `${name.slice(0, max - 1)}…`;
+function truncateRoleLabel(name: string, max = 14): string {
+    return truncateLabel(name, max);
 }
 
 interface ImagingRadiologyProps {
@@ -60,31 +53,17 @@ const ImagingRadiology: React.FC<ImagingRadiologyProps> = ({ callMetrics }) => {
     const [isFullscreen, setIsFullscreen] = useState(false);
     const { resolvedTheme } = useTheme();
     const [isHovered, setIsHovered] = useState(false);
-    const [animatedCompleted, setAnimatedCompleted] = useState(0);
+    const [animatedAnswered, setAnimatedAnswered] = useState(0);
     const [animatedUnanswered, setAnimatedUnanswered] = useState(0);
     const [isVisible, setIsVisible] = useState(false);
 
-    const totalCalls = num(callMetrics?.total_calls_made);
-    const duration = callMetrics?.duration;
-    const completedCalls = num(duration?.completed_calls);
-    const hasDuration =
-        duration != null &&
-        (totalCalls > 0 || completedCalls > 0);
-
-    const missedDefined = (v: unknown) => v !== undefined && v !== null && v !== "";
-    const unansweredCalls = missedDefined(callMetrics?.total_missed_calls)
-        ? num(callMetrics!.total_missed_calls)
-        : hasDuration && totalCalls > 0
-          ? Math.max(0, totalCalls - completedCalls)
-          : null;
+    const { answered, unanswered, hasCallData } = getCallSummary(callMetrics);
+    const answeredCalls = hasCallData ? answered : 0;
+    const unansweredCalls =
+        callMetrics?.total_unanswered_calls != null || hasCallData ? unanswered : null;
 
     const roleChart = useMemo(() => {
-        const roles = Array.isArray(callMetrics?.by_initiator_role)
-            ? [...callMetrics!.by_initiator_role!]
-                  .filter((r) => num(r.total_calls_made) > 0 || num(r.missed_calls) > 0)
-                  .sort((a, b) => num(b.total_calls_made) - num(a.total_calls_made))
-                  .slice(0, TOP_ROLES)
-            : [];
+        const roles = sortOutboundRolesByVolume(callMetrics, TOP_ROLES);
 
         if (!roles.length) {
             return {
@@ -97,18 +76,14 @@ const ImagingRadiology: React.FC<ImagingRadiologyProps> = ({ callMetrics }) => {
         }
 
         const roleFullNames = roles.map((r) => formatRoleName(r.role_name));
-        const categories = roleFullNames.map((name) => truncateLabel(name));
+        const categories = roleFullNames.map((name) => truncateRoleLabel(name));
 
-        const hasPerRoleOutcomes = roles.some(hasBreakdownOutcomes);
+        const hasPerRoleOutcomes = roles.some(hasOutboundOutcomes);
 
         if (hasPerRoleOutcomes) {
-            const missedData: number[] = [];
-            const completedData: number[] = [];
-            for (const r of roles) {
-                completedData.push(num(r.duration?.completed_calls));
-                missedData.push(resolveMissedCallsForBreakdown(r));
-            }
-            const peak = Math.max(...missedData, ...completedData, 0);
+            const answeredData = roles.map((r) => num(r.answered_calls));
+            const unansweredData = roles.map((r) => num(r.unanswered_calls));
+            const peak = Math.max(...answeredData, ...unansweredData, 0);
             const chartYMax = peak <= 0 ? 80 : Math.ceil(peak * 1.15 / 10) * 10;
 
             return {
@@ -117,8 +92,8 @@ const ImagingRadiology: React.FC<ImagingRadiologyProps> = ({ callMetrics }) => {
                 chartYMax,
                 hasPerRoleOutcomes: true,
                 series: [
-                    { name: "Missed", data: missedData },
-                    { name: "Completed", data: completedData },
+                    { name: "Answered", data: answeredData },
+                    { name: "Unanswered", data: unansweredData },
                 ] as BarChartSeries,
             };
         }
@@ -134,7 +109,7 @@ const ImagingRadiology: React.FC<ImagingRadiologyProps> = ({ callMetrics }) => {
             hasPerRoleOutcomes: false,
             series: [{ name: "Calls", data: callTotals }] as BarChartSeries,
         };
-    }, [callMetrics?.by_initiator_role]);
+    }, [callMetrics?.by_outbound_role]);
 
     useEffect(() => {
         setIsVisible(true);
@@ -143,7 +118,7 @@ const ImagingRadiology: React.FC<ImagingRadiologyProps> = ({ callMetrics }) => {
     useEffect(() => {
         if (!isVisible) return;
 
-        const targetCompleted = hasDuration ? completedCalls : 0;
+        const targetAnswered = answeredCalls;
         const targetUnanswered = unansweredCalls ?? 0;
         const animDuration = 1200;
         const startTime = Date.now();
@@ -153,18 +128,18 @@ const ImagingRadiology: React.FC<ImagingRadiologyProps> = ({ callMetrics }) => {
             const progress = Math.min(elapsed / animDuration, 1);
             const eased = 1 - Math.pow(1 - progress, 3);
 
-            setAnimatedCompleted(Math.round(targetCompleted * eased));
+            setAnimatedAnswered(Math.round(targetAnswered * eased));
             setAnimatedUnanswered(Math.round(targetUnanswered * eased));
 
             if (progress < 1) {
                 requestAnimationFrame(animate);
             } else {
-                setAnimatedCompleted(targetCompleted);
+                setAnimatedAnswered(targetAnswered);
                 setAnimatedUnanswered(targetUnanswered);
             }
         };
         requestAnimationFrame(animate);
-    }, [isVisible, hasDuration, completedCalls, unansweredCalls]);
+    }, [isVisible, answeredCalls, unansweredCalls]);
 
     useEffect(() => {
         if (isFullscreen) {
@@ -191,7 +166,7 @@ const ImagingRadiology: React.FC<ImagingRadiologyProps> = ({ callMetrics }) => {
                 },
             },
             colors: roleChart.hasPerRoleOutcomes
-                ? ["var(--accent-red)", "var(--accent-green)"]
+                ? ["var(--accent-green)", "var(--accent-red)"]
                 : ["var(--accent-primary)"],
             plotOptions: {
                 bar: {
@@ -297,8 +272,8 @@ const ImagingRadiology: React.FC<ImagingRadiologyProps> = ({ callMetrics }) => {
                     isHovered={isHovered}
                 />
                 <ChartStats
-                    hasDuration={hasDuration}
-                    animatedCompleted={animatedCompleted}
+                    hasCallData={hasCallData}
+                    animatedAnswered={animatedAnswered}
                     unansweredCalls={unansweredCalls}
                     animatedUnanswered={animatedUnanswered}
                 />
@@ -322,8 +297,8 @@ const ImagingRadiology: React.FC<ImagingRadiologyProps> = ({ callMetrics }) => {
                             isHovered={isHovered}
                         />
                         <ChartStats
-                            hasDuration={hasDuration}
-                            animatedCompleted={animatedCompleted}
+                            hasCallData={hasCallData}
+                            animatedAnswered={animatedAnswered}
                             unansweredCalls={unansweredCalls}
                             animatedUnanswered={animatedUnanswered}
                         />
@@ -369,15 +344,15 @@ const ChartHeader = ({ isFullscreen, onToggleFullscreen, isHovered }: ChartHeade
 );
 
 interface ChartStatsProps {
-    hasDuration: boolean;
-    animatedCompleted: number;
+    hasCallData: boolean;
+    animatedAnswered: number;
     unansweredCalls: number | null;
     animatedUnanswered: number;
 }
 
 const ChartStats = ({
-    hasDuration,
-    animatedCompleted,
+    hasCallData,
+    animatedAnswered,
     unansweredCalls,
     animatedUnanswered,
 }: ChartStatsProps) => (
@@ -385,11 +360,11 @@ const ChartStats = ({
         <div className="flex items-center justify-between min-w-[180px] bg-accent-green/10 rounded-[10px] px-[15px] py-[8px]">
             <div className="flex flex-col">
                 <Text variant="body-sm" className="text-accent-green">
-                    Calls Completed
+                    Calls Answered
                 </Text>
-                {hasDuration ? (
+                {hasCallData ? (
                     <span className="text-[20px] font-bold text-text-primary tabular-nums">
-                        {animatedCompleted.toLocaleString()}
+                        {animatedAnswered.toLocaleString()}
                     </span>
                 ) : (
                     <Text variant="heading-sm" color="text-primary">
@@ -402,7 +377,7 @@ const ChartStats = ({
         <div className="flex items-center justify-between min-w-[160px] bg-secondary rounded-[10px] px-[15px] py-[8px]">
             <div className="flex flex-col">
                 <Text variant="body-sm" color="text-primary">
-                    Missed Calls
+                    Unanswered Calls
                 </Text>
                 {unansweredCalls !== null ? (
                     <span className="text-[20px] font-bold text-text-primary tabular-nums">

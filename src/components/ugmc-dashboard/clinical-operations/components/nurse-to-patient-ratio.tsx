@@ -133,7 +133,7 @@ const NurseToPatientRatio: React.FC<NurseToPatientRatioProps> = ({ callMetrics }
 
     const ratioData = React.useMemo(() => {
         const totalCalls = num(callMetrics?.total_calls_made);
-        const roles = callMetrics?.by_initiator_role;
+        const roles = callMetrics?.by_outbound_role;
         if (!Array.isArray(roles) || !roles.length || totalCalls <= 0) return [];
 
         return [...roles]
@@ -150,7 +150,7 @@ const NurseToPatientRatio: React.FC<NurseToPatientRatioProps> = ({ callMetrics }
                     percentage: pct,
                 };
             });
-    }, [callMetrics?.by_initiator_role, callMetrics?.total_calls_made]);
+    }, [callMetrics?.by_outbound_role, callMetrics?.total_calls_made]);
 
     return (
         <DashboardCard

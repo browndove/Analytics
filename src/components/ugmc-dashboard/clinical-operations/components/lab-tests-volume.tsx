@@ -15,14 +15,19 @@ import InfoTooltip from "@/components/info-tooltip";
 import FullscreenOverlay from "@/components/fullscreen-overlay";
 import {
     type CallMetricsSlice,
-    hasBreakdownOutcomes,
-    resolveMissedCallsForBreakdown,
+    getCallSummary,
+    hasAnsweredDuration,
+    hasOutboundOutcomes,
+    num,
+    pickTypicalSeconds,
+    sortOutboundDepartmentsByVolume,
 } from "./call-metrics-helpers";
+import { formatDurationSeconds } from "@/lib/distribution-metrics";
 
 const TOP_DEPARTMENTS = 6;
 
 const infoText =
-    "Call volume by initiating department, with average call duration and missed calls for the selected period.";
+    "Outbound calls by initiating department — answered vs unanswered sessions in the selected period.";
 
 const WarningIcon = () => (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -37,37 +42,11 @@ const ClockIcon = () => (
     </svg>
 );
 
-function fmtDuration(seconds: number): string {
-    if (!seconds || seconds <= 0) return "—";
-    if (seconds < 60) return `${Math.round(seconds)}s`;
-    const m = Math.floor(seconds / 60);
-    const s = Math.round(seconds % 60);
-    if (m < 60) return s > 0 ? `${m}m ${s}s` : `${m}m`;
-    const h = Math.floor(m / 60);
-    const rm = m % 60;
-    return rm > 0 ? `${h}h ${rm}m` : `${h}h`;
-}
-
-function num(v: unknown): number {
-    if (v === null || v === undefined || v === "") return 0;
-    const n = typeof v === "string" ? parseFloat(v) : Number(v);
-    return Number.isFinite(n) ? n : 0;
-}
-
 const UnansweredCallsIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="none">
         <path fillRule="evenodd" clipRule="evenodd" d="M0 10C0 4.477 4.477 0 10 0C15.523 0 20 4.477 20 10C20 15.523 15.523 20 10 20C4.477 20 0 15.523 0 10ZM10 6C10 5.73478 9.89464 5.48043 9.70711 5.29289C9.51957 5.10536 9.26522 5 9 5C8.73478 5 8.48043 5.10536 8.29289 5.29289C8.10536 5.48043 8 5.73478 8 6V11C8 11.2652 8.10536 11.5196 8.29289 11.7071C8.48043 11.8946 8.73478 12 9 12H14C14.2652 12 14.5196 11.8946 14.7071 11.7071C14.8946 11.5196 15 11.2652 15 11C15 10.7348 14.8946 10.4804 14.7071 10.2929C14.5196 10.1054 14.2652 10 14 10H10V6Z" fill="var(--text-primary)" />
     </svg>
 );
-
-interface CallMetricsDuration {
-    completed_calls?: number;
-    avg_duration_seconds?: number;
-    avg_duration_minutes?: number;
-    min_duration_seconds?: number;
-    median_duration_seconds?: number;
-    max_duration_seconds?: number;
-}
 
 interface LabTestsVolumeProps {
     callMetrics?: CallMetricsSlice;
@@ -80,28 +59,16 @@ const LabTestsVolume: React.FC<LabTestsVolumeProps> = ({ callMetrics }) => {
     const [animatedUnanswered, setAnimatedUnanswered] = useState(0);
     const [isVisible, setIsVisible] = useState(false);
 
-    const totalCalls = num(callMetrics?.total_calls_made);
-    const completedCalls = num(callMetrics?.duration?.completed_calls);
-    const duration = callMetrics?.duration;
-    const hasDuration =
-        duration != null &&
-        (totalCalls > 0 || completedCalls > 0 || num(duration.avg_duration_seconds) > 0);
+    const { unanswered, hasCallData } = getCallSummary(callMetrics);
+    const hasAnswered = hasAnsweredDuration(callMetrics);
+    const typicalSeconds = pickTypicalSeconds(callMetrics?.answered);
+    const unansweredCalls =
+        callMetrics?.total_unanswered_calls != null || hasCallData ? unanswered : null;
 
-    const missedDefined = (v: unknown) => v !== undefined && v !== null && v !== "";
-    const unansweredCalls = missedDefined(callMetrics?.total_missed_calls)
-        ? num(callMetrics!.total_missed_calls)
-        : hasDuration && totalCalls > 0
-          ? Math.max(0, totalCalls - completedCalls)
-          : null;
-
-    const avgSeconds = num(duration?.avg_duration_seconds);
-    const avgCallDurationDisplay = hasDuration
-        ? avgSeconds > 0
-            ? fmtDuration(avgSeconds)
-            : duration?.avg_duration_minutes != null
-              ? `${num(duration.avg_duration_minutes).toFixed(1)} min`
-              : "—"
-        : "—";
+    const avgCallDurationDisplay =
+        hasAnswered && typicalSeconds != null
+            ? formatDurationSeconds(typicalSeconds)
+            : "—";
 
     useEffect(() => {
         setIsVisible(true);
@@ -138,15 +105,10 @@ const LabTestsVolume: React.FC<LabTestsVolumeProps> = ({ callMetrics }) => {
     const fallbackData = [120, 480, 220, 320, 580, 340, 560];
 
     const deptChart = React.useMemo(() => {
-        const depts = Array.isArray(callMetrics?.by_initiator_department)
-            ? [...callMetrics.by_initiator_department]
-                  .filter((d) => num(d.total_calls_made) > 0 || num(d.missed_calls) > 0)
-                  .sort((a, b) => num(b.total_calls_made) - num(a.total_calls_made))
-                  .slice(0, TOP_DEPARTMENTS)
-            : [];
+        const depts = sortOutboundDepartmentsByVolume(callMetrics, TOP_DEPARTMENTS);
 
         if (!depts.length) {
-            if (!callMetrics?.by_initiator_department?.length) {
+            if (!callMetrics?.by_outbound_department?.length) {
                 return {
                     mode: "empty" as const,
                     categories: fallbackCategories,
@@ -171,12 +133,12 @@ const LabTestsVolume: React.FC<LabTestsVolumeProps> = ({ callMetrics }) => {
             name.length > 14 ? `${name.slice(0, 12)}…` : name
         );
 
-        const hasPerDeptOutcomes = depts.some(hasBreakdownOutcomes);
+        const hasPerDeptOutcomes = depts.some(hasOutboundOutcomes);
 
         if (hasPerDeptOutcomes) {
-            const missedData = depts.map((d) => resolveMissedCallsForBreakdown(d));
-            const completedData = depts.map((d) => num(d.duration?.completed_calls));
-            const peak = Math.max(...missedData, ...completedData, 0);
+            const answeredData = depts.map((d) => num(d.answered_calls));
+            const unansweredData = depts.map((d) => num(d.unanswered_calls));
+            const peak = Math.max(...answeredData, ...unansweredData, 0);
             const chartYMax = peak <= 0 ? 80 : Math.ceil(peak * 1.15 / 10) * 10;
 
             return {
@@ -186,8 +148,8 @@ const LabTestsVolume: React.FC<LabTestsVolumeProps> = ({ callMetrics }) => {
                 hasPerDeptOutcomes: true,
                 chartYMax,
                 series: [
-                    { name: "Missed", data: missedData },
-                    { name: "Completed", data: completedData },
+                    { name: "Answered", data: answeredData },
+                    { name: "Unanswered", data: unansweredData },
                 ],
             };
         }
@@ -204,7 +166,7 @@ const LabTestsVolume: React.FC<LabTestsVolumeProps> = ({ callMetrics }) => {
             chartYMax,
             series: [{ name: "Calls", data: volumeData }],
         };
-    }, [callMetrics?.by_initiator_department]);
+    }, [callMetrics?.by_outbound_department]);
 
     // Prevent body scroll when fullscreen
     useEffect(() => {
@@ -239,7 +201,7 @@ const LabTestsVolume: React.FC<LabTestsVolumeProps> = ({ callMetrics }) => {
         },
         colors:
             deptChart.mode === "outcomes"
-                ? ["var(--accent-red)", "var(--accent-green)"]
+                ? ["var(--accent-green)", "var(--accent-red)"]
                 : ["var(--accent-primary)"],
         ...(deptChart.mode === "volume" || deptChart.mode === "empty"
             ? {
@@ -396,7 +358,7 @@ const LabTestsVolume: React.FC<LabTestsVolumeProps> = ({ callMetrics }) => {
                     <div className="flex items-center gap-5 bg-tertiary rounded-[10px] px-[15px] py-[8px]">
                         <div className="flex flex-col">
                             <Text variant="body-sm" color="text-secondary">
-                                Missed Calls
+                                Unanswered Calls
                             </Text>
                             {unansweredCalls !== null ? (
                                 <span className="text-[20px] font-bold text-text-primary tabular-nums">

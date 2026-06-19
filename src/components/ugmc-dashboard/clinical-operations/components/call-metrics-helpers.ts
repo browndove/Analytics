@@ -25,32 +25,55 @@ export function fmtDuration(seconds: number): string {
     return formatDurationSeconds(seconds);
 }
 
-export type CallDurationSpread = {
-    completed_calls?: number;
-    avg_duration_seconds?: number;
-    avg_duration_minutes?: number;
-    min_duration_seconds?: number;
-    q1_duration_seconds?: number;
-    median_duration_seconds?: number;
-    q3_duration_seconds?: number;
-    max_duration_seconds?: number;
+export type CallOutboundRoleMetric = {
+    role_id?: string;
+    role_name: string;
+    facility_id?: string;
+    facility_name?: string;
+    total_calls_made?: number;
+    answered_calls?: number;
+    unanswered_calls?: number;
 };
 
-export type CallInitiatorBreakdown = {
+export type CallOutboundDepartmentMetric = {
+    department_id?: string;
+    department_name: string;
+    facility_id?: string;
+    facility_name?: string;
     total_calls_made?: number;
+    answered_calls?: number;
+    unanswered_calls?: number;
+};
+
+export type CallInboundRoleMetric = {
+    role_id?: string;
+    role_name: string;
+    facility_id?: string;
+    facility_name?: string;
     missed_calls?: number;
-    duration?: CallDurationSpread;
+    answered_calls?: number;
+};
+
+export type CallInboundDepartmentMetric = {
+    department_id?: string;
+    department_name: string;
+    facility_id?: string;
+    facility_name?: string;
+    missed_calls?: number;
+    answered_calls?: number;
 };
 
 export type CallMetricsSlice = {
     total_calls_made?: number;
+    total_answered_calls?: number;
+    total_unanswered_calls?: number;
+    answer_rate_percent?: number;
     total_missed_calls?: number;
-    /** Answered-call duration spread — preferred for call duration UI. */
     answered?: CallAnsweredDistribution;
-    /** @deprecated Legacy — use `answered` for duration UI. */
-    duration?: CallDurationSpread;
-    by_initiator_role?: (CallInitiatorBreakdown & { role_name: string })[];
-    by_initiator_department?: (CallInitiatorBreakdown & { department_name: string })[];
+    by_outbound_role?: CallOutboundRoleMetric[];
+    by_outbound_department?: CallOutboundDepartmentMetric[];
+    by_inbound_role?: CallInboundRoleMetric[];
+    by_inbound_department?: CallInboundDepartmentMetric[];
 };
 
 export function hasAnsweredDuration(cm?: CallMetricsSlice | null): boolean {
@@ -63,85 +86,115 @@ export function getAnsweredSpread(cm?: CallMetricsSlice | null): CallAnsweredDis
 
 export { pickTypicalSeconds, typicalSecondsRange };
 
-function missedDefined(v: unknown): boolean {
-    return v !== undefined && v !== null && v !== "";
+export function hasOutboundOutcomes(
+    row: Pick<CallOutboundRoleMetric, "answered_calls" | "unanswered_calls">
+): boolean {
+    return num(row.answered_calls) > 0 || num(row.unanswered_calls) > 0;
 }
 
-/** Prefer missed_calls on a role/dept row; otherwise derive from total − completed. */
-export function resolveMissedCallsForBreakdown(item: CallInitiatorBreakdown): number {
-    if (missedDefined(item.missed_calls)) return num(item.missed_calls);
-    const total = num(item.total_calls_made);
-    const completed = num(item.duration?.completed_calls);
-    if (total > 0) return Math.max(0, total - completed);
-    return 0;
+export function hasInboundOutcomes(
+    row: Pick<CallInboundRoleMetric, "answered_calls" | "missed_calls">
+): boolean {
+    return num(row.answered_calls) > 0 || num(row.missed_calls) > 0;
 }
 
-export function hasBreakdownOutcomes(item: CallInitiatorBreakdown): boolean {
-    return missedDefined(item.missed_calls) || missedDefined(item.duration?.completed_calls);
-}
-
-/** Prefer backend total_missed_calls; otherwise derive from total − completed. */
-export function resolveMissedCalls(cm?: CallMetricsSlice | null): number {
-    if (missedDefined(cm?.total_missed_calls)) return num(cm!.total_missed_calls);
+/** Facility-level call summary for KPI cards and stat boxes. */
+export function getCallSummary(cm?: CallMetricsSlice | null) {
     const total = num(cm?.total_calls_made);
-    const completed = num(cm?.duration?.completed_calls);
-    if (total > 0) return Math.max(0, total - completed);
-    return 0;
-}
-
-export function getCallOutcomeTotals(cm?: CallMetricsSlice | null) {
-    const total = num(cm?.total_calls_made);
-    const completed = num(cm?.duration?.completed_calls);
-    const hasMissedFromApi = missedDefined(cm?.total_missed_calls);
-    const hasDuration =
-        cm?.duration != null && (total > 0 || completed > 0);
-    const hasCallData =
-        total > 0 || completed > 0 || hasMissedFromApi || hasDuration;
-    const missed = hasCallData ? resolveMissedCalls(cm) : 0;
-    const completionPct =
-        hasCallData && total > 0
-            ? parseFloat(((completed / total) * 100).toFixed(1))
+    const answered = num(cm?.total_answered_calls);
+    const unanswered = num(cm?.total_unanswered_calls);
+    const missed = num(cm?.total_missed_calls);
+    const answerRate =
+        cm?.answer_rate_percent != null && Number.isFinite(num(cm.answer_rate_percent))
+            ? num(cm.answer_rate_percent)
             : null;
-    const missedPct =
-        hasCallData && total > 0
-            ? parseFloat(((missed / total) * 100).toFixed(1))
-            : hasCallData && missed > 0 && total <= 0
-              ? 100
-              : null;
+    const hasCallData = total > 0 || answered > 0 || unanswered > 0 || missed > 0;
+
     return {
         total,
-        completed,
+        answered,
+        unanswered,
         missed,
-        unanswered: missed,
-        hasDuration,
+        answerRate,
         hasCallData,
-        hasMissedFromApi,
-        completionPct,
-        missedPct,
+        /** @deprecated use getCallSummary */
+        completed: answered,
     };
 }
 
-export function getTopRole(cm?: CallMetricsSlice | null) {
-    const roles = cm?.by_initiator_role;
+/** @deprecated use getCallSummary */
+export function getCallOutcomeTotals(cm?: CallMetricsSlice | null) {
+    const s = getCallSummary(cm);
+    return {
+        ...s,
+        hasDuration: hasAnsweredDuration(cm),
+        hasMissedFromApi: cm?.total_missed_calls != null,
+        completionPct: s.answerRate,
+        unanswered: s.unanswered,
+    };
+}
+
+export function getTopOutboundRole(cm?: CallMetricsSlice | null) {
+    const roles = cm?.by_outbound_role;
     if (!Array.isArray(roles) || !roles.length) return null;
     return [...roles]
         .filter((r) => num(r.total_calls_made) > 0)
         .sort((a, b) => num(b.total_calls_made) - num(a.total_calls_made))[0];
 }
 
-export function getTopDepartment(cm?: CallMetricsSlice | null) {
-    const depts = cm?.by_initiator_department;
+export function getTopOutboundDepartment(cm?: CallMetricsSlice | null) {
+    const depts = cm?.by_outbound_department;
     if (!Array.isArray(depts) || !depts.length) return null;
     return [...depts]
         .filter((d) => num(d.total_calls_made) > 0)
         .sort((a, b) => num(b.total_calls_made) - num(a.total_calls_made))[0];
 }
 
-export function getTopDepartments(cm?: CallMetricsSlice | null, limit = 4) {
-    const depts = cm?.by_initiator_department;
+export function sortOutboundDepartmentsByVolume(
+    cm?: CallMetricsSlice | null,
+    limit = 6
+): CallOutboundDepartmentMetric[] {
+    const depts = cm?.by_outbound_department;
+    if (!Array.isArray(depts) || !depts.length) return [];
+    return [...depts]
+        .filter((d) => hasOutboundOutcomes(d) || num(d.total_calls_made) > 0)
+        .sort(
+            (a, b) =>
+                num(b.answered_calls) +
+                num(b.unanswered_calls) -
+                (num(a.answered_calls) + num(a.unanswered_calls))
+        )
+        .slice(0, limit);
+}
+
+export function sortOutboundRolesByVolume(
+    cm?: CallMetricsSlice | null,
+    limit = 4
+): CallOutboundRoleMetric[] {
+    const roles = cm?.by_outbound_role;
+    if (!Array.isArray(roles) || !roles.length) return [];
+    return [...roles]
+        .filter((r) => hasOutboundOutcomes(r) || num(r.total_calls_made) > 0)
+        .sort(
+            (a, b) =>
+                num(b.answered_calls) +
+                num(b.unanswered_calls) -
+                (num(a.answered_calls) + num(a.unanswered_calls))
+        )
+        .slice(0, limit);
+}
+
+export function getTopDepartments(cm?: CallMetricsSlice | null, limit = 4): CallOutboundDepartmentMetric[] {
+    const depts = cm?.by_outbound_department;
     if (!Array.isArray(depts) || !depts.length) return [];
     return [...depts]
         .filter((d) => num(d.total_calls_made) > 0)
         .sort((a, b) => num(b.total_calls_made) - num(a.total_calls_made))
         .slice(0, limit);
 }
+
+/** @deprecated use getTopOutboundRole */
+export const getTopRole = getTopOutboundRole;
+
+/** @deprecated use getTopOutboundDepartment */
+export const getTopDepartment = getTopOutboundDepartment;

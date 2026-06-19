@@ -64,19 +64,22 @@ export const REPORT_METRICS: ReportMetricDef[] = [
     { id: "table_role_metrics", group: "Tables", label: "Role metrics (detail rows)", kind: "table_roles_metrics" },
 
     // Call metrics (scalars)
-    { id: "scalar_call_total_calls_made", group: "Calls", label: "Total calls made", kind: "scalar", field: "call_metrics.total_calls_made" },
-    { id: "scalar_call_completed_calls", group: "Calls", label: "Completed calls", kind: "scalar", field: "call_metrics.duration.completed_calls" },
-    { id: "scalar_call_avg_duration_seconds", group: "Calls", label: "Avg call duration (seconds)", kind: "scalar", field: "call_metrics.duration.avg_duration_seconds" },
-    { id: "scalar_call_avg_duration_minutes", group: "Calls", label: "Avg call duration (minutes)", kind: "scalar", field: "call_metrics.duration.avg_duration_minutes" },
-    { id: "scalar_call_min_duration_seconds", group: "Calls", label: "Min call duration (seconds)", kind: "scalar", field: "call_metrics.duration.min_duration_seconds" },
-    { id: "scalar_call_median_duration_seconds", group: "Calls", label: "Median call duration (seconds)", kind: "scalar", field: "call_metrics.duration.median_duration_seconds" },
-    { id: "scalar_call_q1_duration_seconds", group: "Calls", label: "Q1 call duration (seconds)", kind: "scalar", field: "call_metrics.duration.q1_duration_seconds" },
-    { id: "scalar_call_q3_duration_seconds", group: "Calls", label: "Q3 call duration (seconds)", kind: "scalar", field: "call_metrics.duration.q3_duration_seconds" },
-    { id: "scalar_call_max_duration_seconds", group: "Calls", label: "Max call duration (seconds)", kind: "scalar", field: "call_metrics.duration.max_duration_seconds" },
+    { id: "scalar_call_total_calls_made", group: "Calls", label: "Total calls placed", kind: "scalar", field: "call_metrics.total_calls_made" },
+    { id: "scalar_call_answered_calls", group: "Calls", label: "Answered calls", kind: "scalar", field: "call_metrics.total_answered_calls" },
+    { id: "scalar_call_unanswered_calls", group: "Calls", label: "Unanswered calls", kind: "scalar", field: "call_metrics.total_unanswered_calls" },
+    { id: "scalar_call_answer_rate_percent", group: "Calls", label: "Answer rate (%)", kind: "scalar", field: "call_metrics.answer_rate_percent" },
+    { id: "scalar_call_missed_calls", group: "Calls", label: "Missed calls (inbound)", kind: "scalar", field: "call_metrics.total_missed_calls" },
+    { id: "scalar_call_avg_duration_seconds", group: "Calls", label: "Avg call duration (seconds)", kind: "scalar", field: "call_metrics.answered.avg_duration_seconds" },
+    { id: "scalar_call_avg_duration_minutes", group: "Calls", label: "Avg call duration (minutes)", kind: "scalar", field: "call_metrics.answered.avg_duration_minutes" },
+    { id: "scalar_call_min_duration_seconds", group: "Calls", label: "Min call duration (seconds)", kind: "scalar", field: "call_metrics.answered.min_duration_seconds" },
+    { id: "scalar_call_median_duration_seconds", group: "Calls", label: "Median call duration (seconds)", kind: "scalar", field: "call_metrics.answered.median_duration_seconds" },
+    { id: "scalar_call_q1_duration_seconds", group: "Calls", label: "Q1 call duration (seconds)", kind: "scalar", field: "call_metrics.answered.q1_duration_seconds" },
+    { id: "scalar_call_q3_duration_seconds", group: "Calls", label: "Q3 call duration (seconds)", kind: "scalar", field: "call_metrics.answered.q3_duration_seconds" },
+    { id: "scalar_call_max_duration_seconds", group: "Calls", label: "Max call duration (seconds)", kind: "scalar", field: "call_metrics.answered.max_duration_seconds" },
 
     // Call tables
-    { id: "table_call_by_role", group: "Calls", label: "Calls by initiator role", kind: "table_call_by_role" },
-    { id: "table_call_by_department", group: "Calls", label: "Calls by initiator department", kind: "table_call_by_department" },
+    { id: "table_call_by_role", group: "Calls", label: "Outbound calls by role", kind: "table_call_by_role" },
+    { id: "table_call_by_department", group: "Calls", label: "Outbound calls by department", kind: "table_call_by_department" },
 
     // Transfer metrics (scalars)
     { id: "scalar_transfer_total", group: "Transfers", label: "Total transfer requests", kind: "scalar", field: "transfer_metrics.total_transfer_requests" },
@@ -145,12 +148,8 @@ const CALL_BY_ROLE_HEADERS = [
     "facility_name",
     "facility_id",
     "total_calls_made",
-    "completed_calls",
-    "avg_duration_seconds",
-    "avg_duration_minutes",
-    "min_duration_seconds",
-    "median_duration_seconds",
-    "max_duration_seconds",
+    "answered_calls",
+    "unanswered_calls",
 ] as const;
 
 const CALL_BY_DEPT_HEADERS = [
@@ -159,12 +158,8 @@ const CALL_BY_DEPT_HEADERS = [
     "facility_name",
     "facility_id",
     "total_calls_made",
-    "completed_calls",
-    "avg_duration_seconds",
-    "avg_duration_minutes",
-    "min_duration_seconds",
-    "median_duration_seconds",
-    "max_duration_seconds",
+    "answered_calls",
+    "unanswered_calls",
 ] as const;
 
 const TRANSFER_COUNTERPARTY_HEADERS = [
@@ -299,21 +294,17 @@ export function collectReportData(data: AnalyticsRow, selected: Record<string, b
         const head = [...CALL_BY_ROLE_HEADERS];
         const body: string[][] = [];
         const cm = data.call_metrics as Record<string, unknown> | undefined;
-        const list = cm?.by_initiator_role;
+        const list = cm?.by_outbound_role ?? cm?.by_initiator_role;
         if (Array.isArray(list)) {
             for (const item of list) {
                 if (!item || typeof item !== "object") continue;
                 const r = item as Record<string, unknown>;
-                const dur = r.duration as Record<string, unknown> | undefined;
                 body.push(head.map((h) => {
-                    if (dur && ["completed_calls", "avg_duration_seconds", "avg_duration_minutes", "min_duration_seconds", "median_duration_seconds", "max_duration_seconds"].includes(h)) {
-                        const v = dur[h]; return v == null ? "" : String(v);
-                    }
                     const v = r[h]; return v == null ? "" : String(v);
                 }));
             }
         }
-        callByRole = { title: "Calls by initiator role", head, body };
+        callByRole = { title: "Outbound calls by role", head, body };
     }
 
     let callByDept: ReportTableSection | null = null;
@@ -321,21 +312,17 @@ export function collectReportData(data: AnalyticsRow, selected: Record<string, b
         const head = [...CALL_BY_DEPT_HEADERS];
         const body: string[][] = [];
         const cm = data.call_metrics as Record<string, unknown> | undefined;
-        const list = cm?.by_initiator_department;
+        const list = cm?.by_outbound_department ?? cm?.by_initiator_department;
         if (Array.isArray(list)) {
             for (const item of list) {
                 if (!item || typeof item !== "object") continue;
                 const r = item as Record<string, unknown>;
-                const dur = r.duration as Record<string, unknown> | undefined;
                 body.push(head.map((h) => {
-                    if (dur && ["completed_calls", "avg_duration_seconds", "avg_duration_minutes", "min_duration_seconds", "median_duration_seconds", "max_duration_seconds"].includes(h)) {
-                        const v = dur[h]; return v == null ? "" : String(v);
-                    }
                     const v = r[h]; return v == null ? "" : String(v);
                 }));
             }
         }
-        callByDept = { title: "Calls by initiator department", head, body };
+        callByDept = { title: "Outbound calls by department", head, body };
     }
 
     let transferByCounterparty: ReportTableSection | null = null;

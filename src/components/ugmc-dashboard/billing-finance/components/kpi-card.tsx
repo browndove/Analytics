@@ -8,6 +8,8 @@ import clsx from "clsx";
 
 type TrendType = "up" | "down" | "neutral";
 
+export type SpreadStatItem = { label: string; value: string };
+
 type KPICardProps = {
     title: string;
     value: string;
@@ -19,7 +21,27 @@ type KPICardProps = {
     };
     indicator?: "active";
     infoText?: string;
+    /** Shown below the bottom divider — typically Q1, median, Q3. */
+    spreadStats?: SpreadStatItem[];
+    /** Min / max — included in info popup only (keeps card row uncluttered). */
+    spreadStatsOverflow?: SpreadStatItem[];
 };
+
+function SpreadStatCell({ label, value }: SpreadStatItem) {
+    return (
+        <div className="min-w-0 text-center sm:text-left">
+            <span className="block text-[10px] font-medium uppercase tracking-wide text-text-tertiary">
+                {label}
+            </span>
+            <span
+                className="mt-0.5 block truncate text-[11px] font-semibold tabular-nums text-text-primary"
+                title={value}
+            >
+                {value}
+            </span>
+        </div>
+    );
+}
 
 const parseValue = (value: string): { prefix: string; number: number; suffix: string; decimals: number } => {
     const match = value.match(/^([^\d]*)([\d,]+\.?\d*)(.*)$/);
@@ -50,7 +72,16 @@ const IncreaseIcon = () => (
     </svg>
 );
 
-const KPICard: React.FC<KPICardProps> = ({ title, value, subtitle, trend, indicator, infoText }) => {
+const KPICard: React.FC<KPICardProps> = ({
+    title,
+    value,
+    subtitle,
+    trend,
+    indicator,
+    infoText,
+    spreadStats,
+    spreadStatsOverflow,
+}) => {
     const [isHovered, setIsHovered] = React.useState(false);
     const [animatedNumber, setAnimatedNumber] = React.useState(0);
     const [isVisible, setIsVisible] = React.useState(false);
@@ -77,15 +108,20 @@ const KPICard: React.FC<KPICardProps> = ({ title, value, subtitle, trend, indica
         requestAnimationFrame(animate);
     }, [isVisible, parsedValue.number, isLiteralValue]);
 
+    const hasSpread = (spreadStats?.length ?? 0) > 0 || (spreadStatsOverflow?.length ?? 0) > 0;
+
     return (
         <DashboardCard
-            className="relative flex h-full min-h-[149px] flex-col"
+            className={clsx(
+                "relative flex h-full flex-col overflow-hidden",
+                hasSpread ? "min-h-[210px]" : "min-h-[149px]"
+            )}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
-            {infoText && isHovered && (
-                <div className="absolute top-2 right-2 z-10">
-                    <InfoTooltip text={infoText} />
+            {infoText && (
+                <div className="absolute top-2 right-2 z-20">
+                    <InfoTooltip text={infoText} show={isHovered} />
                 </div>
             )}
             <div className="flex min-h-0 flex-1 flex-col gap-3 pr-6">
@@ -130,14 +166,27 @@ const KPICard: React.FC<KPICardProps> = ({ title, value, subtitle, trend, indica
                     </span>
                 </div>
             </div>
-            <div className="mt-auto shrink-0 pt-4">
+            <div className="mt-auto shrink-0 pt-3">
                 <div className="w-full shrink-0 border-t-2 border-dashed border-tertiary" />
+                {hasSpread && spreadStats && spreadStats.length > 0 && (
+                    <div className="mt-3 grid grid-cols-3 gap-x-1 gap-y-1">
+                        {spreadStats.map((stat) => (
+                            <SpreadStatCell key={stat.label} {...stat} />
+                        ))}
+                    </div>
+                )}
                 <Text
                     variant="body-md"
                     color="text-secondary"
-                    className="mt-3 min-h-[44px] leading-snug"
+                    className={clsx(
+                        "leading-snug",
+                        hasSpread ? "mt-2.5 text-[11px] line-clamp-2" : "mt-3 min-h-[44px]"
+                    )}
                 >
                     {subtitle}
+                    {hasSpread && (spreadStatsOverflow?.length ?? 0) > 0 && (
+                        <span className="text-text-tertiary"> · Hover for min/max</span>
+                    )}
                 </Text>
             </div>
         </DashboardCard>

@@ -9,11 +9,11 @@ import clsx from "clsx";
 import { FaPhoneSlash } from "react-icons/fa6";
 import {
     type CallMetricsSlice,
-    getCallOutcomeTotals,
+    getCallSummary,
 } from "./call-metrics-helpers";
 
 const infoText =
-    "Calls that were not answered or completed in the selected period.";
+    "Inbound miss events per person — a role may miss more than one call in a group session.";
 
 interface OperatingRoomsUtilizationProps {
     callMetrics?: CallMetricsSlice;
@@ -22,12 +22,9 @@ interface OperatingRoomsUtilizationProps {
 const OperatingRoomsUtilization: React.FC<OperatingRoomsUtilizationProps> = ({ callMetrics }) => {
     const [isHovered, setIsHovered] = useState(false);
     const [animatedMissed, setAnimatedMissed] = useState(0);
-    const [animatedProgress, setAnimatedProgress] = useState(0);
     const [isVisible, setIsVisible] = useState(false);
 
-    const { total, missed, hasCallData, missedPct } = getCallOutcomeTotals(callMetrics);
-    const targetMissed = missed;
-    const targetProgress = missedPct ?? 0;
+    const { total, unanswered, missed, hasCallData } = getCallSummary(callMetrics);
     const showData = hasCallData && (total > 0 || missed > 0);
 
     useEffect(() => {
@@ -39,6 +36,7 @@ const OperatingRoomsUtilization: React.FC<OperatingRoomsUtilizationProps> = ({ c
 
         const duration = 1200;
         const startTime = Date.now();
+        const targetMissed = missed;
 
         const animate = () => {
             const elapsed = Date.now() - startTime;
@@ -46,17 +44,15 @@ const OperatingRoomsUtilization: React.FC<OperatingRoomsUtilizationProps> = ({ c
             const eased = 1 - Math.pow(1 - progress, 3);
 
             setAnimatedMissed(Math.round(targetMissed * eased));
-            setAnimatedProgress(targetProgress * eased);
 
             if (progress < 1) {
                 requestAnimationFrame(animate);
             } else {
                 setAnimatedMissed(targetMissed);
-                setAnimatedProgress(targetProgress);
             }
         };
         requestAnimationFrame(animate);
-    }, [isVisible, targetMissed, targetProgress]);
+    }, [isVisible, missed]);
 
     return (
         <DashboardCard
@@ -70,7 +66,7 @@ const OperatingRoomsUtilization: React.FC<OperatingRoomsUtilizationProps> = ({ c
                         Missed Calls
                     </Text>
                     <Text variant="body-sm" color="text-tertiary">
-                        Calls not answered or completed.
+                        Incoming rings not picked up.
                     </Text>
                 </div>
                 <div className="flex items-center gap-2">
@@ -100,7 +96,7 @@ const OperatingRoomsUtilization: React.FC<OperatingRoomsUtilizationProps> = ({ c
             <div className="flex flex-col gap-3">
                 <div className="flex justify-between items-center">
                     <Text variant="body-sm" color="text-secondary">
-                        Total Calls Placed
+                        Calls placed
                     </Text>
                     <div className="bg-accent-primary/20 px-2 py-0.5 rounded-[6px]">
                         <Text variant="body-sm" color="accent-primary">
@@ -109,24 +105,14 @@ const OperatingRoomsUtilization: React.FC<OperatingRoomsUtilizationProps> = ({ c
                     </div>
                 </div>
                 <div className="w-full h-px bg-tertiary" />
-                <div className="flex flex-col gap-1.5">
-                    <div className="flex justify-between items-center">
-                        <Text variant="body-sm" color="text-secondary">
-                            Miss rate
+                <div className="flex justify-between items-center">
+                    <Text variant="body-sm" color="text-secondary">
+                        Unanswered sessions
+                    </Text>
+                    <div className="bg-secondary px-2 py-0.5 rounded-[6px]">
+                        <Text variant="body-sm" color="text-primary">
+                            {showData ? unanswered.toLocaleString() : "—"}
                         </Text>
-                        <div className="bg-accent-red/20 px-2 py-0.5 rounded-[6px]">
-                            <Text variant="body-sm" color="none" className="text-accent-red">
-                                {showData && missedPct != null
-                                    ? `${animatedProgress.toFixed(1)}%`
-                                    : "—"}
-                            </Text>
-                        </div>
-                    </div>
-                    <div className="w-full h-2 bg-secondary rounded-full overflow-hidden">
-                        <div
-                            className="h-full rounded-full bg-accent-red transition-all duration-1000 ease-out"
-                            style={{ width: showData ? `${animatedProgress}%` : "0%" }}
-                        />
                     </div>
                 </div>
             </div>

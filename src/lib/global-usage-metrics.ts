@@ -67,36 +67,67 @@ export type DepartmentMetrics = {
     staff_gender?: StaffGenderBreakdown;
 };
 
-export type CallMetricsDuration = {
-    completed_calls?: number;
+export type CallAnsweredDistribution = {
+    answered_calls?: number;
     avg_duration_seconds?: number;
     avg_duration_minutes?: number;
     min_duration_seconds?: number;
+    q1_duration_seconds?: number;
     median_duration_seconds?: number;
+    q3_duration_seconds?: number;
     max_duration_seconds?: number;
 };
 
-export type CallInitiatorRoleMetric = {
+export type CallOutboundRoleMetric = {
+    role_id?: string;
     role_name: string;
+    facility_id?: string;
+    facility_name?: string;
     total_calls_made?: number;
-    missed_calls?: number;
-    duration?: CallMetricsDuration;
+    answered_calls?: number;
+    unanswered_calls?: number;
 };
 
-export type CallInitiatorDepartmentMetric = {
+export type CallOutboundDepartmentMetric = {
+    department_id?: string;
     department_name: string;
+    facility_id?: string;
+    facility_name?: string;
     total_calls_made?: number;
-    missed_calls?: number;
-    duration?: CallMetricsDuration;
+    answered_calls?: number;
+    unanswered_calls?: number;
 };
 
-/** Call breakdown on usage-metrics (facility or global). May also appear at usage root. */
+export type CallInboundRoleMetric = {
+    role_id?: string;
+    role_name: string;
+    facility_id?: string;
+    facility_name?: string;
+    missed_calls?: number;
+    answered_calls?: number;
+};
+
+export type CallInboundDepartmentMetric = {
+    department_id?: string;
+    department_name: string;
+    facility_id?: string;
+    facility_name?: string;
+    missed_calls?: number;
+    answered_calls?: number;
+};
+
+/** Call breakdown on usage-metrics (facility or global). */
 export type UsageCallMetrics = {
     total_calls_made?: number;
+    total_answered_calls?: number;
+    total_unanswered_calls?: number;
+    answer_rate_percent?: number;
     total_missed_calls?: number;
-    duration?: CallMetricsDuration;
-    by_initiator_role?: CallInitiatorRoleMetric[];
-    by_initiator_department?: CallInitiatorDepartmentMetric[];
+    answered?: CallAnsweredDistribution;
+    by_outbound_role?: CallOutboundRoleMetric[];
+    by_outbound_department?: CallOutboundDepartmentMetric[];
+    by_inbound_role?: CallInboundRoleMetric[];
+    by_inbound_department?: CallInboundDepartmentMetric[];
 };
 
 export type GlobalUsageMetricsResponse = {
@@ -111,8 +142,8 @@ export type GlobalUsageMetricsResponse = {
     total_calls_made: number;
     total_missed_calls?: number;
     call_metrics?: UsageCallMetrics;
-    by_initiator_role?: CallInitiatorRoleMetric[];
-    by_initiator_department?: CallInitiatorDepartmentMetric[];
+    by_outbound_role?: CallOutboundRoleMetric[];
+    by_outbound_department?: CallOutboundDepartmentMetric[];
     critical_messages: number;
     standard_messages: number;
     critical_messages_rate_percent: number;

@@ -60,20 +60,55 @@ export interface AnalyticsData {
     total_missed_calls?: number;
     call_metrics?: {
         total_calls_made?: number;
+        total_answered_calls?: number;
+        total_unanswered_calls?: number;
+        answer_rate_percent?: number;
         total_missed_calls?: number;
-        duration?: {
-            completed_calls?: number;
+        answered?: {
+            answered_calls?: number;
             avg_duration_seconds?: number;
             avg_duration_minutes?: number;
             min_duration_seconds?: number;
+            q1_duration_seconds?: number;
             median_duration_seconds?: number;
+            q3_duration_seconds?: number;
             max_duration_seconds?: number;
         };
-        by_initiator_role?: { role_name: string; total_calls_made?: number; missed_calls?: number }[];
-        by_initiator_department?: { department_name: string; total_calls_made?: number; missed_calls?: number }[];
+        by_outbound_role?: {
+            role_name: string;
+            total_calls_made?: number;
+            answered_calls?: number;
+            unanswered_calls?: number;
+        }[];
+        by_outbound_department?: {
+            department_name: string;
+            total_calls_made?: number;
+            answered_calls?: number;
+            unanswered_calls?: number;
+        }[];
+        by_inbound_role?: {
+            role_name: string;
+            answered_calls?: number;
+            missed_calls?: number;
+        }[];
+        by_inbound_department?: {
+            department_name: string;
+            answered_calls?: number;
+            missed_calls?: number;
+        }[];
     };
-    by_initiator_role?: { role_name: string; total_calls_made?: number; missed_calls?: number }[];
-    by_initiator_department?: { department_name: string; total_calls_made?: number; missed_calls?: number }[];
+    by_outbound_role?: {
+        role_name: string;
+        total_calls_made?: number;
+        answered_calls?: number;
+        unanswered_calls?: number;
+    }[];
+    by_outbound_department?: {
+        department_name: string;
+        total_calls_made?: number;
+        answered_calls?: number;
+        unanswered_calls?: number;
+    }[];
     window_days: number;
     avg_sign_in_minutes_since_midnight_utc: number;
     avg_sign_out_minutes_since_midnight_utc: number;

@@ -29,7 +29,7 @@ const InfoTooltip = ({ text, show = true }: InfoTooltipProps) => {
                 <InfoIcon />
             </button>
             {showTooltip && (
-                <div className="absolute right-0 top-full mt-2 w-[220px] bg-text-primary/5 backdrop-blur-2xl text-text-primary text-xs rounded-[8px] p-3 z-50 shadow-lg">
+                <div className="absolute right-0 top-full mt-2 w-[240px] max-w-[min(240px,calc(100vw-2rem))] bg-text-primary/5 backdrop-blur-2xl text-text-primary text-xs rounded-[8px] p-3 z-50 shadow-lg whitespace-pre-line leading-relaxed">
                     {text}
                     <div className="absolute right-4 -top-1 w-2 h-2 bg-text-primary/5 backdrop-blur-sm rotate-45" />
                 </div>

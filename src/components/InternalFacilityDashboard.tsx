@@ -65,8 +65,8 @@ export interface AnalyticsData {
     total_calls_made: number;
     total_missed_calls?: number;
     call_metrics?: import("@/lib/global-usage-metrics").UsageCallMetrics;
-    by_initiator_role?: import("@/lib/global-usage-metrics").CallInitiatorRoleMetric[];
-    by_initiator_department?: import("@/lib/global-usage-metrics").CallInitiatorDepartmentMetric[];
+    by_outbound_role?: import("@/lib/global-usage-metrics").CallOutboundRoleMetric[];
+    by_outbound_department?: import("@/lib/global-usage-metrics").CallOutboundDepartmentMetric[];
     window_days: number;
     avg_sign_in_minutes_since_midnight_utc: number;
     avg_sign_out_minutes_since_midnight_utc: number;
