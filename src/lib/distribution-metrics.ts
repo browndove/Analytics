@@ -292,17 +292,33 @@ export function resolveCriticalAckMinutes(
     return undefined;
 }
 
+export function resolveRoleSignInMinutes(role?: Record<string, unknown> | null): number | null {
+    if (!role) return null;
+    const roleDist = mapMinutesDistribution(role.sign_in_minutes);
+    const fromRole = pickTypicalMinutes(roleDist);
+    if (fromRole != null) return fromRole;
+    const legacy = pickDefinedNum(role, "avg_sign_in_minutes_since_midnight_utc");
+    return legacy !== undefined && legacy > 0 ? legacy : null;
+}
+
+export function resolveRoleSignOutMinutes(role?: Record<string, unknown> | null): number | null {
+    if (!role) return null;
+    const roleDist = mapMinutesDistribution(role.sign_out_minutes);
+    const fromRole = pickTypicalMinutes(roleDist);
+    if (fromRole != null) return fromRole;
+    const legacy = pickDefinedNum(role, "avg_sign_out_minutes_since_midnight_utc");
+    return legacy !== undefined && legacy > 0 ? legacy : null;
+}
+
+export function roleHasSignInOutData(role?: Record<string, unknown> | null): boolean {
+    return resolveRoleSignInMinutes(role) != null || resolveRoleSignOutMinutes(role) != null;
+}
+
 export function resolveSignInMinutes(
     root: Record<string, unknown> | undefined,
     role?: Record<string, unknown> | null
 ): number | null {
-    if (role) {
-        const roleDist = mapMinutesDistribution(role.sign_in_minutes);
-        const fromRole = pickTypicalMinutes(roleDist);
-        if (fromRole != null) return fromRole;
-        const legacy = pickDefinedNum(role, "avg_sign_in_minutes_since_midnight_utc");
-        if (legacy !== undefined && legacy > 0) return legacy;
-    }
+    if (role) return resolveRoleSignInMinutes(role);
     if (!root) return null;
     const globalDist = extractUsageTimeDistributions(root).signIn;
     const fromGlobal = pickTypicalMinutes(globalDist);
@@ -315,13 +331,7 @@ export function resolveSignOutMinutes(
     root: Record<string, unknown> | undefined,
     role?: Record<string, unknown> | null
 ): number | null {
-    if (role) {
-        const roleDist = mapMinutesDistribution(role.sign_out_minutes);
-        const fromRole = pickTypicalMinutes(roleDist);
-        if (fromRole != null) return fromRole;
-        const legacy = pickDefinedNum(role, "avg_sign_out_minutes_since_midnight_utc");
-        if (legacy !== undefined && legacy > 0) return legacy;
-    }
+    if (role) return resolveRoleSignOutMinutes(role);
     if (!root) return null;
     const globalDist = extractUsageTimeDistributions(root).signOut;
     const fromGlobal = pickTypicalMinutes(globalDist);

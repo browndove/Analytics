@@ -35,7 +35,15 @@ const AppointmentCancellationBreakdown = ({ data }: { data: any }) => {
 		const denom = crit + esc;
 		return denom > 0 ? (esc / denom) * 100 : 0;
 	};
-	const depts = (data?.department_metrics || []).slice().sort((a: any, b: any) => deptRate(b) - deptRate(a)).slice(0, 4);
+	const depts = (data?.department_metrics || [])
+		.filter((d: any) => {
+			const esc = Number(d?.escalation_notifications) || 0;
+			const crit = Number(d?.critical_messages_sent) || 0;
+			return esc + crit > 0;
+		})
+		.slice()
+		.sort((a: any, b: any) => deptRate(b) - deptRate(a))
+		.slice(0, 4);
 
 	return (
 		<DashboardCard padding="none" className="flex flex-col" style={{ padding: 18, height: 380, gridColumn: 'span 4' }}>
@@ -68,14 +76,13 @@ const shortenRole = (name: string) => {
 };
 
 const AppointmentCancellationChart = ({ isFullscreen = false, onToggleFullscreen, data, onViewMore }: { isFullscreen?: boolean; onToggleFullscreen?: () => void; data?: any; onViewMore?: () => void }) => {
-	const rolesList = [...(data?.role_metrics || data?.top_escalated_roles || [])]
+	const rolesList = [...(data?.role_metrics || [])]
+		.filter((d: any) => Number(d?.avg_critical_ack_minutes) > 0)
 		.sort((a: any, b: any) => (Number(b?.avg_critical_ack_minutes) || 0) - (Number(a?.avg_critical_ack_minutes) || 0))
 		.slice(0, 6);
-	const chartData = rolesList.map((d: any) => {
-		const val = d.avg_critical_ack_minutes || 0;
-		return val === 0 ? 0.05 : val;
-	});
+	const chartData = rolesList.map((d: any) => Number(d.avg_critical_ack_minutes));
 	const categories = rolesList.map((d: any) => shortenRole(d.role_name));
+	const hasChartData = rolesList.length > 0;
 
 	const { resolvedTheme } = useTheme();
 
@@ -88,9 +95,9 @@ const AppointmentCancellationChart = ({ isFullscreen = false, onToggleFullscreen
 		dataLabels: { enabled: false },
 		grid: { borderColor: '#e5e7eb', strokeDashArray: 0, xaxis: { lines: { show: false } }, yaxis: { lines: { show: true } } },
 		xaxis: { categories, axisBorder: { show: false }, axisTicks: { show: false }, labels: { rotate: 0, rotateAlways: false, style: { fontFamily: 'Montserrat', fontWeight: 500, fontSize: '12px', colors: '#9ca3af' } } },
-		yaxis: { min: 0, tickAmount: 5, labels: { style: { fontFamily: 'Montserrat', fontWeight: 500, fontSize: '12px', colors: '#9ca3af' }, formatter: (val) => val <= 0.05 ? "0" : `${val.toFixed(1)}m` } },
+		yaxis: { min: 0, tickAmount: 5, labels: { style: { fontFamily: 'Montserrat', fontWeight: 500, fontSize: '12px', colors: '#9ca3af' }, formatter: (val) => `${val.toFixed(1)}m` } },
 		tooltip: { enabled: true, theme: resolvedTheme === "dark" || resolvedTheme === "blue" ? "dark" : "light", style: { fontSize: '12px', fontFamily: "Montserrat" },
-            y: { formatter: (val) => val <= 0.05 ? "0 mins" : `${val.toFixed(1)} mins` }
+            y: { formatter: (val) => `${val.toFixed(1)} mins` }
         },
 	};
 
@@ -131,7 +138,13 @@ const AppointmentCancellationChart = ({ isFullscreen = false, onToggleFullscreen
 				)}
 			</div>
 			<div className="flex-1 w-full min-h-0">
-				<Chart options={chartOptions} series={chartSeries} type="bar" height={isFullscreen ? 450 : 280} width="100%" />
+				{hasChartData ? (
+					<Chart options={chartOptions} series={chartSeries} type="bar" height={isFullscreen ? 450 : 280} width="100%" />
+				) : (
+					<div className="flex h-full min-h-[200px] items-center justify-center text-sm text-text-secondary">
+						No per-role acknowledgment data for this period.
+					</div>
+				)}
 			</div>
 		</>
 	);

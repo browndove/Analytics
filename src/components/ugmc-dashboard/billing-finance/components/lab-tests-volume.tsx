@@ -61,12 +61,13 @@ export default function LabTestsVolume({ data }: { data?: any }) {
           })()
         : parsedDaily;
 
-    const dateCategories = aggregated.length
+    const hasChartData = aggregated.length > 0;
+    const dateCategories = hasChartData
         ? aggregated.map((d: { date: Date }) => dateKey(d.date))
-        : ["2026-04-01", "2026-04-02", "2026-04-03", "2026-04-04", "2026-04-05", "2026-04-06", "2026-04-07"];
-    const standardSeries = aggregated.length
+        : [];
+    const standardSeries = hasChartData
         ? aggregated.map((d: { value: number }) => d.value)
-        : [0, 0, 0, 0, 0, 0, 0];
+        : [];
     const maxValue = standardSeries.length ? Math.max(...standardSeries) : 0;
     const yAxisMax = maxValue > 0 ? Math.ceil(maxValue * 1.15) : 10;
     const pendingStandard = parsedDaily.length ? parsedDaily[parsedDaily.length - 1].value : 0;
@@ -185,7 +186,15 @@ export default function LabTestsVolume({ data }: { data?: any }) {
             </div>
 
             <div className="min-h-[200px] w-full min-w-0 flex-1 lg:min-h-[220px]">
-                <Chart options={options} series={series} type="area" height="100%" width="100%" />
+                {hasChartData ? (
+                    <Chart options={options} series={series} type="area" height="100%" width="100%" />
+                ) : (
+                    <div className="flex h-full min-h-[200px] items-center justify-center rounded-[8px] border border-dashed border-tertiary bg-secondary/30 px-4">
+                        <Text variant="body-sm" color="text-secondary" className="text-center">
+                            No standard message volume for this period.
+                        </Text>
+                    </div>
+                )}
             </div>
         </DashboardCard>
     );

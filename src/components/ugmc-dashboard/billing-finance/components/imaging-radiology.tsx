@@ -7,8 +7,11 @@ import Text from "@/components/text";
 import { buildNiceTimeAxisScale } from "@/lib/nice-chart-axis";
 import {
     minutesSinceMidnightToClock,
+    resolveRoleSignInMinutes,
+    resolveRoleSignOutMinutes,
     resolveSignInMinutes,
     resolveSignOutMinutes,
+    roleHasSignInOutData,
 } from "@/lib/distribution-metrics";
 import { IoCheckmarkCircle, IoTrailSign } from "react-icons/io5";
 
@@ -73,7 +76,9 @@ export default function ImagingRadiology({ data }: { data?: SignInOutData }) {
 
     const selectedRoles = useMemo(() => {
         const rows = Array.isArray(data?.role_metrics) ? data.role_metrics : [];
-        return rows.slice(0, 4);
+        return rows
+            .filter((r) => roleHasSignInOutData(r as Record<string, unknown>))
+            .slice(0, 4);
     }, [data?.role_metrics]);
 
     const categories = useMemo(
@@ -83,12 +88,12 @@ export default function ImagingRadiology({ data }: { data?: SignInOutData }) {
     const chartCategories = categories.map((c) => (narrow ? shortenCategory(c, 20) : c));
 
     const signInMinutes = useMemo(
-        () => selectedRoles.map((r) => resolveSignInMinutes(root, r as Record<string, unknown>)),
-        [selectedRoles, root]
+        () => selectedRoles.map((r) => resolveRoleSignInMinutes(r as Record<string, unknown>)),
+        [selectedRoles]
     );
     const signOutMinutes = useMemo(
-        () => selectedRoles.map((r) => resolveSignOutMinutes(root, r as Record<string, unknown>)),
-        [selectedRoles, root]
+        () => selectedRoles.map((r) => resolveRoleSignOutMinutes(r as Record<string, unknown>)),
+        [selectedRoles]
     );
 
     const plottedMinutes = useMemo(
