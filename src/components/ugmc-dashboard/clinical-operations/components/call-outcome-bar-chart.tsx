@@ -9,12 +9,15 @@ import { RiExpandDiagonalLine } from "react-icons/ri";
 import { GrContract } from "react-icons/gr";
 import InfoTooltip from "@/components/info-tooltip";
 import FullscreenOverlay from "@/components/fullscreen-overlay";
+import { formatDurationSeconds } from "@/lib/distribution-metrics";
 import {
     type CallMetricsSlice,
     formatRoleName,
+    hasAnsweredDuration,
     hasInboundOutcomes,
     hasOutboundOutcomes,
     num,
+    pickTypicalSeconds,
     sortInboundDepartmentsByVolume,
     sortInboundRolesByVolume,
     sortOutboundDepartmentsByVolume,
@@ -172,6 +175,8 @@ const CallOutcomeBarChart: React.FC<CallOutcomeBarChartProps> = ({
     const isOutbound = direction === "outbound";
     const positiveLabel = "Answered";
     const negativeLabel = isOutbound ? "Unanswered" : "Missed";
+    const hasAnswered = isOutbound && hasAnsweredDuration(callMetrics);
+    const typicalSeconds = isOutbound ? pickTypicalSeconds(callMetrics?.answered) : null;
 
     const chart = useMemo(
         () => buildChartData(callMetrics, direction, dimension, limit),
@@ -305,8 +310,8 @@ const CallOutcomeBarChart: React.FC<CallOutcomeBarChartProps> = ({
             ? "No role breakdown available for this period."
             : "No department breakdown available for this period.";
 
-    const chartBody = (height: string) => (
-        <div className="call-outcome-chart w-full" style={{ height }}>
+    const chartBody = (heightClass: string) => (
+        <div className={`call-outcome-chart w-full min-h-[260px] ${heightClass}`}>
             {chart.categories.length > 0 ? (
                 <Chart
                     options={chartOptions}
@@ -325,8 +330,8 @@ const CallOutcomeBarChart: React.FC<CallOutcomeBarChartProps> = ({
         </div>
     );
 
-    const panel = (height: string) => (
-        <>
+    const panel = (chartHeightClass: string) => (
+        <div className="flex h-full min-h-0 flex-col gap-4">
             <div className="flex items-start justify-between">
                 <Text variant="body-md-semibold" color="text-primary">
                     {title}
@@ -354,7 +359,23 @@ const CallOutcomeBarChart: React.FC<CallOutcomeBarChartProps> = ({
                 </div>
             </div>
 
-            {headerExtra}
+            {isOutbound ? (
+                <div className="flex min-h-[58px] flex-wrap gap-3">
+                    {hasAnswered && typicalSeconds != null ? (
+                        <div className="rounded-[10px] bg-secondary px-[15px] py-[8px]">
+                            <Text variant="body-sm" color="text-secondary">
+                                Avg answered call duration
+                            </Text>
+                            <Text variant="heading-sm" color="text-primary">
+                                {formatDurationSeconds(typicalSeconds)}
+                            </Text>
+                        </div>
+                    ) : null}
+                    {headerExtra}
+                </div>
+            ) : (
+                headerExtra
+            )}
 
             <div className="flex flex-wrap gap-3">
                 <div className="flex min-w-[160px] flex-1 items-center justify-between rounded-[10px] bg-accent-green/10 px-[15px] py-[8px]">
@@ -379,19 +400,19 @@ const CallOutcomeBarChart: React.FC<CallOutcomeBarChartProps> = ({
                 </div>
             </div>
 
-            {chartBody(height)}
-        </>
+            {chartBody(chartHeightClass)}
+        </div>
     );
 
     return (
         <>
             <DashboardCard
-                className="flex min-w-[320px] flex-1 flex-col gap-4"
+                className="flex h-full min-h-0 min-w-[320px] flex-1 flex-col"
                 padding="lg"
                 onMouseEnter={() => setIsHovered(true)}
                 onMouseLeave={() => setIsHovered(false)}
             >
-                {panel("260px")}
+                {panel("flex-1")}
             </DashboardCard>
 
             {isFullscreen ? (
@@ -400,12 +421,12 @@ const CallOutcomeBarChart: React.FC<CallOutcomeBarChartProps> = ({
                     panelClassName="bg-transparent shadow-none p-0 w-full!"
                 >
                     <DashboardCard
-                        className="flex w-[80vw]! flex-col gap-4"
+                        className="flex w-[80vw]! flex-col"
                         padding="lg"
                         onMouseEnter={() => setIsHovered(true)}
                         onMouseLeave={() => setIsHovered(false)}
                     >
-                        {panel("600px")}
+                        {panel("h-[600px]")}
                     </DashboardCard>
                 </FullscreenOverlay>
             ) : null}

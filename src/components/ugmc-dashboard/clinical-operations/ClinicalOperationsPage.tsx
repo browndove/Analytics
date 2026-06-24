@@ -24,17 +24,17 @@ const ClinicalOperationsPage = ({ data }: { data?: any }) => {
 			<CallKPIRow data={data} />
 
 			{/* Outbound & inbound outcome charts */}
-			<div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-				<div className="animate-slide-in-up" style={{ animationDelay: '200ms', opacity: 0, animationFillMode: 'forwards' }}>
+			<div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-2">
+				<div className="animate-slide-in-up h-full" style={{ animationDelay: '200ms', opacity: 0, animationFillMode: 'forwards' }}>
 					<LabTestsVolume callMetrics={cm} />
 				</div>
-				<div className="animate-slide-in-up" style={{ animationDelay: '300ms', opacity: 0, animationFillMode: 'forwards' }}>
+				<div className="animate-slide-in-up h-full" style={{ animationDelay: '300ms', opacity: 0, animationFillMode: 'forwards' }}>
 					<ImagingRadiology callMetrics={cm} />
 				</div>
-				<div className="animate-slide-in-up" style={{ animationDelay: '350ms', opacity: 0, animationFillMode: 'forwards' }}>
+				<div className="animate-slide-in-up h-full" style={{ animationDelay: '350ms', opacity: 0, animationFillMode: 'forwards' }}>
 					<InboundCallsByDepartment callMetrics={cm} />
 				</div>
-				<div className="animate-slide-in-up" style={{ animationDelay: '400ms', opacity: 0, animationFillMode: 'forwards' }}>
+				<div className="animate-slide-in-up h-full" style={{ animationDelay: '400ms', opacity: 0, animationFillMode: 'forwards' }}>
 					<InboundCallsByRole callMetrics={cm} />
 				</div>
 			</div>

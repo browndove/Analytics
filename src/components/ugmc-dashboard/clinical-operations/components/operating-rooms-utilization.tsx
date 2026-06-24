@@ -3,17 +3,14 @@
 import * as React from "react";
 import Text from "@/components/text";
 import DashboardCard from "@/components/ugmc-dashboard/shared/dashboard-card";
-import { useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import InfoTooltip from "@/components/info-tooltip";
 import clsx from "clsx";
-import { FaPhoneSlash } from "react-icons/fa6";
-import {
-    type CallMetricsSlice,
-    getCallSummary,
-} from "./call-metrics-helpers";
+import { FaLightbulb } from "react-icons/fa6";
+import { type CallMetricsSlice, buildCallInsightMessages } from "./call-metrics-helpers";
 
 const infoText =
-    "Inbound miss events per person — a role may miss more than one call in a group session.";
+    "Auto-generated call insights from answered-call duration, outbound answer rate, and the busiest calling roles in this period.";
 
 interface OperatingRoomsUtilizationProps {
     callMetrics?: CallMetricsSlice;
@@ -21,100 +18,77 @@ interface OperatingRoomsUtilizationProps {
 
 const OperatingRoomsUtilization: React.FC<OperatingRoomsUtilizationProps> = ({ callMetrics }) => {
     const [isHovered, setIsHovered] = useState(false);
-    const [animatedMissed, setAnimatedMissed] = useState(0);
-    const [isVisible, setIsVisible] = useState(false);
 
-    const { total, unanswered, missed, hasCallData } = getCallSummary(callMetrics);
-    const showData = hasCallData && (total > 0 || missed > 0);
+    const { statsInsight, actionInsight } = useMemo(
+        () => buildCallInsightMessages(callMetrics),
+        [callMetrics]
+    );
 
-    useEffect(() => {
-        setIsVisible(true);
-    }, []);
-
-    useEffect(() => {
-        if (!isVisible) return;
-
-        const duration = 1200;
-        const startTime = Date.now();
-        const targetMissed = missed;
-
-        const animate = () => {
-            const elapsed = Date.now() - startTime;
-            const progress = Math.min(elapsed / duration, 1);
-            const eased = 1 - Math.pow(1 - progress, 3);
-
-            setAnimatedMissed(Math.round(targetMissed * eased));
-
-            if (progress < 1) {
-                requestAnimationFrame(animate);
-            } else {
-                setAnimatedMissed(targetMissed);
-            }
-        };
-        requestAnimationFrame(animate);
-    }, [isVisible, missed]);
+    const hasInsight = Boolean(statsInsight || actionInsight);
 
     return (
         <DashboardCard
-            className="flex flex-col gap-4 flex-1 min-w-[280px]"
+            className="flex min-h-[280px] flex-1 flex-col gap-4 min-w-[280px]"
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
-            <div className="flex justify-between items-start">
+            <div className="flex items-start justify-between">
                 <div className="flex flex-col gap-0.5">
                     <Text variant="body-md-semibold" color="text-primary">
-                        Missed Incoming Calls
+                        Calls Insight
                     </Text>
                     <Text variant="body-sm" color="text-tertiary">
-                        Incoming rings not picked up.
+                        What stands out in this window.
                     </Text>
                 </div>
                 <div className="flex items-center gap-2">
                     <div
                         className={clsx(
-                            "w-10 h-10 rounded-[10px] bg-secondary flex items-center justify-center",
+                            "flex h-10 w-10 items-center justify-center rounded-[10px] bg-secondary",
                             "transition-transform duration-300",
                             isHovered && "scale-110"
                         )}
                     >
-                        <FaPhoneSlash className="text-accent-red" size={16} />
+                        <FaLightbulb className="text-accent-primary" size={16} />
                     </div>
                     <InfoTooltip text={infoText} show={isHovered} />
                 </div>
             </div>
-            <div>
-                <span
-                    className={clsx(
-                        "text-[40px] font-bold tracking-tight text-accent-red tabular-nums",
-                        "transition-transform duration-300",
-                        isHovered && "scale-[1.02] origin-left inline-block"
-                    )}
-                >
-                    {showData ? animatedMissed.toLocaleString() : "—"}
-                </span>
-            </div>
-            <div className="flex flex-col gap-3">
-                <div className="flex justify-between items-center">
-                    <Text variant="body-sm" color="text-secondary">
-                        Calls placed
-                    </Text>
-                    <div className="bg-accent-primary/20 px-2 py-0.5 rounded-[6px]">
-                        <Text variant="body-sm" color="accent-primary">
-                            {showData ? total.toLocaleString() : "—"}
+
+            <div className="flex flex-1 flex-col justify-center gap-3">
+                {statsInsight ? (
+                    <div className="rounded-[10px] border border-[#2980D333] bg-[#2980D31A] p-3">
+                        <Text
+                            variant="body-md"
+                            color="none"
+                            className="font-medium leading-snug"
+                            style={{ color: "#2980D3" }}
+                        >
+                            {statsInsight}
                         </Text>
                     </div>
-                </div>
-                <div className="w-full h-px bg-tertiary" />
-                <div className="flex justify-between items-center">
-                    <Text variant="body-sm" color="text-secondary">
-                        Unanswered sessions
-                    </Text>
-                    <div className="bg-secondary px-2 py-0.5 rounded-[6px]">
-                        <Text variant="body-sm" color="text-primary">
-                            {showData ? unanswered.toLocaleString() : "—"}
+                ) : null}
+
+                {actionInsight ? (
+                    <div className="rounded-[10px] border border-[#0EAF9F33] bg-[#0EAF9F1A] p-3">
+                        <Text
+                            variant="body-md"
+                            color="none"
+                            className="break-words font-medium leading-snug"
+                            style={{ color: "#0EAF9F" }}
+                        >
+                            {actionInsight}
                         </Text>
                     </div>
-                </div>
+                ) : null}
+
+                {!hasInsight ? (
+                    <div className="flex flex-1 items-center justify-center rounded-[10px] border border-dashed border-tertiary bg-secondary/30 px-4 py-8">
+                        <Text variant="body-sm" color="text-secondary" className="text-center">
+                            Call insights will appear once there is enough activity in this period.
+                        </Text>
+                    </div>
+                ) : null}
             </div>
         </DashboardCard>
     );

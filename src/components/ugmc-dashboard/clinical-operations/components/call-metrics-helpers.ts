@@ -232,6 +232,48 @@ export function sumInboundMissed(cm?: CallMetricsSlice | null): number {
     return roles.reduce((sum, r) => sum + num(r.missed_calls), 0);
 }
 
+/** Narrative call insights for summary cards (stats + recommended action). */
+export function buildCallInsightMessages(cm?: CallMetricsSlice | null): {
+    statsInsight: string | null;
+    actionInsight: string | null;
+} {
+    const { answerRate, answered, unanswered, hasCallData } = getCallSummary(cm);
+    const spread = getAnsweredSpread(cm);
+    const typicalSec = pickTypicalSeconds(spread);
+    const q1 = num(spread?.q1_duration_seconds);
+    const q3 = num(spread?.q3_duration_seconds);
+
+    let statsInsight: string | null = null;
+    if (typicalSec != null && typicalSec > 0) {
+        const range = q1 > 0 && q3 > 0 ? typicalSecondsRange(q1, q3) : null;
+        const durationPart = `Median answered call is ${fmtDuration(typicalSec)}${
+            range ? ` (usual ${range})` : ""
+        }`;
+        const ratePart =
+            answerRate != null && hasCallData ? ` Outbound answer rate is ${answerRate.toFixed(1)}%.` : "";
+        statsInsight = `${durationPart}.${ratePart}`.replace(/\.\./g, ".").trim();
+    } else if (answerRate != null && hasCallData) {
+        statsInsight = `Outbound answer rate is ${answerRate.toFixed(1)}% with ${answered.toLocaleString()} answered and ${unanswered.toLocaleString()} unanswered sessions.`;
+    }
+
+    const topOutbound = getTopOutboundRole(cm);
+    let actionInsight: string | null = null;
+    if (topOutbound) {
+        const name = formatRoleName(topOutbound.role_name);
+        const calls = num(topOutbound.total_calls_made);
+        actionInsight = `${name} placed the most outbound calls (${calls.toLocaleString()}) in this window. Review connect rates if unanswered volume is climbing.`;
+    } else {
+        const topInbound = sortInboundRolesByVolume(cm, 1)[0];
+        if (topInbound) {
+            const name = formatRoleName(topInbound.role_name);
+            const volume = num(topInbound.answered_calls) + num(topInbound.missed_calls);
+            actionInsight = `${name} handles the most incoming call volume (${volume.toLocaleString()}) in this window. Review ring coverage if pickup rates slip.`;
+        }
+    }
+
+    return { statsInsight, actionInsight };
+}
+
 export function getTopDepartments(cm?: CallMetricsSlice | null, limit = 4): CallOutboundDepartmentMetric[] {
     const depts = cm?.by_outbound_department;
     if (!Array.isArray(depts) || !depts.length) return [];
