@@ -40,11 +40,11 @@ const ClinicalOperationsPage = ({ data }: { data?: any }) => {
 			</div>
 
 			{/* Summary cards */}
-			<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-				<div className="animate-slide-in-up" style={{ animationDelay: '450ms', opacity: 0, animationFillMode: 'forwards' }}>
+			<div className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-2">
+				<div className="animate-slide-in-up h-full" style={{ animationDelay: '450ms', opacity: 0, animationFillMode: 'forwards' }}>
 					<OperatingRoomsUtilization callMetrics={cm} />
 				</div>
-				<div className="animate-slide-in-up" style={{ animationDelay: '500ms', opacity: 0, animationFillMode: 'forwards' }}>
+				<div className="animate-slide-in-up h-full" style={{ animationDelay: '500ms', opacity: 0, animationFillMode: 'forwards' }}>
 					<PatientToBedRatio callMetrics={cm} />
 				</div>
 			</div>

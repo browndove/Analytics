@@ -3,14 +3,14 @@
 import * as React from "react";
 import Text from "@/components/text";
 import DashboardCard from "@/components/ugmc-dashboard/shared/dashboard-card";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import InfoTooltip from "@/components/info-tooltip";
 import clsx from "clsx";
 import { FaLightbulb } from "react-icons/fa6";
-import { type CallMetricsSlice, buildCallInsightMessages } from "./call-metrics-helpers";
+import { type CallMetricsSlice, buildCallInsightSummary } from "./call-metrics-helpers";
 
 const infoText =
-    "Auto-generated call insights from answered-call duration, outbound answer rate, and the busiest calling roles in this period.";
+    "Outbound answer rate with top caller and unanswered volume. Bar shows the share of outbound sessions that connected.";
 
 interface OperatingRoomsUtilizationProps {
     callMetrics?: CallMetricsSlice;
@@ -18,17 +18,38 @@ interface OperatingRoomsUtilizationProps {
 
 const OperatingRoomsUtilization: React.FC<OperatingRoomsUtilizationProps> = ({ callMetrics }) => {
     const [isHovered, setIsHovered] = useState(false);
+    const [animatedProgress, setAnimatedProgress] = useState(0);
+    const [isVisible, setIsVisible] = useState(false);
 
-    const { statsInsight, actionInsight } = useMemo(
-        () => buildCallInsightMessages(callMetrics),
+    const { heroValue, topCallerLabel, unanswered, connectProgress, hasData } = useMemo(
+        () => buildCallInsightSummary(callMetrics),
         [callMetrics]
     );
 
-    const hasInsight = Boolean(statsInsight || actionInsight);
+    useEffect(() => {
+        setIsVisible(true);
+    }, []);
+
+    useEffect(() => {
+        if (!isVisible) return;
+
+        const durationMs = 1200;
+        const startTime = Date.now();
+
+        const animate = () => {
+            const elapsed = Date.now() - startTime;
+            const progress = Math.min(elapsed / durationMs, 1);
+            const eased = 1 - Math.pow(1 - progress, 3);
+            setAnimatedProgress(connectProgress * eased);
+            if (progress < 1) requestAnimationFrame(animate);
+            else setAnimatedProgress(connectProgress);
+        };
+        requestAnimationFrame(animate);
+    }, [isVisible, connectProgress]);
 
     return (
         <DashboardCard
-            className="flex min-h-[280px] flex-1 flex-col gap-4 min-w-[280px]"
+            className="flex flex-1 min-w-[280px] flex-col gap-4"
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
@@ -38,7 +59,7 @@ const OperatingRoomsUtilization: React.FC<OperatingRoomsUtilizationProps> = ({ c
                         Calls Insight
                     </Text>
                     <Text variant="body-sm" color="text-tertiary">
-                        What stands out in this window.
+                        Connect rate and busiest callers.
                     </Text>
                 </div>
                 <div className="flex items-center gap-2">
@@ -55,40 +76,53 @@ const OperatingRoomsUtilization: React.FC<OperatingRoomsUtilizationProps> = ({ c
                 </div>
             </div>
 
-            <div className="flex flex-1 flex-col justify-center gap-3">
-                {statsInsight ? (
-                    <div className="rounded-[10px] border border-[#2980D333] bg-[#2980D31A] p-3">
-                        <Text
-                            variant="body-md"
-                            color="none"
-                            className="font-medium leading-snug"
-                            style={{ color: "#2980D3" }}
-                        >
-                            {statsInsight}
-                        </Text>
-                    </div>
-                ) : null}
+            <div>
+                <span
+                    className={clsx(
+                        "text-[40px] font-bold tracking-tight text-accent-primary tabular-nums",
+                        "transition-transform duration-300",
+                        isHovered && "scale-[1.02] origin-left inline-block"
+                    )}
+                >
+                    {hasData && heroValue ? heroValue : "—"}
+                </span>
+            </div>
 
-                {actionInsight ? (
-                    <div className="rounded-[10px] border border-[#0EAF9F33] bg-[#0EAF9F1A] p-3">
+            <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between gap-3">
+                    <Text variant="body-sm" color="text-secondary">
+                        Top caller
+                    </Text>
+                    <div className="max-w-[58%] rounded-[6px] bg-accent-primary/10 px-2 py-0.5">
                         <Text
-                            variant="body-md"
-                            color="none"
-                            className="break-words font-medium leading-snug"
-                            style={{ color: "#0EAF9F" }}
+                            variant="body-sm"
+                            color="accent-primary"
+                            className="truncate text-right"
+                            title={topCallerLabel ?? undefined}
                         >
-                            {actionInsight}
+                            {hasData && topCallerLabel ? topCallerLabel : "—"}
                         </Text>
                     </div>
-                ) : null}
-
-                {!hasInsight ? (
-                    <div className="flex flex-1 items-center justify-center rounded-[10px] border border-dashed border-tertiary bg-secondary/30 px-4 py-8">
-                        <Text variant="body-sm" color="text-secondary" className="text-center">
-                            Call insights will appear once there is enough activity in this period.
+                </div>
+                <div className="h-px w-full bg-tertiary" />
+                <div className="flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between gap-3">
+                        <Text variant="body-sm" color="text-secondary">
+                            Unanswered outbound
                         </Text>
+                        <div className="rounded-[6px] bg-secondary px-2 py-0.5">
+                            <Text variant="body-sm" color="text-primary" className="tabular-nums">
+                                {hasData ? unanswered.toLocaleString() : "—"}
+                            </Text>
+                        </div>
                     </div>
-                ) : null}
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
+                        <div
+                            className="h-full rounded-full bg-accent-primary transition-all duration-1000 ease-out"
+                            style={{ width: hasData ? `${animatedProgress}%` : "0%" }}
+                        />
+                    </div>
+                </div>
             </div>
         </DashboardCard>
     );
