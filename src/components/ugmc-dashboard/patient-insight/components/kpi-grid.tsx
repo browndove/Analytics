@@ -62,7 +62,7 @@ const KPIGrid = ({ data }: { data?: Record<string, unknown> }) => {
 
         return [
             {
-                title: "Average Read Time",
+                title: "Median Read Time",
                 value: data ? fmtMin(readAllTypical) : "—",
                 subtitle: "Median time to read all messages.",
                 trend: {
@@ -73,7 +73,7 @@ const KPIGrid = ({ data }: { data?: Record<string, unknown> }) => {
                 ...readAllSpread,
             },
             {
-                title: "Average Read Time (Critical)",
+                title: "Median Read Time (Critical)",
                 value: data ? fmtMin(readCriticalTypical) : "—",
                 subtitle: "Median time to read critical messages.",
                 trend: {
@@ -87,7 +87,7 @@ const KPIGrid = ({ data }: { data?: Record<string, unknown> }) => {
                 ...readCriticalSpread,
             },
             {
-                title: "Average Acknowledgment Time",
+                title: "Median Acknowledgment Time",
                 value: data ? fmtMin(ackTypical) : "—",
                 subtitle: "Median time to acknowledge critical messages.",
                 trend: {
