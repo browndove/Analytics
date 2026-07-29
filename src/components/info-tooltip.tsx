@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 const InfoIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -13,27 +14,81 @@ interface InfoTooltipProps {
     show?: boolean;
 }
 
+const GAP = 8;
+const MARGIN = 8;
+
 const InfoTooltip = ({ text, show = true }: InfoTooltipProps) => {
-    const [showTooltip, setShowTooltip] = useState(false);
+    const buttonRef = useRef<HTMLButtonElement>(null);
+    const tipRef = useRef<HTMLDivElement>(null);
+    const [anchor, setAnchor] = useState<DOMRect | null>(null);
+    const [placement, setPlacement] = useState<{ top: number; right: number; above: boolean } | null>(null);
+
+    const open = () => {
+        const rect = buttonRef.current?.getBoundingClientRect();
+        if (rect) setAnchor(rect);
+    };
+    const close = useCallback(() => {
+        setAnchor(null);
+        setPlacement(null);
+    }, []);
+
+    // The tooltip is portalled to the body because cards clip their overflow.
+    useLayoutEffect(() => {
+        if (!anchor || !tipRef.current) return;
+        const height = tipRef.current.offsetHeight;
+        const fitsBelow = anchor.bottom + GAP + height <= window.innerHeight - MARGIN;
+        const fitsAbove = anchor.top - GAP - height >= MARGIN;
+        const above = !fitsBelow && fitsAbove;
+        setPlacement({
+            top: above ? anchor.top - GAP - height : anchor.bottom + GAP,
+            right: Math.max(MARGIN, window.innerWidth - anchor.right),
+            above,
+        });
+    }, [anchor, text]);
+
+    useEffect(() => {
+        if (!anchor) return;
+        window.addEventListener("scroll", close, true);
+        window.addEventListener("resize", close);
+        return () => {
+            window.removeEventListener("scroll", close, true);
+            window.removeEventListener("resize", close);
+        };
+    }, [anchor, close]);
 
     if (!show) return null;
 
     return (
         <div className="relative">
             <button
-                onMouseEnter={() => setShowTooltip(true)}
-                onMouseLeave={() => setShowTooltip(false)}
+                ref={buttonRef}
+                onMouseEnter={open}
+                onMouseLeave={close}
                 className="p-1 rounded-[6px] hover:bg-secondary transition-colors text-text-tertiary hover:text-text-secondary"
                 title="Info"
             >
                 <InfoIcon />
             </button>
-            {showTooltip && (
-                <div className="absolute right-0 top-full mt-2 w-[240px] max-w-[min(240px,calc(100vw-2rem))] bg-text-primary/5 backdrop-blur-2xl text-text-primary text-xs rounded-[8px] p-3 z-50 shadow-lg whitespace-pre-line leading-relaxed">
-                    {text}
-                    <div className="absolute right-4 -top-1 w-2 h-2 bg-text-primary/5 backdrop-blur-sm rotate-45" />
-                </div>
-            )}
+            {anchor &&
+                typeof document !== "undefined" &&
+                createPortal(
+                    <div
+                        ref={tipRef}
+                        className="fixed w-[240px] max-w-[min(240px,calc(100vw-2rem))] bg-text-primary/5 backdrop-blur-2xl text-text-primary text-xs rounded-[8px] p-3 z-100 shadow-lg whitespace-pre-line leading-relaxed"
+                        style={{
+                            top: placement?.top ?? anchor.bottom + GAP,
+                            right: placement?.right ?? Math.max(MARGIN, window.innerWidth - anchor.right),
+                            visibility: placement ? "visible" : "hidden",
+                        }}
+                    >
+                        {text}
+                        <div
+                            className="absolute right-4 w-2 h-2 bg-text-primary/5 backdrop-blur-sm rotate-45"
+                            style={placement?.above ? { bottom: -4 } : { top: -4 }}
+                        />
+                    </div>,
+                    document.body
+                )}
         </div>
     );
 };

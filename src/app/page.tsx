@@ -47,6 +47,8 @@ export interface AnalyticsData {
     escalation_rate_percent: number;
     escalated_critical_messages: number;
     escalation_rate_of_total_messages_percent: number;
+    critical_messages_read_percent?: number;
+    critical_messages_acknowledged_percent?: number;
     role_fill_rate_percent: number;
     filled_roles: number;
     total_roles: number;

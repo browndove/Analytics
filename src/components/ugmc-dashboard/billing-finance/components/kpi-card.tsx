@@ -133,29 +133,14 @@ const KPICard: React.FC<KPICardProps> = ({
                     >
                         {title}
                     </Text>
-                    <div className="flex shrink-0 items-center gap-1.5">
-                        {trend && (
-                            <div
-                                className={clsx(
-                                    "flex max-w-[140px] items-center rounded-full",
-                                    trendBgColor,
-                                    trendTextColor
-                                )}
-                                style={{ gap: 5, padding: "4px 10px" }}
-                            >
-                                {trend.isPositive ? <IncreaseIcon /> : <DecreaseIcon />}
-                                <span className="truncate text-[12px] font-semibold">{trend.value}</span>
-                            </div>
-                        )}
-                        {indicator === "active" && (
-                            <div className="h-[10px] w-[10px] shrink-0 rounded-[2px] bg-[#00C8B3] animate-breathe" />
-                        )}
-                    </div>
+                    {indicator === "active" && (
+                        <div className="mt-1 h-[10px] w-[10px] shrink-0 rounded-[2px] bg-[#00C8B3] animate-breathe" />
+                    )}
                 </div>
-                <div className="flex min-h-[40px] items-center">
+                <div className="flex min-h-[40px] items-center justify-between gap-3">
                     <span
                         className={clsx(
-                            "text-[28px] font-bold leading-none tracking-tight text-text-primary tabular-nums",
+                            "min-w-0 truncate text-[28px] font-bold leading-none tracking-tight text-text-primary tabular-nums",
                             "transition-transform duration-300",
                             isHovered && !isLiteralValue && "origin-left scale-[1.02]"
                         )}
@@ -164,6 +149,19 @@ const KPICard: React.FC<KPICardProps> = ({
                             ? value
                             : `${parsedValue.prefix}${formatNumber(animatedNumber, parsedValue.decimals)}${parsedValue.suffix}`}
                     </span>
+                    {trend && (
+                        <div
+                            className={clsx(
+                                "flex max-w-[180px] shrink-0 items-center rounded-full",
+                                trendBgColor,
+                                trendTextColor
+                            )}
+                            style={{ gap: 5, padding: "4px 10px" }}
+                        >
+                            {trend.isPositive ? <IncreaseIcon /> : <DecreaseIcon />}
+                            <span className="truncate text-[12px] font-semibold">{trend.value}</span>
+                        </div>
+                    )}
                 </div>
             </div>
             <div className="mt-auto shrink-0 pt-3">
