@@ -294,6 +294,14 @@ export default function InternalFacilityDashboard() {
                 onClose={() => setReportModalOpen(false)}
                 defaultDateFrom={dateFrom}
                 defaultDateTo={dateTo}
+                facilityId={facilityId}
+                facilityName={
+                    scopeLabel ||
+                    (facilityId
+                        ? facilities.find((f) => f.id === facilityId)?.name ?? null
+                        : "All facilities")
+                }
+                globalScope={!facilityId}
             />
             <div className={clsx('usage-dashboard-shell')}>
                 <div className="usage-inner">

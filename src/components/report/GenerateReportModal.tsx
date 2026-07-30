@@ -5,6 +5,9 @@ import clsx from "clsx";
 import CalendarRangePicker from "@/components/CalendarRangePicker";
 import { REPORT_METRICS, defaultMetricSelection, type ReportMetricDef } from "@/lib/report-metrics";
 import { appendUsageMetricsRange } from "@/lib/usage-metrics-range";
+import { resolveClientFacilityName } from "@/lib/client-facility";
+import { extractFacilityNameFromPayload } from "@/lib/proxy-facility";
+import { API_ENDPOINTS } from "@/lib/config";
 
 const METRIC_TOTAL = REPORT_METRICS.length;
 
@@ -27,6 +30,17 @@ type GenerateReportModalProps = {
     onClose: () => void;
     defaultDateFrom: string;
     defaultDateTo: string;
+    /**
+     * Internal facility filter. When set, the report fetches that facility’s analytics.
+     * Omit for facility-admin session reports (proxy resolves the facility).
+     */
+    facilityId?: string | null;
+    /** Optional override (e.g. internal admin filtered facility / “All facilities”). */
+    facilityName?: string | null;
+    /**
+     * Internal “All” scope: fetch global usage-metrics when no facilityId is selected.
+     */
+    globalScope?: boolean;
 };
 
 function isValidRange(from: string, to: string): boolean {
@@ -45,12 +59,21 @@ function sortGroups(entries: [string, ReportMetricDef[]][]): [string, ReportMetr
     return [...entries].sort((a, b) => rank(a[0]) - rank(b[0]));
 }
 
-export default function GenerateReportModal({ open, onClose, defaultDateFrom, defaultDateTo }: GenerateReportModalProps) {
+export default function GenerateReportModal({
+    open,
+    onClose,
+    defaultDateFrom,
+    defaultDateTo,
+    facilityId = null,
+    facilityName: facilityNameProp,
+    globalScope = false,
+}: GenerateReportModalProps) {
     const [dateFrom, setDateFrom] = useState(defaultDateFrom);
     const [dateTo, setDateTo] = useState(defaultDateTo);
     const [selected, setSelected] = useState<Record<string, boolean>>(() => defaultMetricSelection());
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState("");
+    const [resolvedFacilityName, setResolvedFacilityName] = useState<string | null>(null);
 
     useEffect(() => {
         if (!open) return;
@@ -66,7 +89,21 @@ export default function GenerateReportModal({ open, onClose, defaultDateFrom, de
         }
         setSelected(defaultMetricSelection());
         setError("");
-    }, [open, defaultDateFrom, defaultDateTo]);
+
+        if (facilityNameProp?.trim()) {
+            setResolvedFacilityName(facilityNameProp.trim());
+            return;
+        }
+        let cancelled = false;
+        resolveClientFacilityName()
+            .then((name) => {
+                if (!cancelled && name) setResolvedFacilityName(name);
+            })
+            .catch(() => undefined);
+        return () => {
+            cancelled = true;
+        };
+    }, [open, defaultDateFrom, defaultDateTo, facilityNameProp]);
 
     const groups = useMemo(() => {
         const g = new Map<string, typeof REPORT_METRICS>();
@@ -108,25 +145,43 @@ export default function GenerateReportModal({ open, onClose, defaultDateFrom, de
         try {
             const qs = new URLSearchParams();
             appendUsageMetricsRange(qs, dateFrom, dateTo);
-            const res = await fetch(`/api/proxy/analytics?${qs.toString()}`);
+
+            let url: string;
+            if (facilityId) {
+                qs.set("facility_id", facilityId);
+                url = `/api/proxy/analytics?${qs.toString()}`;
+            } else if (globalScope) {
+                url = `${API_ENDPOINTS.USAGE_METRICS}?${qs.toString()}`;
+            } else {
+                url = `/api/proxy/analytics?${qs.toString()}`;
+            }
+
+            const res = await fetch(url, { credentials: "include", cache: "no-store" });
             const payload = await res.json();
             if (!res.ok) {
                 const msg = typeof payload?.error === "string" ? payload.error : "Failed to load analytics for this range.";
                 throw new Error(msg);
             }
             const { buildAnalyticsReportPdfBlob } = await import("@/lib/report-pdf");
+            const fromPayload = extractFacilityNameFromPayload(payload);
+            const facilityName =
+                (facilityNameProp?.trim() || resolvedFacilityName || fromPayload || "").trim() || undefined;
             const blob = buildAnalyticsReportPdfBlob(payload as Record<string, unknown>, selected, {
                 dateFrom,
                 dateTo,
                 generatedAtIso: new Date().toISOString(),
+                facilityName,
             });
-            const url = URL.createObjectURL(blob);
+            const objectUrl = URL.createObjectURL(blob);
             const a = document.createElement("a");
-            a.href = url;
-            a.download = `helix-analytics-report_${dateFrom}_to_${dateTo}.pdf`;
+            a.href = objectUrl;
+            const facilitySlug = facilityName
+                ? `_${facilityName.replace(/[^\w]+/g, "-").replace(/^-|-$/g, "").slice(0, 40)}`
+                : "";
+            a.download = `helix-analytics-report${facilitySlug}_${dateFrom}_to_${dateTo}.pdf`;
             a.rel = "noopener";
             a.click();
-            URL.revokeObjectURL(url);
+            URL.revokeObjectURL(objectUrl);
             onClose();
         } catch (e) {
             setError(e instanceof Error ? e.message : "Something went wrong.");
@@ -177,6 +232,15 @@ export default function GenerateReportModal({ open, onClose, defaultDateFrom, de
                             <p className="mt-2 max-w-[46ch] text-sm leading-relaxed text-slate-600">
                                 Choose a date range and which metrics to include in your PDF export.
                             </p>
+                            {(facilityNameProp?.trim() || facilityId || globalScope) && (
+                                <p className="mt-2 text-xs font-medium text-slate-500">
+                                    Scope:{" "}
+                                    <span className="font-semibold text-slate-700">
+                                        {facilityNameProp?.trim() ||
+                                            (facilityId ? "Selected facility" : "All facilities")}
+                                    </span>
+                                </p>
+                            )}
                             <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-slate-500">
                                 <button
                                     type="button"

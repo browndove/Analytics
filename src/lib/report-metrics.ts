@@ -112,6 +112,43 @@ function csvCell(v: unknown): string {
 
 type AnalyticsRow = Record<string, unknown>;
 
+/** Format report values: numbers to at most one decimal place; leave others as-is. */
+export function formatReportValue(v: unknown): string {
+    if (v === null || v === undefined) return "";
+    if (typeof v === "number") {
+        if (!Number.isFinite(v)) return "";
+        if (Number.isInteger(v)) return String(v);
+        return (Math.round(v * 10) / 10).toFixed(1);
+    }
+    if (typeof v === "boolean") return v ? "Yes" : "No";
+    if (typeof v === "string") {
+        const trimmed = v.trim();
+        if (trimmed === "") return "";
+        // Numeric strings from API (e.g. "12.345") → one decimal
+        if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
+            const n = Number(trimmed);
+            if (!Number.isFinite(n)) return trimmed;
+            if (Number.isInteger(n)) return String(n);
+            return (Math.round(n * 10) / 10).toFixed(1);
+        }
+        return v;
+    }
+    return String(v);
+}
+
+/** Snake_case / camelCase keys → readable labels for PDF tables. */
+export function humanizeReportHeader(key: string): string {
+    return key
+        .replace(/_/g, " ")
+        .replace(/([a-z])([A-Z])/g, "$1 $2")
+        .replace(/\b\w/g, (c) => c.toUpperCase())
+        .replace(/\bId\b/g, "ID")
+        .replace(/\bUtc\b/g, "UTC")
+        .replace(/\bAvg\b/g, "Avg")
+        .replace(/\bPct\b/g, "%")
+        .replace(/\bPercent\b/g, "%");
+}
+
 function getScalar(data: AnalyticsRow, field: string): unknown {
     if (field.includes(".")) {
         const parts = field.split(".");
@@ -123,6 +160,10 @@ function getScalar(data: AnalyticsRow, field: string): unknown {
         return cur;
     }
     return data[field];
+}
+
+function cell(v: unknown): string {
+    return formatReportValue(v);
 }
 
 const DEPARTMENT_METRIC_HEADERS = [
@@ -202,7 +243,7 @@ export function collectReportData(data: AnalyticsRow, selected: Record<string, b
     for (const def of REPORT_METRICS) {
         if (!selected[def.id] || def.kind !== "scalar" || !def.field) continue;
         const v = getScalar(data, def.field);
-        scalarRows.push([def.label, v === null || v === undefined ? "" : String(v)]);
+        scalarRows.push([def.label, cell(v)]);
     }
 
     let daily: ReportTableSection | null = null;
@@ -214,12 +255,7 @@ export function collectReportData(data: AnalyticsRow, selected: Record<string, b
             for (const row of vol) {
                 if (!row || typeof row !== "object") continue;
                 const r = row as Record<string, unknown>;
-                body.push(
-                    head.map((h) => {
-                        const x = r[h];
-                        return x === null || x === undefined ? "" : String(x);
-                    })
-                );
+                body.push(head.map((h) => cell(r[h])));
             }
         }
         daily = { title: "Daily message volume", head, body };
@@ -234,7 +270,7 @@ export function collectReportData(data: AnalyticsRow, selected: Record<string, b
             for (const row of depts) {
                 if (!row || typeof row !== "object") continue;
                 const r = row as Record<string, unknown>;
-                body.push(head.map((h) => (r[h] === null || r[h] === undefined ? "" : String(r[h]))));
+                body.push(head.map((h) => cell(r[h])));
             }
         }
         departments = { title: "Department metrics", head, body };
@@ -249,7 +285,7 @@ export function collectReportData(data: AnalyticsRow, selected: Record<string, b
             for (const item of list) {
                 if (!item || typeof item !== "object") continue;
                 const r = item as Record<string, unknown>;
-                body.push(head.map((h) => (r[h] === null || r[h] === undefined ? "" : String(r[h]))));
+                body.push(head.map((h) => cell(r[h])));
             }
         }
         topEscalated = { title: "Top escalated roles", head, body };
@@ -264,7 +300,7 @@ export function collectReportData(data: AnalyticsRow, selected: Record<string, b
             for (const item of list) {
                 if (!item || typeof item !== "object") continue;
                 const r = item as Record<string, unknown>;
-                body.push(head.map((h) => (r[h] === null || r[h] === undefined ? "" : String(r[h]))));
+                body.push(head.map((h) => cell(r[h])));
             }
         }
         leastEscalated = { title: "Least escalated roles", head, body };
@@ -282,7 +318,7 @@ export function collectReportData(data: AnalyticsRow, selected: Record<string, b
                 for (const row of roles) {
                     if (!row || typeof row !== "object") continue;
                     const r = row as Record<string, unknown>;
-                    body.push(head.map((h) => (r[h] === null || r[h] === undefined ? "" : String(r[h]))));
+                    body.push(head.map((h) => cell(r[h])));
                 }
             }
             roleMetrics = { title: "Role metrics", head, body };
@@ -301,9 +337,7 @@ export function collectReportData(data: AnalyticsRow, selected: Record<string, b
             for (const item of list) {
                 if (!item || typeof item !== "object") continue;
                 const r = item as Record<string, unknown>;
-                body.push(head.map((h) => {
-                    const v = r[h]; return v == null ? "" : String(v);
-                }));
+                body.push(head.map((h) => cell(r[h])));
             }
         }
         callByRole = { title: "Outbound calls by role", head, body };
@@ -319,9 +353,7 @@ export function collectReportData(data: AnalyticsRow, selected: Record<string, b
             for (const item of list) {
                 if (!item || typeof item !== "object") continue;
                 const r = item as Record<string, unknown>;
-                body.push(head.map((h) => {
-                    const v = r[h]; return v == null ? "" : String(v);
-                }));
+                body.push(head.map((h) => cell(r[h])));
             }
         }
         callByDept = { title: "Outbound calls by department", head, body };
@@ -337,7 +369,7 @@ export function collectReportData(data: AnalyticsRow, selected: Record<string, b
             for (const item of list) {
                 if (!item || typeof item !== "object") continue;
                 const r = item as Record<string, unknown>;
-                body.push(head.map((h) => (r[h] == null ? "" : String(r[h]))));
+                body.push(head.map((h) => cell(r[h])));
             }
         }
         transferByCounterparty = { title: "Transfers by counterparty facility", head, body };
@@ -353,7 +385,7 @@ export function collectReportData(data: AnalyticsRow, selected: Record<string, b
             for (const item of list) {
                 if (!item || typeof item !== "object") continue;
                 const r = item as Record<string, unknown>;
-                body.push(head.map((h) => (r[h] == null ? "" : String(r[h]))));
+                body.push(head.map((h) => cell(r[h])));
             }
         }
         transferByRole = { title: "Transfers by role", head, body };
