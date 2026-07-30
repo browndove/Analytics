@@ -136,17 +136,45 @@ export function formatReportValue(v: unknown): string {
     return String(v);
 }
 
+/** Hand-written labels for keys whose mechanical humanization reads badly. */
+const HEADER_LABEL_OVERRIDES: Record<string, string> = {
+    day: "Date",
+    department_name: "Department",
+    role_name: "Role",
+    facility_name: "Facility",
+    counterparty_facility_name: "Counterparty facility",
+    role_fill_rate_percent: "Role fill %",
+    critical_role_fill_rate_percent: "Critical role fill %",
+    critical_messages_rate_percent: "Critical %",
+    escalation_rate_percent: "Escalation %",
+    escalation_rate_of_total_messages_percent: "Escalation % of all msgs",
+    escalation_rate_vs_dept_critical_messages_percent: "Escalation % of dept critical",
+    avg_critical_ack_minutes: "Avg critical ack (min)",
+    avg_reply_response_minutes_all: "Avg reply (min)",
+    avg_reply_response_minutes_critical: "Avg reply critical (min)",
+    avg_sign_in_minutes_since_midnight_utc: "Avg sign-in (UTC min)",
+    avg_sign_out_minutes_since_midnight_utc: "Avg sign-out (UTC min)",
+    total_messages: "Total msgs",
+    critical_messages: "Critical msgs",
+    standard_messages: "Standard msgs",
+    critical_messages_sent: "Critical msgs sent",
+    escalation_count: "Escalations",
+    escalated_critical_messages: "Escalated critical",
+};
+
 /** Snake_case / camelCase keys → readable labels for PDF tables. */
 export function humanizeReportHeader(key: string): string {
+    const override = HEADER_LABEL_OVERRIDES[key];
+    if (override) return override;
     return key
         .replace(/_/g, " ")
         .replace(/([a-z])([A-Z])/g, "$1 $2")
-        .replace(/\b\w/g, (c) => c.toUpperCase())
-        .replace(/\bId\b/g, "ID")
-        .replace(/\bUtc\b/g, "UTC")
-        .replace(/\bAvg\b/g, "Avg")
-        .replace(/\bPct\b/g, "%")
-        .replace(/\bPercent\b/g, "%");
+        .replace(/\bpercent\b/gi, "%")
+        .replace(/\bpct\b/gi, "%")
+        .replace(/\bvs\b/gi, "vs")
+        .replace(/^\w/, (c) => c.toUpperCase())
+        .replace(/\bid\b/gi, "ID")
+        .replace(/\butc\b/gi, "UTC");
 }
 
 function getScalar(data: AnalyticsRow, field: string): unknown {
@@ -164,6 +192,63 @@ function getScalar(data: AnalyticsRow, field: string): unknown {
 
 function cell(v: unknown): string {
     return formatReportValue(v);
+}
+
+/**
+ * True when a row carries no name, no id and no non-zero value. Backends emit these
+ * placeholder rows for unassigned buckets; in a report they read as real records.
+ */
+function isBlankRow(cells: string[]): boolean {
+    return cells.every((c) => c === "" || /^-?0(\.0+)?%?$/.test(c));
+}
+
+/** Look up role_metrics by role id, falling back to a normalized role name. */
+function roleMetricIndex(data: AnalyticsRow): Map<string, Record<string, unknown>> {
+    const index = new Map<string, Record<string, unknown>>();
+    const roles = data.role_metrics;
+    if (!Array.isArray(roles)) return index;
+    for (const role of roles) {
+        if (!role || typeof role !== "object") continue;
+        const r = role as Record<string, unknown>;
+        const id = r.role_id != null ? String(r.role_id).trim() : "";
+        if (id) index.set(id, r);
+        const name = typeof r.role_name === "string" ? r.role_name.trim().toLowerCase() : "";
+        if (name && !index.has(`name:${name}`)) index.set(`name:${name}`, r);
+    }
+    return index;
+}
+
+/** Escalation list entries widened with their role_metrics counterpart. */
+function escalationRows(
+    list: unknown,
+    head: readonly string[],
+    roles: Map<string, Record<string, unknown>>
+): string[][] {
+    if (!Array.isArray(list)) return [];
+    const merged: Record<string, unknown>[] = [];
+    for (const item of list) {
+        if (!item || typeof item !== "object") continue;
+        const entry = item as Record<string, unknown>;
+        const id = entry.role_id != null ? String(entry.role_id).trim() : "";
+        const name = typeof entry.role_name === "string" ? entry.role_name.trim().toLowerCase() : "";
+        const match = (id && roles.get(id)) || (name && roles.get(`name:${name}`)) || undefined;
+        merged.push(match ? { ...match, ...entry } : entry);
+    }
+    return tableRows(merged, head);
+}
+
+/** Map an API list to report cells, dropping placeholder rows. */
+function tableRows(list: unknown, head: readonly string[]): string[][] {
+    if (!Array.isArray(list)) return [];
+    const body: string[][] = [];
+    for (const row of list) {
+        if (!row || typeof row !== "object") continue;
+        const r = row as Record<string, unknown>;
+        const cells = head.map((h) => cell(r[h]));
+        if (isBlankRow(cells)) continue;
+        body.push(cells);
+    }
+    return body;
 }
 
 const DEPARTMENT_METRIC_HEADERS = [
@@ -187,7 +272,6 @@ const DAILY_VOLUME_HEADERS = ["day", "total_messages", "critical_messages", "sta
 
 const CALL_BY_ROLE_HEADERS = [
     "role_name",
-    "role_id",
     "facility_name",
     "facility_id",
     "total_calls_made",
@@ -218,7 +302,6 @@ const TRANSFER_COUNTERPARTY_HEADERS = [
 
 const TRANSFER_ROLE_HEADERS = [
     "role_name",
-    "role_id",
     "facility_name",
     "facility_id",
     "total_transfer_requests",
@@ -229,13 +312,41 @@ const TRANSFER_ROLE_HEADERS = [
     "pending_transfer_requests",
 ] as const;
 
-const ESCALATION_ROLE_HEADERS = ["role_name", "role_id", "escalation_count"] as const;
+/**
+ * Escalation lists arrive as name/id/count only. The id is useless in a report, so the
+ * remaining columns are joined in from role_metrics to give the count context.
+ */
+const ESCALATION_ROLE_HEADERS = [
+    "role_name",
+    "department_name",
+    "escalation_count",
+    "critical_messages",
+    "escalation_rate_percent",
+    "avg_critical_ack_minutes",
+] as const;
 
 export type ReportTableSection = {
     title: string;
     head: string[];
     body: string[][];
+    /**
+     * Preferred column subset/order for the PDF. The CSV always keeps the full `head`,
+     * so wide payload tables stay complete for analysis while the PDF stays readable.
+     */
+    pdfColumns?: string[];
 };
+
+/** Columns worth printing for per-role tables, in reading order. */
+const ROLE_METRIC_PDF_COLUMNS = [
+    "role_name",
+    "department_name",
+    "priority",
+    "filled",
+    "total_messages",
+    "critical_messages",
+    "escalation_rate_percent",
+    "avg_critical_ack_minutes",
+] as const;
 
 /** Normalized rows for CSV / PDF (same selection rules). */
 export function collectReportData(data: AnalyticsRow, selected: Record<string, boolean>) {
@@ -248,147 +359,104 @@ export function collectReportData(data: AnalyticsRow, selected: Record<string, b
 
     let daily: ReportTableSection | null = null;
     if (selected.table_daily_message_volume) {
-        const vol = data.daily_message_volume;
         const head = [...DAILY_VOLUME_HEADERS];
-        const body: string[][] = [];
-        if (Array.isArray(vol)) {
-            for (const row of vol) {
-                if (!row || typeof row !== "object") continue;
-                const r = row as Record<string, unknown>;
-                body.push(head.map((h) => cell(r[h])));
-            }
-        }
-        daily = { title: "Daily message volume", head, body };
+        daily = {
+            title: "Daily message volume",
+            head,
+            body: tableRows(data.daily_message_volume, head),
+        };
     }
 
     let departments: ReportTableSection | null = null;
     if (selected.table_department_metrics) {
         const head = [...DEPARTMENT_METRIC_HEADERS];
-        const body: string[][] = [];
-        const depts = data.department_metrics;
-        if (Array.isArray(depts)) {
-            for (const row of depts) {
-                if (!row || typeof row !== "object") continue;
-                const r = row as Record<string, unknown>;
-                body.push(head.map((h) => cell(r[h])));
-            }
-        }
-        departments = { title: "Department metrics", head, body };
+        departments = {
+            title: "Department metrics",
+            head,
+            body: tableRows(data.department_metrics, head),
+        };
     }
+
+    const roleIndex = roleMetricIndex(data);
 
     let topEscalated: ReportTableSection | null = null;
     if (selected.table_top_escalated_roles) {
         const head = [...ESCALATION_ROLE_HEADERS];
-        const body: string[][] = [];
-        const list = data.top_escalated_roles;
-        if (Array.isArray(list)) {
-            for (const item of list) {
-                if (!item || typeof item !== "object") continue;
-                const r = item as Record<string, unknown>;
-                body.push(head.map((h) => cell(r[h])));
-            }
-        }
-        topEscalated = { title: "Top escalated roles", head, body };
+        topEscalated = {
+            title: "Top escalated roles",
+            head,
+            body: escalationRows(data.top_escalated_roles, head, roleIndex),
+        };
     }
 
     let leastEscalated: ReportTableSection | null = null;
     if (selected.table_least_escalated_roles) {
         const head = [...ESCALATION_ROLE_HEADERS];
-        const body: string[][] = [];
-        const list = data.least_escalated_roles;
-        if (Array.isArray(list)) {
-            for (const item of list) {
-                if (!item || typeof item !== "object") continue;
-                const r = item as Record<string, unknown>;
-                body.push(head.map((h) => cell(r[h])));
-            }
-        }
-        leastEscalated = { title: "Least escalated roles", head, body };
+        leastEscalated = {
+            title: "Least escalated roles",
+            head,
+            body: escalationRows(data.least_escalated_roles, head, roleIndex),
+        };
     }
 
     let roleMetrics: ReportTableSection | null = null;
     if (selected.table_role_metrics) {
         const roles = data.role_metrics;
-        if (Array.isArray(roles) && roles.length > 0) {
-            const first = roles[0];
-            const head =
-                first && typeof first === "object" ? Object.keys(first as object) : [];
-            const body: string[][] = [];
-            if (head.length) {
-                for (const row of roles) {
-                    if (!row || typeof row !== "object") continue;
-                    const r = row as Record<string, unknown>;
-                    body.push(head.map((h) => cell(r[h])));
-                }
-            }
-            roleMetrics = { title: "Role metrics", head, body };
-        } else {
-            roleMetrics = { title: "Role metrics", head: [], body: [] };
-        }
+        const first = Array.isArray(roles) ? roles[0] : undefined;
+        const head =
+            first && typeof first === "object"
+                ? Object.keys(first as object).filter((k) => k !== "role_id")
+                : [];
+        roleMetrics = {
+            title: "Role metrics",
+            head,
+            body: head.length ? tableRows(roles, head) : [],
+            pdfColumns: ROLE_METRIC_PDF_COLUMNS.filter((c) => head.includes(c)),
+        };
     }
+
+    const cm = data.call_metrics as Record<string, unknown> | undefined;
 
     let callByRole: ReportTableSection | null = null;
     if (selected.table_call_by_role) {
         const head = [...CALL_BY_ROLE_HEADERS];
-        const body: string[][] = [];
-        const cm = data.call_metrics as Record<string, unknown> | undefined;
-        const list = cm?.by_outbound_role ?? cm?.by_initiator_role;
-        if (Array.isArray(list)) {
-            for (const item of list) {
-                if (!item || typeof item !== "object") continue;
-                const r = item as Record<string, unknown>;
-                body.push(head.map((h) => cell(r[h])));
-            }
-        }
-        callByRole = { title: "Outbound calls by role", head, body };
+        callByRole = {
+            title: "Outbound calls by role",
+            head,
+            body: tableRows(cm?.by_outbound_role ?? cm?.by_initiator_role, head),
+        };
     }
 
     let callByDept: ReportTableSection | null = null;
     if (selected.table_call_by_department) {
         const head = [...CALL_BY_DEPT_HEADERS];
-        const body: string[][] = [];
-        const cm = data.call_metrics as Record<string, unknown> | undefined;
-        const list = cm?.by_outbound_department ?? cm?.by_initiator_department;
-        if (Array.isArray(list)) {
-            for (const item of list) {
-                if (!item || typeof item !== "object") continue;
-                const r = item as Record<string, unknown>;
-                body.push(head.map((h) => cell(r[h])));
-            }
-        }
-        callByDept = { title: "Outbound calls by department", head, body };
+        callByDept = {
+            title: "Outbound calls by department",
+            head,
+            body: tableRows(cm?.by_outbound_department ?? cm?.by_initiator_department, head),
+        };
     }
+
+    const tm = data.transfer_metrics as Record<string, unknown> | undefined;
 
     let transferByCounterparty: ReportTableSection | null = null;
     if (selected.table_transfer_by_counterparty) {
         const head = [...TRANSFER_COUNTERPARTY_HEADERS];
-        const body: string[][] = [];
-        const tm = data.transfer_metrics as Record<string, unknown> | undefined;
-        const list = tm?.transfer_by_counterparty_facility;
-        if (Array.isArray(list)) {
-            for (const item of list) {
-                if (!item || typeof item !== "object") continue;
-                const r = item as Record<string, unknown>;
-                body.push(head.map((h) => cell(r[h])));
-            }
-        }
-        transferByCounterparty = { title: "Transfers by counterparty facility", head, body };
+        transferByCounterparty = {
+            title: "Transfers by counterparty facility",
+            head,
+            body: tableRows(tm?.transfer_by_counterparty_facility, head),
+        };
     }
 
     let transferByRole: ReportTableSection | null = null;
     if (selected.table_transfer_by_role) {
         const head = [...TRANSFER_ROLE_HEADERS];
-        const body: string[][] = [];
-        const tm = data.transfer_metrics as Record<string, unknown> | undefined;
-        const list = tm?.transfer_by_role;
-        if (Array.isArray(list)) {
-            for (const item of list) {
-                if (!item || typeof item !== "object") continue;
-                const r = item as Record<string, unknown>;
-                body.push(head.map((h) => cell(r[h])));
-            }
-        }
-        transferByRole = { title: "Transfers by role", head, body };
+        transferByRole = {
+            title: "Transfers by role",
+            head,
+            body: tableRows(tm?.transfer_by_role, head),
+        };
     }
 
     return {

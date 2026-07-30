@@ -1,6 +1,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { collectReportData, humanizeReportHeader } from "@/lib/report-metrics";
+import type { ReportLogo } from "@/lib/report-logo";
 
 type AnalyticsRow = Record<string, unknown>;
 
@@ -48,15 +49,54 @@ function humanizeHead(head: string[]): string[] {
     return head.map(humanizeReportHeader);
 }
 
-function drawPageChrome(doc: jsPDF, pageW: number, margin: number, facilityName?: string) {
+/**
+ * UUID columns are unreadable in print and force the tiny fonts / page splits.
+ * They stay in the CSV export, where they are actually useful for joins.
+ */
+const HIDDEN_PDF_COLUMNS = new Set([
+    "department_id",
+    "department_group_key",
+    "role_id",
+    "facility_id",
+    "counterparty_facility_id",
+]);
+
+function isNumericCell(v: string): boolean {
+    return v !== "" && /^-?[\d,]+(\.\d+)?%?$/.test(v);
+}
+
+/** Logo width for a target height, preserving the source aspect ratio. */
+function logoWidthFor(logo: ReportLogo, height: number): number {
+    return (logo.width / logo.height) * height;
+}
+
+function drawPageChrome(
+    doc: jsPDF,
+    pageW: number,
+    margin: number,
+    facilityName?: string,
+    logo?: ReportLogo | null
+) {
     doc.setFillColor(...BRAND);
     doc.rect(0, 0, pageW, 22, "F");
     doc.setFillColor(...ACCENT);
     doc.rect(0, 22, pageW, 2.5, "F");
+
+    let textX = margin;
+    if (logo) {
+        const h = 11;
+        const w = logoWidthFor(logo, h);
+        // White chip keeps the blue mark legible against the navy band.
+        doc.setFillColor(...WHITE);
+        doc.roundedRect(margin - 3, 5.5, w + 6, h + 5, 2, 2, "F");
+        doc.addImage(logo.dataUrl, "PNG", margin, 8, w, h);
+        textX = margin + w + 10;
+    }
+
     doc.setTextColor(148, 163, 184);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
-    doc.text("Helix Analytics Report", margin, 14);
+    doc.text("Helix Analytics Report", textX, 14);
     if (facilityName) {
         doc.setTextColor(226, 232, 240);
         doc.text(facilityName, pageW - margin, 14, { align: "right" });
@@ -67,7 +107,13 @@ function drawPageChrome(doc: jsPDF, pageW: number, margin: number, facilityName?
 export function buildAnalyticsReportPdfBlob(
     data: AnalyticsRow,
     selected: Record<string, boolean>,
-    meta: { dateFrom: string; dateTo: string; generatedAtIso: string; facilityName?: string }
+    meta: {
+        dateFrom: string;
+        dateTo: string;
+        generatedAtIso: string;
+        facilityName?: string;
+        logo?: ReportLogo | null;
+    }
 ): Blob {
     const doc = new jsPDF({ unit: "pt", format: "a4", orientation: "portrait" });
     const pageH = doc.internal.pageSize.getHeight();
@@ -76,6 +122,7 @@ export function buildAnalyticsReportPdfBlob(
     const contentW = pageW - margin * 2;
     const footerReserve = 48;
     const facilityName = meta.facilityName?.trim() || "";
+    const logo = meta.logo ?? null;
 
     // ── Cover band ──────────────────────────────────────────────
     doc.setFillColor(...BRAND);
@@ -86,7 +133,18 @@ export function buildAnalyticsReportPdfBlob(
     doc.setTextColor(...WHITE);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
-    doc.text("HELIX", margin, 32);
+    if (logo) {
+        const h = 13;
+        const w = logoWidthFor(logo, h);
+        // White chip keeps the blue mark legible against the navy cover band.
+        doc.setFillColor(...WHITE);
+        doc.roundedRect(margin - 4, 18, w + 8, h + 7, 3, 3, "F");
+        doc.addImage(logo.dataUrl, "PNG", margin, 21, w, h);
+        doc.setTextColor(...WHITE);
+        doc.text("HELIX", margin + w + 12, 32);
+    } else {
+        doc.text("HELIX", margin, 32);
+    }
     doc.setFont("helvetica", "bold");
     doc.setFontSize(22);
     doc.text("Analytics Report", margin, 56);
@@ -164,7 +222,7 @@ export function buildAnalyticsReportPdfBlob(
         }
     };
 
-    const drawSectionLabel = (title: string) => {
+    const drawSectionLabel = (title: string, rowCount?: number) => {
         ensureSpace(40);
         doc.setFillColor(...ACCENT);
         doc.roundedRect(margin, y + 2, 3.5, 14, 1.5, 1.5, "F");
@@ -172,9 +230,20 @@ export function buildAnalyticsReportPdfBlob(
         doc.setFont("helvetica", "bold");
         doc.setFontSize(11);
         doc.text(title, margin + 12, y + 13);
+        let lineStart = margin + 12 + doc.getTextWidth(title) + 10;
+
+        if (rowCount != null && rowCount > 0) {
+            const countLabel = `${rowCount} ${rowCount === 1 ? "row" : "rows"}`;
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(8);
+            doc.setTextColor(...MUTED);
+            doc.text(countLabel, lineStart, y + 13);
+            lineStart += doc.getTextWidth(countLabel) + 10;
+        }
+
         doc.setDrawColor(...LINE);
         doc.setLineWidth(0.5);
-        doc.line(margin + 12 + doc.getTextWidth(title) + 10, y + 9, pageW - margin, y + 9);
+        doc.line(lineStart, y + 9, pageW - margin, y + 9);
         y += 28;
     };
 
@@ -239,8 +308,29 @@ export function buildAnalyticsReportPdfBlob(
         y = lastTableBottom(doc, y) + 28;
     }
 
-    const addDataTable = (title: string, head: string[], body: string[][]) => {
-        drawSectionLabel(title);
+    const addDataTable = (
+        title: string,
+        rawHead: string[],
+        rawBody: string[][],
+        pdfColumns?: string[]
+    ) => {
+        const ordered =
+            pdfColumns && pdfColumns.length
+                ? pdfColumns
+                      .map((h) => ({ h, i: rawHead.indexOf(h) }))
+                      .filter(({ i }) => i >= 0)
+                : rawHead.map((h, i) => ({ h, i }));
+
+        const keep = ordered
+            .filter(({ h }) => !HIDDEN_PDF_COLUMNS.has(h))
+            // Drop columns with nothing in them (e.g. joins the payload could not resolve).
+            .filter(({ i }) => rawBody.length === 0 || rawBody.some((row) => (row[i] ?? "") !== ""));
+        const head = keep.map(({ h }) => h);
+        const body = rawBody
+            .map((row) => keep.map(({ i }) => row[i] ?? ""))
+            .filter((row) => row.some((c) => c !== ""));
+
+        drawSectionLabel(title, body.length);
         if (head.length === 0 || body.length === 0) {
             doc.setFont("helvetica", "italic");
             doc.setFontSize(9);
@@ -251,7 +341,16 @@ export function buildAnalyticsReportPdfBlob(
         }
         const displayHead = humanizeHead(head);
         const colCount = displayHead.length;
-        const fontSize = colCount > 8 ? 6.5 : colCount > 5 ? 7.5 : 8.5;
+        const fontSize = colCount > 8 ? 7 : colCount > 5 ? 8 : 9;
+
+        // Right-align columns whose values are all numeric — easier to scan and compare.
+        const columnStyles: Record<number, { halign: "right"; cellWidth?: number }> = {};
+        for (let c = 0; c < colCount; c++) {
+            const values = body.map((row) => row[c]).filter((v) => v !== "");
+            if (values.length > 0 && values.every(isNumericCell)) {
+                columnStyles[c] = { halign: "right" };
+            }
+        }
 
         autoTable(doc, {
             startY: y,
@@ -272,10 +371,12 @@ export function buildAnalyticsReportPdfBlob(
                 fillColor: BRAND,
                 textColor: 255,
                 fontStyle: "bold",
-                fontSize: Math.max(6.5, fontSize - 0.5),
+                fontSize: Math.max(7, fontSize - 0.5),
                 cellPadding: { top: 7, bottom: 7, left: 6, right: 6 },
                 halign: "left",
+                valign: "bottom",
             },
+            columnStyles,
             alternateRowStyles: { fillColor: STRIPE },
             didDrawCell: (hookData) => {
                 if (hookData.section === "body") {
@@ -287,7 +388,9 @@ export function buildAnalyticsReportPdfBlob(
             },
             margin: { left: margin, right: margin, top: margin + 28 },
             tableWidth: contentW,
-            horizontalPageBreak: colCount > 6,
+            horizontalPageBreak: colCount > 8,
+            // Repeat the first (identity) column so split pages aren't anonymous number grids.
+            horizontalPageBreakRepeat: 0,
             showHead: "everyPage",
         });
         y = lastTableBottom(doc, y) + 26;
@@ -301,7 +404,12 @@ export function buildAnalyticsReportPdfBlob(
     if (collected.leastEscalated)
         addDataTable(collected.leastEscalated.title, collected.leastEscalated.head, collected.leastEscalated.body);
     if (collected.roleMetrics)
-        addDataTable(collected.roleMetrics.title, collected.roleMetrics.head, collected.roleMetrics.body);
+        addDataTable(
+            collected.roleMetrics.title,
+            collected.roleMetrics.head,
+            collected.roleMetrics.body,
+            collected.roleMetrics.pdfColumns
+        );
     if (collected.callByRole)
         addDataTable(collected.callByRole.title, collected.callByRole.head, collected.callByRole.body);
     if (collected.callByDept)
@@ -320,7 +428,7 @@ export function buildAnalyticsReportPdfBlob(
     for (let i = 1; i <= total; i++) {
         doc.setPage(i);
         if (i > 1) {
-            drawPageChrome(doc, pageW, margin, facilityName || undefined);
+            drawPageChrome(doc, pageW, margin, facilityName || undefined, logo);
         }
         doc.setDrawColor(...LINE);
         doc.setLineWidth(0.6);

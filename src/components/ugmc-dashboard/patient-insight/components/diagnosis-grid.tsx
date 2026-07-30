@@ -9,6 +9,7 @@ import { IoChevronDown } from "react-icons/io5";
 type EscalationRoleRow = {
     role_name?: string;
     role_id?: string;
+    department_name?: string;
     escalation_count?: number;
     total_messages_for_role?: number;
     escalation_rate_percent?: number;
@@ -16,6 +17,7 @@ type EscalationRoleRow = {
 
 type RoleMetricRow = {
     role_id?: string;
+    department_name?: string;
     total_messages?: number;
     escalation_rate_percent?: number;
 };
@@ -104,7 +106,7 @@ const RoleEscalationsTable = ({ data }: { data?: { top_escalated_roles?: Escalat
 						<tr className="bg-tertiary border border-tertiary">
 							<th className="text-left font-semibold text-[12px] leading-[100%] text-text-primary" style={{ padding: '12px 20px' }}>Rank</th>
 							<th className="text-left font-semibold text-[12px] leading-[100%] text-text-primary" style={{ padding: '12px 20px' }}>Role</th>
-							<th className="text-left font-semibold text-[12px] leading-[100%] text-text-primary" style={{ padding: '12px 20px' }}>Role ID</th>
+							<th className="text-left font-semibold text-[12px] leading-[100%] text-text-primary" style={{ padding: '12px 20px' }}>Department</th>
 							<th className="text-left font-semibold text-[12px] leading-[100%] text-text-primary" style={{ padding: '12px 20px' }}>Escalations</th>
 							<th className="text-left font-semibold text-[12px] leading-[100%] text-text-primary" style={{ padding: '12px 20px' }}>Total Msgs</th>
 							<th className="text-left font-semibold text-[12px] leading-[100%] text-text-primary" style={{ padding: '12px 20px' }}>Escalation Rate</th>
@@ -114,6 +116,7 @@ const RoleEscalationsTable = ({ data }: { data?: { top_escalated_roles?: Escalat
 						{itemsList.map((item, index) => {
 							const roleId = String(item.role_id ?? "").trim();
 							const metrics = roleId ? roleMetricsById.get(roleId) : undefined;
+							const department = String(item.department_name ?? metrics?.department_name ?? "").trim();
 							const escalations = num(item.escalation_count);
 							const messages =
 								item.total_messages_for_role != null
@@ -140,7 +143,7 @@ const RoleEscalationsTable = ({ data }: { data?: { top_escalated_roles?: Escalat
 									<div className="w-8 h-8 rounded-[8px] bg-tertiary flex items-center justify-center font-semibold text-[12px] text-text-secondary">{index + 1}</div>
 								</td>
 								<td className="align-middle font-medium text-[12px] leading-[100%] text-text-primary" style={{ padding: '10px 20px' }}>{item.role_name}</td>
-								<td className="align-middle font-medium text-[12px] leading-[100%] text-text-secondary" style={{ padding: '10px 20px' }}>{item.role_id}</td>
+								<td className="align-middle font-medium text-[12px] leading-[100%] text-text-secondary" style={{ padding: '10px 20px' }}>{department || "—"}</td>
 								<td className="align-middle font-semibold text-[12px] leading-[100%] text-text-primary" style={{ padding: '10px 20px' }}>{escalations}</td>
 								<td className="align-middle font-medium text-[12px] leading-[100%] text-text-primary" style={{ padding: '10px 20px' }}>
 									{messages !== null ? messages : "—"}

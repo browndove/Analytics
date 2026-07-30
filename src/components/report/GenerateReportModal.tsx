@@ -162,7 +162,10 @@ export default function GenerateReportModal({
                 const msg = typeof payload?.error === "string" ? payload.error : "Failed to load analytics for this range.";
                 throw new Error(msg);
             }
-            const { buildAnalyticsReportPdfBlob } = await import("@/lib/report-pdf");
+            const [{ buildAnalyticsReportPdfBlob }, { loadReportLogo }] = await Promise.all([
+                import("@/lib/report-pdf"),
+                import("@/lib/report-logo"),
+            ]);
             const fromPayload = extractFacilityNameFromPayload(payload);
             const facilityName =
                 (facilityNameProp?.trim() || resolvedFacilityName || fromPayload || "").trim() || undefined;
@@ -171,6 +174,7 @@ export default function GenerateReportModal({
                 dateTo,
                 generatedAtIso: new Date().toISOString(),
                 facilityName,
+                logo: await loadReportLogo(),
             });
             const objectUrl = URL.createObjectURL(blob);
             const a = document.createElement("a");
