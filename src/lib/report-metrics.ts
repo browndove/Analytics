@@ -24,6 +24,8 @@ export type ReportMetricDef = {
     field?: string;
 };
 
+export type ReportScalarRow = { label: string; value: string; group: string };
+
 export const REPORT_METRICS: ReportMetricDef[] = [
     { id: "scalar_active_users_count", group: "Staff & activity", label: "Active users (count)", kind: "scalar", field: "active_users_count" },
     { id: "scalar_active_users_rate_percent", group: "Staff & activity", label: "Active users (% of registered)", kind: "scalar", field: "active_users_rate_percent" },
@@ -350,11 +352,11 @@ const ROLE_METRIC_PDF_COLUMNS = [
 
 /** Normalized rows for CSV / PDF (same selection rules). */
 export function collectReportData(data: AnalyticsRow, selected: Record<string, boolean>) {
-    const scalarRows: [string, string][] = [];
+    const scalarRows: ReportScalarRow[] = [];
     for (const def of REPORT_METRICS) {
         if (!selected[def.id] || def.kind !== "scalar" || !def.field) continue;
         const v = getScalar(data, def.field);
-        scalarRows.push([def.label, cell(v)]);
+        scalarRows.push({ label: def.label, value: cell(v), group: def.group });
     }
 
     let daily: ReportTableSection | null = null;
@@ -486,8 +488,8 @@ export function buildAnalyticsReportCsv(
     lines.push(`${csvCell("Date range (inclusive)")},${csvCell(`${meta.dateFrom} to ${meta.dateTo}`)}`);
     lines.push("");
     lines.push(`${csvCell("Metric")},${csvCell("Value")}`);
-    for (const [k, v] of collected.scalarRows) {
-        lines.push(`${csvCell(k)},${csvCell(v)}`);
+    for (const { label, value } of collected.scalarRows) {
+        lines.push(`${csvCell(label)},${csvCell(value)}`);
     }
 
     const appendTableCsv = (section: ReportTableSection | null) => {
