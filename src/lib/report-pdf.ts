@@ -369,10 +369,6 @@ function drawSummaryMetrics(
             doc.setDrawColor(...LINE);
             doc.setLineWidth(0.5);
             doc.roundedRect(cx, cy, cardW, cardH, 5, 5, "S");
-            // Left accent line inside card
-            doc.setFillColor(...ACCENT);
-            doc.roundedRect(cx + 3, cy + 10, 2.5, cardH - 20, 1, 1, "F");
-
             // Label
             doc.setFont("helvetica", "normal");
             doc.setFontSize(7);
