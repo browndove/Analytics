@@ -666,8 +666,8 @@ export function buildAnalyticsReportPdfBlob(
             styles: {
                 font: "helvetica",
                 fontSize,
-                cellPadding: { top: 7, bottom: 7, left: 8, right: 8 },
-                textColor: INK,
+                cellPadding: { top: 9, bottom: 9, left: 10, right: 10 },
+                textColor: [51, 65, 85], // slate-700 (softer than INK for body text)
                 lineColor: LINE,
                 lineWidth: 0,
                 overflow: "linebreak",
@@ -678,7 +678,7 @@ export function buildAnalyticsReportPdfBlob(
                 textColor: WHITE,
                 fontStyle: "bold",
                 fontSize: headFontSize,
-                cellPadding: { top: 9, bottom: 9, left: 8, right: 8 },
+                cellPadding: { top: 11, bottom: 11, left: 10, right: 10 },
                 halign: "left",
                 valign: "bottom",
             },
@@ -686,16 +686,21 @@ export function buildAnalyticsReportPdfBlob(
             alternateRowStyles: { fillColor: STRIPE },
             didDrawCell: (hookData) => {
                 if (hookData.section === "head") {
-                    // Vertical separator between header cells
-                    const { x, y: cy, height } = hookData.cell;
+                    const { x, y: cy, width, height } = hookData.cell;
+                    // Vertical separator between header cells (subtle)
                     if (hookData.column.index > 0) {
                         doc.setDrawColor(60, 80, 100);
                         doc.setLineWidth(0.3);
-                        doc.line(x, cy + 5, x, cy + height - 5);
+                        doc.line(x, cy + 6, x, cy + height - 6);
                     }
+                    // Bottom border (accent color) for the entire header
+                    doc.setDrawColor(...ACCENT);
+                    doc.setLineWidth(1.5);
+                    doc.line(x, cy + height, x + width, cy + height);
                 }
                 if (hookData.section === "body") {
                     const { x, y: cy, width, height } = hookData.cell;
+                    // Subtle bottom border for body rows
                     doc.setDrawColor(...LINE);
                     doc.setLineWidth(0.3);
                     doc.line(x, cy + height, x + width, cy + height);
