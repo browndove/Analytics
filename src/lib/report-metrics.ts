@@ -61,11 +61,11 @@ export const REPORT_METRICS: ReportMetricDef[] = [
 
     { id: "scalar_window_days", group: "Window", label: "Report window (days returned by API)", kind: "scalar", field: "window_days" },
 
-    { id: "table_daily_message_volume", group: "Tables", label: "Daily message volume (by day)", kind: "table_daily" },
-    { id: "table_department_metrics", group: "Tables", label: "Department metrics (by department)", kind: "table_department" },
-    { id: "table_top_escalated_roles", group: "Tables", label: "Top escalated roles", kind: "table_roles_escalated" },
-    { id: "table_least_escalated_roles", group: "Tables", label: "Least escalated roles", kind: "table_roles_escalated_least" },
-    { id: "table_role_metrics", group: "Tables", label: "Role metrics (detail rows)", kind: "table_roles_metrics" },
+    { id: "table_daily_message_volume", group: "Charts", label: "Daily message volume (trend chart)", kind: "table_daily" },
+    { id: "table_department_metrics", group: "Charts", label: "Department escalation & fill rates", kind: "table_department" },
+    { id: "table_top_escalated_roles", group: "Charts", label: "Top escalated roles", kind: "table_roles_escalated" },
+    { id: "table_least_escalated_roles", group: "Charts", label: "Least escalated roles", kind: "table_roles_escalated_least" },
+    { id: "table_role_metrics", group: "Charts", label: "Role message volume (top roles)", kind: "table_roles_metrics" },
 
     // Call metrics (scalars)
     { id: "scalar_call_total_calls_made", group: "Calls", label: "Total calls placed", kind: "scalar", field: "call_metrics.total_calls_made" },
@@ -81,9 +81,9 @@ export const REPORT_METRICS: ReportMetricDef[] = [
     { id: "scalar_call_q3_duration_seconds", group: "Calls", label: "Q3 call duration (seconds)", kind: "scalar", field: "call_metrics.answered.q3_duration_seconds" },
     { id: "scalar_call_max_duration_seconds", group: "Calls", label: "Max call duration (seconds)", kind: "scalar", field: "call_metrics.answered.max_duration_seconds" },
 
-    // Call tables
-    { id: "table_call_by_role", group: "Calls", label: "Outbound calls by role", kind: "table_call_by_role" },
-    { id: "table_call_by_department", group: "Calls", label: "Outbound calls by department", kind: "table_call_by_department" },
+    // Call charts
+    { id: "table_call_by_role", group: "Calls", label: "Outbound calls by role (chart)", kind: "table_call_by_role" },
+    { id: "table_call_by_department", group: "Calls", label: "Outbound calls by department (chart)", kind: "table_call_by_department" },
 
     // Transfer metrics (scalars)
     { id: "scalar_transfer_total", group: "Transfers", label: "Total transfer requests", kind: "scalar", field: "transfer_metrics.total_transfer_requests" },
@@ -94,9 +94,9 @@ export const REPORT_METRICS: ReportMetricDef[] = [
     { id: "scalar_transfer_declined", group: "Transfers", label: "Transfer requests declined", kind: "scalar", field: "transfer_metrics.transfer_requests_declined" },
     { id: "scalar_transfer_pending", group: "Transfers", label: "Transfer requests pending", kind: "scalar", field: "transfer_metrics.transfer_requests_pending" },
 
-    // Transfer tables
-    { id: "table_transfer_by_counterparty", group: "Transfers", label: "Transfers by counterparty facility", kind: "table_transfer_by_counterparty" },
-    { id: "table_transfer_by_role", group: "Transfers", label: "Transfers by role", kind: "table_transfer_by_role" },
+    // Transfer charts
+    { id: "table_transfer_by_counterparty", group: "Transfers", label: "Transfers by counterparty (chart)", kind: "table_transfer_by_counterparty" },
+    { id: "table_transfer_by_role", group: "Transfers", label: "Transfers by role (chart)", kind: "table_transfer_by_role" },
 ];
 
 export function defaultMetricSelection(): Record<string, boolean> {

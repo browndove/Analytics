@@ -11,7 +11,7 @@ import { API_ENDPOINTS } from "@/lib/config";
 
 const METRIC_TOTAL = REPORT_METRICS.length;
 
-/** Stable category order for scanning (matches product groups + window/tables). */
+/** Stable category order for scanning (matches product groups + window/charts). */
 const GROUP_ORDER: string[] = [
     "Staff & activity",
     "Messaging",
@@ -22,7 +22,7 @@ const GROUP_ORDER: string[] = [
     "Transfers",
     "Scheduling",
     "Window",
-    "Tables",
+    "Charts",
 ];
 
 type GenerateReportModalProps = {
