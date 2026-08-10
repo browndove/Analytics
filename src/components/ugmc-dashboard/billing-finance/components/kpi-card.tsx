@@ -34,7 +34,7 @@ function SpreadStatCell({ label, value }: SpreadStatItem) {
                 {label}
             </span>
             <span
-                className="mt-0.5 block truncate text-[11px] font-semibold tabular-nums text-text-primary"
+                className="mt-0.5 block text-[11px] font-semibold tabular-nums text-text-primary"
                 title={value}
             >
                 {value}
@@ -52,6 +52,26 @@ const parseValue = (value: string): { prefix: string; number: number; suffix: st
     const decimals = numStr.includes('.') ? numStr.split('.')[1].length : 0;
     return { prefix, number: parseFloat(numStr), suffix, decimals };
 };
+
+/** Time strings (1h 40m, 1.1 min) and placeholders should not be split for count-up animation. */
+function isNonNumericDisplayValue(value: string): boolean {
+    if (!value || value === "—") return true;
+    if (!/\d/.test(value)) return true;
+    return (
+        /\d+\s*min\b/i.test(value) ||
+        /\d+h\b/i.test(value) ||
+        /\d+m\b/i.test(value) ||
+        /\d+s\b/i.test(value) ||
+        value.includes(" – ")
+    );
+}
+
+function valueFontClass(value: string): string {
+    if (value.length > 10) return "text-[20px]";
+    if (value.length > 7) return "text-[22px]";
+    if (value.length > 5) return "text-[24px]";
+    return "text-[28px]";
+}
 
 const formatNumber = (num: number, decimals: number): string => {
     if (decimals > 0) return num.toFixed(decimals).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -89,7 +109,10 @@ const KPICard: React.FC<KPICardProps> = ({
     const trendTextColor = trend?.isPositive ? "text-accent-green" : "text-accent-red";
 
     const parsedValue = React.useMemo(() => parseValue(value), [value]);
-    const isLiteralValue = React.useMemo(() => !/\d/.test(value), [value]);
+    const isLiteralValue = React.useMemo(() => isNonNumericDisplayValue(value), [value]);
+    const displayValue = isLiteralValue
+        ? value
+        : `${parsedValue.prefix}${formatNumber(animatedNumber, parsedValue.decimals)}${parsedValue.suffix}`;
 
     React.useEffect(() => { setIsVisible(true); }, []);
 
@@ -137,29 +160,29 @@ const KPICard: React.FC<KPICardProps> = ({
                         <div className="mt-1 h-[10px] w-[10px] shrink-0 rounded-[2px] bg-[#00C8B3] animate-breathe" />
                     )}
                 </div>
-                <div className="flex min-h-[40px] items-center justify-between gap-3">
+                <div className="flex min-w-0 flex-col gap-2">
                     <span
                         className={clsx(
-                            "min-w-0 truncate text-[28px] font-bold leading-none tracking-tight text-text-primary tabular-nums",
+                            valueFontClass(displayValue),
+                            "min-w-0 break-words font-bold leading-none tracking-tight text-text-primary tabular-nums",
                             "transition-transform duration-300",
                             isHovered && !isLiteralValue && "origin-left scale-[1.02]"
                         )}
+                        title={displayValue}
                     >
-                        {isLiteralValue
-                            ? value
-                            : `${parsedValue.prefix}${formatNumber(animatedNumber, parsedValue.decimals)}${parsedValue.suffix}`}
+                        {displayValue}
                     </span>
                     {trend && (
                         <div
                             className={clsx(
-                                "flex max-w-[180px] shrink-0 items-center rounded-full",
+                                "inline-flex w-fit max-w-full items-center rounded-full",
                                 trendBgColor,
                                 trendTextColor
                             )}
                             style={{ gap: 5, padding: "4px 10px" }}
                         >
                             {trend.isPositive ? <IncreaseIcon /> : <DecreaseIcon />}
-                            <span className="truncate text-[12px] font-semibold">{trend.value}</span>
+                            <span className="text-[12px] font-semibold whitespace-nowrap">{trend.value}</span>
                         </div>
                     )}
                 </div>
