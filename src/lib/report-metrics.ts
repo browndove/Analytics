@@ -3,6 +3,11 @@
  * `id` values are stable keys used in the report UI and CSV builder.
  */
 
+import {
+    fillDailyMessageVolumePeriod,
+    fillDailyMessageVolumeRange,
+} from "@/lib/daily-volume";
+
 export type ReportMetricKind =
     | "scalar"
     | "table_daily"
@@ -362,10 +367,23 @@ export function collectReportData(data: AnalyticsRow, selected: Record<string, b
     let daily: ReportTableSection | null = null;
     if (selected.table_daily_message_volume) {
         const head = [...DAILY_VOLUME_HEADERS];
+        const raw = Array.isArray(data.daily_message_volume) ? data.daily_message_volume : [];
+        const from =
+            typeof data.daily_message_volume_from === "string" ? data.daily_message_volume_from : null;
+        const to =
+            typeof data.daily_message_volume_to === "string" ? data.daily_message_volume_to : null;
+        const windowDays = Number(data.daily_message_volume_window_days ?? data.window_days);
+        const filled =
+            from && to
+                ? fillDailyMessageVolumeRange(raw, from, to)
+                : fillDailyMessageVolumePeriod(
+                      raw,
+                      Number.isFinite(windowDays) && windowDays > 0 ? windowDays : 7
+                  );
         daily = {
             title: "Daily message volume",
             head,
-            body: tableRows(data.daily_message_volume, head),
+            body: tableRows(filled, head),
         };
     }
 

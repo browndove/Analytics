@@ -361,10 +361,9 @@ export default function InternalFacilityDashboard() {
                     <KpiCard
                         icon={<FaEnvelope className="w-5 h-5 text-accent-green" />}
                         iconBgColor="bg-[rgba(0,200,179,0.1)]"
-                        label="Total Messages"
-                        value={loading ? '—' : fmt(totalMessages)}
-                        change={{ value: `${criticalRate.toFixed(1)}%`, label: "Critical Rate", trend: criticalRate > 20 ? "up" : "down" }}
-                        infoText="Total messages sent across all departments including critical and standard messages."
+                        label="Daily users"
+                        value={loading ? '—' : '0'}
+                        infoText="Average number of users that log into the app at least once per day."
                         animationDelay={1}
                     />
                     <KpiCard
@@ -394,6 +393,8 @@ export default function InternalFacilityDashboard() {
                                 isFullscreen={revenueFullscreen}
                                 onToggleFullscreen={() => setRevenueFullscreen(!revenueFullscreen)}
                                 dailyVolume={data?.daily_message_volume}
+                                totalMessages={totalMessages}
+                                criticalRate={criticalRate}
                             />
                         </div>
 

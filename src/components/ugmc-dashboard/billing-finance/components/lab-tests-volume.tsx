@@ -1,9 +1,14 @@
 "use client";
 
+import { useMemo } from "react";
 import dynamic from "next/dynamic";
 import DashboardCard from "@/components/ugmc-dashboard/shared/dashboard-card";
 import Text from "@/components/text";
 import { IoCheckmarkCircle, IoTime } from "react-icons/io5";
+import {
+    fillDailyMessageVolumePeriod,
+    fillDailyMessageVolumeRange,
+} from "@/lib/daily-volume";
 
 const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
@@ -35,15 +40,28 @@ function dateKey(date: Date): string {
 }
 
 export default function LabTestsVolume({ data }: { data?: any }) {
-    const dailyVolume = Array.isArray(data?.daily_message_volume) ? data.daily_message_volume : [];
-    const parsedDaily = dailyVolume
-        .map((d: any) => ({
-            date: toDate(d?.day),
-            value: Number(d?.standard_messages || 0),
+    const filledDaily = useMemo(() => {
+        const raw = Array.isArray(data?.daily_message_volume) ? data.daily_message_volume : [];
+        const from =
+            typeof data?.daily_message_volume_from === "string" ? data.daily_message_volume_from : null;
+        const to = typeof data?.daily_message_volume_to === "string" ? data.daily_message_volume_to : null;
+        if (from && to) return fillDailyMessageVolumeRange(raw, from, to);
+        const windowDays = Number(data?.daily_message_volume_window_days);
+        return fillDailyMessageVolumePeriod(raw, Number.isFinite(windowDays) && windowDays > 0 ? windowDays : 7);
+    }, [
+        data?.daily_message_volume,
+        data?.daily_message_volume_from,
+        data?.daily_message_volume_to,
+        data?.daily_message_volume_window_days,
+    ]);
+
+    const parsedDaily = filledDaily
+        .map((d) => ({
+            date: toDate(d.day),
+            value: Number(d.standard_messages || 0),
         }))
-        .filter((d: { date: Date | null; value: number }) => d.date instanceof Date)
-        .map((d: { date: Date | null; value: number }) => ({ date: d.date as Date, value: d.value }))
-        .sort((a: { date: Date }, b: { date: Date }) => a.date.getTime() - b.date.getTime());
+        .filter((d): d is { date: Date; value: number } => d.date instanceof Date)
+        .sort((a, b) => a.date.getTime() - b.date.getTime());
 
     // If range is long, aggregate to weekly totals to reduce visual crowding.
     const useWeekly = parsedDaily.length > 14;
@@ -82,7 +100,7 @@ export default function LabTestsVolume({ data }: { data?: any }) {
             sparkline: { enabled: false },
             background: "transparent",
             foreColor: "var(--text-secondary)",
-            fontFamily: "Montserrat, system-ui, sans-serif",
+            fontFamily: "system-ui, -apple-system, sans-serif",
         },
         stroke: { curve: "smooth", width: 3, colors: ["#2E8BDF"] },
         fill: {
@@ -101,7 +119,7 @@ export default function LabTestsVolume({ data }: { data?: any }) {
         xaxis: {
             categories: dateCategories,
             labels: {
-                style: { colors: "var(--text-secondary)", fontSize: "10px", fontFamily: "Montserrat" },
+                style: { colors: "var(--text-secondary)", fontSize: "10px", fontFamily: "system-ui, -apple-system, sans-serif" },
                 hideOverlappingLabels: true,
                 formatter: (value: string, _timestamp?: number, opts?: any) => {
                     const idx = opts?.dataPointIndex ?? 0;
@@ -119,7 +137,7 @@ export default function LabTestsVolume({ data }: { data?: any }) {
             max: yAxisMax,
             tickAmount: 4,
             labels: {
-                style: { colors: "var(--text-secondary)", fontSize: "10px", fontFamily: "Montserrat" },
+                style: { colors: "var(--text-secondary)", fontSize: "10px", fontFamily: "system-ui, -apple-system, sans-serif" },
                 formatter: (v) => String(Math.round(v)),
             },
         },

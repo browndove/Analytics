@@ -11,6 +11,7 @@ import { useTheme } from "next-themes";
 import FullscreenOverlay from "@/components/fullscreen-overlay";
 import clsx from "clsx";
 import { buildNiceYAxisScale } from "@/lib/nice-chart-axis";
+import { fillDailyMessageVolumePeriod, fillDailyMessageVolumeRange } from "@/lib/daily-volume";
 
 const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
@@ -137,10 +138,23 @@ const PatientCensusChart = ({ isFullscreen = false, onToggleFullscreen, data }: 
 	const { resolvedTheme } = useTheme();
 	const [activeTab, setActiveTab] = useState<MessageVolumeTab>('all');
 
-	const dailyVolume = useMemo(
-		() => (Array.isArray(data?.daily_message_volume) ? data.daily_message_volume : []),
-		[data?.daily_message_volume]
-	);
+	const dailyVolume = useMemo(() => {
+		const raw = Array.isArray(data?.daily_message_volume) ? data.daily_message_volume : [];
+		const from =
+			typeof data?.daily_message_volume_from === "string" ? data.daily_message_volume_from : null;
+		const to = typeof data?.daily_message_volume_to === "string" ? data.daily_message_volume_to : null;
+		if (from && to) return fillDailyMessageVolumeRange(raw, from, to);
+		const windowDays = Number(data?.daily_message_volume_window_days);
+		return fillDailyMessageVolumePeriod(
+			raw,
+			Number.isFinite(windowDays) && windowDays > 0 ? windowDays : 7
+		);
+	}, [
+		data?.daily_message_volume,
+		data?.daily_message_volume_from,
+		data?.daily_message_volume_to,
+		data?.daily_message_volume_window_days,
+	]);
 
 	const categories = useMemo(
 		() =>
@@ -227,7 +241,7 @@ const PatientCensusChart = ({ isFullscreen = false, onToggleFullscreen, data }: 
 					rotateAlways: false,
 					hideOverlappingLabels: true,
 					style: {
-						fontFamily: 'Montserrat, sans-serif',
+						fontFamily: 'system-ui, -apple-system, sans-serif',
 						fontWeight: 500,
 						fontSize: '11px',
 						colors: 'var(--text-secondary)',
@@ -242,7 +256,7 @@ const PatientCensusChart = ({ isFullscreen = false, onToggleFullscreen, data }: 
 				decimalsInFloat: 0,
 				labels: {
 					style: {
-						fontFamily: 'Montserrat, sans-serif',
+						fontFamily: 'system-ui, -apple-system, sans-serif',
 						fontWeight: 500,
 						fontSize: '11px',
 						colors: 'var(--text-secondary)',
@@ -260,7 +274,7 @@ const PatientCensusChart = ({ isFullscreen = false, onToggleFullscreen, data }: 
 			tooltip: {
 				enabled: true,
 				theme: resolvedTheme === 'dark' || resolvedTheme === 'blue' ? 'dark' : 'light',
-				style: { fontSize: '12px', fontFamily: 'Montserrat, sans-serif' },
+				style: { fontSize: '12px', fontFamily: 'system-ui, -apple-system, sans-serif' },
 				x: {
 					formatter: (_val, opts) => {
 						const row = dailyVolume[opts?.dataPointIndex ?? 0];
@@ -348,7 +362,7 @@ const PatientCensusChart = ({ isFullscreen = false, onToggleFullscreen, data }: 
 	if (isFullscreen) {
 		return (
 			<FullscreenOverlay onClose={() => onToggleFullscreen?.()}>
-				<div className="bg-primary rounded-[15px] w-full max-w-6xl max-h-[90vh] overflow-auto" style={{ padding: 24 }}>{chartContent}</div>
+				<div className="bg-primary rounded-[18px] w-full max-w-6xl max-h-[90vh] overflow-auto" style={{ padding: 24 }}>{chartContent}</div>
 			</FullscreenOverlay>
 		);
 	}

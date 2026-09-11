@@ -11,17 +11,17 @@ import { useTheme } from "next-themes";
 import clsx from "clsx";
 import FullscreenOverlay from "@/components/fullscreen-overlay";
 import { buildNiceYAxisScale } from "@/lib/nice-chart-axis";
+import {
+    fillDailyMessageVolumePeriod,
+    type DailyMessageVolumePoint,
+} from "@/lib/daily-volume";
 
 const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
-const infoText = "Daily message volume breakdown showing total, critical, and standard messages over the selected time period.";
+const infoText =
+    "Daily message volume with period totals. Critical rate is critical messages as a share of all messages.";
 
-export interface DailyMessageVolumeItem {
-    day: string;
-    total_messages: number;
-    critical_messages: number;
-    standard_messages: number;
-}
+export type DailyMessageVolumeItem = DailyMessageVolumePoint;
 
 const periodOptions = [
     { value: "7d", label: "7 Days" },
@@ -29,14 +29,32 @@ const periodOptions = [
     { value: "30d", label: "30 Days" },
 ];
 
+function formatCount(n: number): string {
+    if (!Number.isFinite(n)) return "0";
+    if (n >= 1000) {
+        const k = n / 1000;
+        return `${k % 1 === 0 ? k.toFixed(0) : k.toFixed(1)}K`;
+    }
+    return Math.round(n).toLocaleString();
+}
+
 interface RevenueChartProps {
     isFullscreen?: boolean;
     onToggleFullscreen?: () => void;
     isHovered?: boolean;
     dailyVolume?: DailyMessageVolumeItem[];
+    totalMessages?: number;
+    criticalRate?: number;
 }
 
-const RevenueChart = ({ isFullscreen = false, onToggleFullscreen, isHovered = false, dailyVolume = [] }: RevenueChartProps) => {
+const RevenueChart = ({
+    isFullscreen = false,
+    onToggleFullscreen,
+    isHovered = false,
+    dailyVolume = [],
+    totalMessages,
+    criticalRate,
+}: RevenueChartProps) => {
     const { resolvedTheme } = useTheme();
     const [period, setPeriod] = useState("7d");
 
@@ -52,29 +70,40 @@ const RevenueChart = ({ isFullscreen = false, onToggleFullscreen, isHovered = fa
         };
     }, [isFullscreen]);
 
-    // Slice daily volume based on selected period
+    // Always render a continuous calendar window (zeros for quiet days)
     const periodDays = period === "30d" ? 30 : period === "14d" ? 14 : 7;
     const volKey = JSON.stringify(dailyVolume);
-    const sliced = useMemo(() => dailyVolume.slice(-periodDays),
+    const sliced = useMemo(
+        () => fillDailyMessageVolumePeriod(dailyVolume, periodDays),
         // eslint-disable-next-line react-hooks/exhaustive-deps
         [volKey, periodDays]
     );
-    const categories = sliced.map(d => {
-        const date = new Date(d.day);
-        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const categories = sliced.map((d) => {
+        const date = new Date(`${d.day}T12:00:00`);
+        return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
     });
 
     const seriesMax = useMemo(() => {
-        if (sliced.length === 0) return 0;
         return Math.max(...sliced.map((d) => d.total_messages), 0);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [volKey, periodDays]);
+    }, [sliced]);
 
     const yAxisScale = useMemo(() => buildNiceYAxisScale(seriesMax, 5), [seriesMax]);
 
     // Limit visible x-axis labels
     const tickAmount = periodDays <= 7 ? undefined : periodDays <= 14 ? 7 : 6;
-    const totalData = sliced.map(d => d.total_messages);
+    const totalData = sliced.map((d) => d.total_messages);
+
+    const periodTotals = useMemo(() => {
+        const total = sliced.reduce((sum, d) => sum + d.total_messages, 0);
+        const critical = sliced.reduce((sum, d) => sum + d.critical_messages, 0);
+        const rate = total > 0 ? (critical / total) * 100 : 0;
+        return { total, critical, rate };
+    }, [sliced]);
+
+    const displayTotal =
+        totalMessages != null && Number.isFinite(totalMessages) ? totalMessages : periodTotals.total;
+    const displayCriticalRate =
+        criticalRate != null && Number.isFinite(criticalRate) ? criticalRate : periodTotals.rate;
 
     const chartOptions: ApexCharts.ApexOptions = {
         chart: {
@@ -129,7 +158,7 @@ const RevenueChart = ({ isFullscreen = false, onToggleFullscreen, isHovered = fa
                     colors: "var(--text-secondary)",
                     fontSize: "12px",
                     fontWeight: 500,
-                    fontFamily: "Montserrat",
+                    fontFamily: "system-ui, -apple-system, sans-serif",
                 },
             },
         },
@@ -144,7 +173,7 @@ const RevenueChart = ({ isFullscreen = false, onToggleFullscreen, isHovered = fa
                     colors: "var(--text-secondary)",
                     fontSize: "12px",
                     fontWeight: 500,
-                    fontFamily: "Montserrat",
+                    fontFamily: "system-ui, -apple-system, sans-serif",
                 },
                 formatter: (val) => {
                     const step = yAxisScale.step;
@@ -178,7 +207,7 @@ const RevenueChart = ({ isFullscreen = false, onToggleFullscreen, isHovered = fa
         tooltip: {
             theme: resolvedTheme === "dark" || resolvedTheme === "blue" ? "dark" : "light",
             style: {
-                fontFamily: "Montserrat",
+                fontFamily: "system-ui, -apple-system, sans-serif",
             },
             y: {
                 formatter: (val) => `${val.toLocaleString()} messages`,
@@ -201,15 +230,15 @@ const RevenueChart = ({ isFullscreen = false, onToggleFullscreen, isHovered = fa
         height?: string;
     }) => {
         const cardPadding = isFullscreen
-            ? { padding: 24, boxSizing: "border-box" as const }
+            ? { padding: 16, boxSizing: "border-box" as const }
             : { padding: "20px 24px 24px", boxSizing: "border-box" as const };
 
         return (
             <div
                 className={clsx(
-                    "bg-primary rounded-[15px] shadow-soft flex min-w-0 w-full flex-col gap-0 overflow-hidden",
+                    "bg-primary rounded-[18px] border border-black/[0.08] flex min-w-0 w-full flex-col gap-0 overflow-hidden",
                     "transition-all duration-500",
-                    isHovered && !isFullscreen && "shadow-[0_8px_30px_rgba(41,128,211,0.12)]"
+                    isHovered && !isFullscreen && "border-black/[0.14]"
                 )}
                 style={cardPadding}
             >
@@ -224,7 +253,7 @@ const RevenueChart = ({ isFullscreen = false, onToggleFullscreen, isHovered = fa
                             options={periodOptions}
                             value={period}
                             onChange={setPeriod}
-                            triggerClassName="!h-[33px] !px-2.5 !rounded-[10px] border border-tertiary !shadow-input"
+                            triggerClassName="!h-[36px] !px-3.5 !rounded-full border border-black/[0.08]"
                         />
                         {/* Expand/Contract button */}
                         {onToggleFullscreen && (
@@ -247,9 +276,37 @@ const RevenueChart = ({ isFullscreen = false, onToggleFullscreen, isHovered = fa
                     </div>
                 </div>
 
+                {/* Moved from KPI row: total messages + critical rate */}
+                <div className="mt-3 flex flex-wrap items-end gap-x-6 gap-y-2">
+                    <div className="min-w-0">
+                        <div className="text-[11px] font-medium tracking-[-0.01em] text-text-secondary">
+                            Total messages
+                        </div>
+                        <div className="mt-0.5 text-[22px] font-semibold leading-none tracking-[-0.02em] tabular-nums text-text-primary">
+                            {formatCount(displayTotal)}
+                        </div>
+                    </div>
+                    <div className="h-8 w-px self-center bg-black/[0.08]" aria-hidden />
+                    <div className="min-w-0">
+                        <div className="text-[11px] font-medium tracking-[-0.01em] text-text-secondary">
+                            Critical rate
+                        </div>
+                        <div className="mt-0.5 flex items-baseline gap-1.5">
+                            <span className="text-[22px] font-semibold leading-none tracking-[-0.02em] tabular-nums text-text-primary">
+                                {displayCriticalRate.toFixed(1)}%
+                            </span>
+                            {periodTotals.critical > 0 && (
+                                <span className="text-[11px] text-text-tertiary tabular-nums">
+                                    {formatCount(periodTotals.critical)} critical in view
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
                 {/* Chart — inline padding so horizontal inset is always applied (Apex + flex parents) */}
                 <div
-                    className="min-w-0 w-full h-[260px] min-[900px]:h-[300px] overflow-hidden"
+                    className="min-w-0 w-full h-[240px] min-[900px]:h-[280px] overflow-hidden"
                     style={{
                         boxSizing: "border-box",
                         paddingTop: 12,

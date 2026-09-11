@@ -5,6 +5,7 @@
  */
 
 import { buildNiceYAxisScale } from "@/lib/nice-chart-axis";
+import { fillDailyMessageVolumePeriod, fillDailyMessageVolumeRange } from "@/lib/daily-volume";
 
 export type ChartImage = {
     dataUrl: string;
@@ -36,6 +37,9 @@ const T = {
 };
 
 const FONT = "system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif";
+const FB = (size: number) => `bold ${size}px ${FONT}`;
+const FS = (size: number) => `600 ${size}px ${FONT}`;
+const FN = (size: number) => `500 ${size}px ${FONT}`;
 
 function createCanvas(width: number, height: number): {
     canvas: HTMLCanvasElement;
@@ -143,7 +147,6 @@ function roundRect(
 }
 
 function paintCard(ctx: CanvasRenderingContext2D, w: number, h: number) {
-    // Quiet figure face — no nested card chrome (PDF page already frames the section)
     ctx.fillStyle = T.white;
     ctx.fillRect(0, 0, w, h);
 }
@@ -152,16 +155,26 @@ function drawLegend(
     ctx: CanvasRenderingContext2D,
     items: { name: string; color: string; style?: "line" | "swatch" | "dash" }[],
     x: number,
-    y: number
+    y: number,
+    centerIn?: number
 ) {
-    let lx = x;
-    ctx.font = `500 11px ${FONT}`;
+    ctx.font = FS(11);
     ctx.textBaseline = "middle";
+
+    let lx = x;
+    if (centerIn != null) {
+        let total = 0;
+        for (const it of items) {
+            total += 20 + ctx.measureText(it.name).width + 20;
+        }
+        lx = Math.max(0, (centerIn - total + 20) / 2);
+    }
+
     for (const it of items) {
         const style = it.style ?? "swatch";
         if (style === "line") {
             ctx.strokeStyle = it.color;
-            ctx.lineWidth = 2.5;
+            ctx.lineWidth = 3;
             ctx.lineCap = "round";
             ctx.beginPath();
             ctx.moveTo(lx, y);
@@ -169,11 +182,11 @@ function drawLegend(
             ctx.stroke();
             ctx.fillStyle = it.color;
             ctx.beginPath();
-            ctx.arc(lx + 8, y, 2.5, 0, Math.PI * 2);
+            ctx.arc(lx + 8, y, 3, 0, Math.PI * 2);
             ctx.fill();
         } else if (style === "dash") {
             ctx.strokeStyle = it.color;
-            ctx.lineWidth = 2;
+            ctx.lineWidth = 2.5;
             ctx.setLineDash([4, 3]);
             ctx.beginPath();
             ctx.moveTo(lx, y);
@@ -182,13 +195,13 @@ function drawLegend(
             ctx.setLineDash([]);
         } else {
             ctx.fillStyle = it.color;
-            roundRect(ctx, lx, y - 5, 11, 11, 3);
+            roundRect(ctx, lx, y - 5, 12, 12, 3);
             ctx.fill();
         }
         ctx.fillStyle = T.ink;
         ctx.textAlign = "left";
         ctx.fillText(it.name, lx + 20, y);
-        lx += 20 + ctx.measureText(it.name).width + 18;
+        lx += 20 + ctx.measureText(it.name).width + 20;
     }
 }
 
@@ -233,11 +246,11 @@ export function renderAreaChart(opts: {
     height?: number;
 }): ChartImage {
     const width = opts.width ?? 740;
-    const height = opts.height ?? 300;
+    const height = opts.height ?? 320;
     const { canvas, ctx } = createCanvas(width, height);
     paintCard(ctx, width, height);
 
-    const pad = { top: 36, right: 28, bottom: 52, left: 58 };
+    const pad = { top: 24, right: 28, bottom: 72, left: 58 };
     const plotW = width - pad.left - pad.right;
     const plotH = height - pad.top - pad.bottom;
 
@@ -251,7 +264,7 @@ export function renderAreaChart(opts: {
     ctx.fill();
 
     // Grid
-    ctx.font = `10px ${FONT}`;
+    ctx.font = FN(10);
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
     for (let v = 0; v <= yMax + 1e-9; v += step) {
@@ -309,7 +322,7 @@ export function renderAreaChart(opts: {
             else ctx.lineTo(x, y);
         });
         ctx.strokeStyle = color;
-        ctx.lineWidth = si === 0 ? 2.75 : 2;
+        ctx.lineWidth = si === 0 ? 3.25 : 2.5;
         ctx.lineJoin = "round";
         ctx.lineCap = "round";
         if (si > 0) ctx.globalAlpha = 0.92;
@@ -333,7 +346,7 @@ export function renderAreaChart(opts: {
     const maxLabels = 9;
     const stepIdx = Math.max(1, Math.ceil(opts.categories.length / maxLabels));
     ctx.fillStyle = T.muted;
-    ctx.font = `10px ${FONT}`;
+    ctx.font = FS(10);
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
     opts.categories.forEach((label, i) => {
@@ -348,8 +361,122 @@ export function renderAreaChart(opts: {
             color: s.color ?? T.cat[i % T.cat.length],
             style: "line" as const,
         })),
-        pad.left,
-        20
+        0,
+        pad.top + plotH + 38,
+        width
+    );
+
+    return { dataUrl: toDataUrl(canvas), width, height };
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   1b. Stacked area — daily volume (standard + critical, no redundant total line)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+export function renderStackedAreaChart(opts: {
+    categories: string[];
+    series: { name: string; data: number[]; color: string }[];
+    width?: number;
+    height?: number;
+}): ChartImage {
+    const width = opts.width ?? 740;
+    const height = opts.height ?? 340;
+    const { canvas, ctx } = createCanvas(width, height);
+    paintCard(ctx, width, height);
+
+    if (!opts.categories.length || !opts.series.length) {
+        emptyState(ctx, width, height);
+        return { dataUrl: toDataUrl(canvas), width, height };
+    }
+
+    const pad = { top: 24, right: 28, bottom: 72, left: 58 };
+    const plotW = width - pad.left - pad.right;
+    const plotH = height - pad.top - pad.bottom;
+    const n = opts.categories.length;
+    const layers = opts.series.length;
+
+    const cumulative: number[][] = [];
+    for (let i = 0; i < n; i++) {
+        let run = 0;
+        cumulative[i] = opts.series.map((s) => {
+            run += s.data[i] ?? 0;
+            return run;
+        });
+    }
+    const totals = cumulative.map((c) => c[layers - 1] ?? 0);
+    const { max: yMax, step } = buildNiceYAxisScale(Math.max(0, ...totals), 5);
+
+    ctx.fillStyle = T.panel;
+    roundRect(ctx, pad.left, pad.top, plotW, plotH, 6);
+    ctx.fill();
+
+    ctx.font = FN(10);
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    for (let v = 0; v <= yMax + 1e-9; v += step) {
+        const y = pad.top + plotH - (v / yMax) * plotH;
+        ctx.strokeStyle = v === 0 ? T.axis : T.grid;
+        ctx.lineWidth = v === 0 ? 1.25 : 1;
+        ctx.beginPath();
+        ctx.moveTo(pad.left, y);
+        ctx.lineTo(pad.left + plotW, y);
+        ctx.stroke();
+        ctx.fillStyle = T.muted;
+        ctx.fillText(formatTick(v), pad.left - 10, y);
+    }
+
+    const xAt = (i: number) =>
+        pad.left + (n <= 1 ? plotW / 2 : (i / Math.max(1, n - 1)) * plotW);
+    const yAt = (v: number) => pad.top + plotH - (Math.max(0, v) / yMax) * plotH;
+
+    for (let j = 0; j < layers; j++) {
+        const color = opts.series[j].color;
+        ctx.beginPath();
+        for (let i = 0; i < n; i++) {
+            const x = xAt(i);
+            const y = yAt(cumulative[i][j]);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        for (let i = n - 1; i >= 0; i--) {
+            const bottom = j === 0 ? 0 : cumulative[i][j - 1];
+            ctx.lineTo(xAt(i), yAt(bottom));
+        }
+        ctx.closePath();
+        ctx.fillStyle = withAlpha(color, j === layers - 1 ? 0.45 : 0.3);
+        ctx.fill();
+
+        ctx.beginPath();
+        for (let i = 0; i < n; i++) {
+            const x = xAt(i);
+            const y = yAt(cumulative[i][j]);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.strokeStyle = color;
+        ctx.lineWidth = j === layers - 1 ? 2.75 : 1.75;
+        ctx.lineJoin = "round";
+        ctx.lineCap = "round";
+        ctx.stroke();
+    }
+
+    const maxLabels = 9;
+    const stepIdx = Math.max(1, Math.ceil(n / maxLabels));
+    ctx.fillStyle = T.muted;
+    ctx.font = FS(10);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    opts.categories.forEach((label, i) => {
+        if (i % stepIdx !== 0 && i !== n - 1) return;
+        ctx.fillText(truncate(ctx, label, 54), xAt(i), pad.top + plotH + 10);
+    });
+
+    drawLegend(
+        ctx,
+        opts.series.map((s) => ({ name: s.name, color: s.color, style: "swatch" as const })),
+        0,
+        pad.top + plotH + 38,
+        width
     );
 
     return { dataUrl: toDataUrl(canvas), width, height };
@@ -366,7 +493,7 @@ export function renderStackedColumns(opts: {
     height?: number;
 }): ChartImage {
     const width = opts.width ?? 740;
-    const height = opts.height ?? 300;
+    const height = opts.height ?? 320;
     const { canvas, ctx } = createCanvas(width, height);
     paintCard(ctx, width, height);
 
@@ -375,7 +502,7 @@ export function renderStackedColumns(opts: {
         return { dataUrl: toDataUrl(canvas), width, height };
     }
 
-    const pad = { top: 36, right: 24, bottom: 58, left: 54 };
+    const pad = { top: 24, right: 24, bottom: 72, left: 54 };
     const plotW = width - pad.left - pad.right;
     const plotH = height - pad.top - pad.bottom;
 
@@ -438,8 +565,9 @@ export function renderStackedColumns(opts: {
     drawLegend(
         ctx,
         opts.series.map((s) => ({ name: s.name, color: s.color })),
-        pad.left,
-        20
+        0,
+        pad.top + plotH + 38,
+        width
     );
 
     return { dataUrl: toDataUrl(canvas), width, height };
@@ -457,7 +585,7 @@ export function renderGroupedBars(opts: {
     valueSuffix?: string;
 }): ChartImage {
     const width = opts.width ?? 740;
-    const height = opts.height ?? 300;
+    const height = opts.height ?? 320;
     const { canvas, ctx } = createCanvas(width, height);
     paintCard(ctx, width, height);
 
@@ -541,8 +669,9 @@ export function renderGroupedBars(opts: {
     drawLegend(
         ctx,
         opts.series.map((s) => ({ name: s.name, color: s.color })),
-        pad.left,
-        20
+        0,
+        20,
+        width
     );
 
     return { dataUrl: toDataUrl(canvas), width, height };
@@ -616,16 +745,16 @@ export function renderLollipopChart(opts: {
 
         // Dot
         ctx.beginPath();
-        ctx.arc(xEnd, y, 6.5, 0, Math.PI * 2);
+        ctx.arc(xEnd, y, 7, 0, Math.PI * 2);
         ctx.fillStyle = color;
         ctx.fill();
         ctx.strokeStyle = T.white;
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2.5;
         ctx.stroke();
 
         // Value
-        ctx.fillStyle = T.muted;
-        ctx.font = `600 11px ${FONT}`;
+        ctx.fillStyle = T.ink;
+        ctx.font = FB(11);
         ctx.textAlign = "left";
         ctx.fillText(formatTick(item.value) + suffix, xEnd + 12, y);
     });
@@ -728,8 +857,9 @@ export function renderStackedHorizontalBars(opts: {
         drawLegend(
             ctx,
             opts.legend.map((l) => ({ name: l.name, color: l.color })),
-            pad.left,
-            22
+            0,
+            22,
+            width
         );
     }
 
@@ -815,29 +945,30 @@ export function renderDonutChart(opts: {
     centerValue?: string;
 }): ChartImage {
     const width = opts.width ?? 740;
-    const height = opts.height ?? 260;
+    const activeSlices = opts.slices.filter((s) => s.value > 0);
+    const r = 128;
+    const rInner = 74;
+    const height = opts.height ?? 36 + r * 2 + 88;
+
     const { canvas, ctx } = createCanvas(width, height);
     paintCard(ctx, width, height);
 
     const total = opts.slices.reduce((s, sl) => s + Math.max(0, sl.value), 0);
-    const cx = 168;
-    const cy = height / 2 + 4;
-    const r = 88;
-    const rInner = 52;
+    const cx = width / 2;
+    const cy = 24 + r;
 
     if (total <= 0) {
         emptyState(ctx, width, height);
         return { dataUrl: toDataUrl(canvas), width, height };
     }
 
-    // Soft ring shadow
     ctx.beginPath();
-    ctx.arc(cx, cy, r + 2, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(15, 23, 42, 0.04)";
+    ctx.arc(cx, cy, r + 4, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(15, 23, 42, 0.05)";
     ctx.fill();
 
     let angle = -Math.PI / 2;
-    const gap = 0.035; // visual separation between slices
+    const gap = 0.035;
     for (const slice of opts.slices) {
         const portion = Math.max(0, slice.value) / total;
         if (portion <= 0) continue;
@@ -853,7 +984,6 @@ export function renderDonutChart(opts: {
         angle = next;
     }
 
-    // Center
     ctx.beginPath();
     ctx.arc(cx, cy, rInner - 2, 0, Math.PI * 2);
     ctx.fillStyle = T.white;
@@ -861,40 +991,46 @@ export function renderDonutChart(opts: {
 
     if (opts.centerValue) {
         ctx.fillStyle = T.ink;
-        ctx.font = `700 22px ${FONT}`;
+        ctx.font = FB(34);
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.fillText(opts.centerValue, cx, cy - (opts.centerLabel ? 8 : 0));
+        ctx.fillText(opts.centerValue, cx, cy - (opts.centerLabel ? 12 : 0));
         if (opts.centerLabel) {
             ctx.fillStyle = T.muted;
-            ctx.font = `500 11px ${FONT}`;
-            ctx.fillText(opts.centerLabel, cx, cy + 14);
+            ctx.font = FS(13);
+            ctx.fillText(opts.centerLabel, cx, cy + 18);
         }
     }
 
-    // Legend cards
-    let ly = 48;
-    const lx = 310;
-    for (const slice of opts.slices) {
+    // Compact legend row below donut — keeps canvas short so the ring scales larger in PDF
+    const legendY = cy + r + 36;
+    ctx.font = FS(12);
+    const items = activeSlices.map((slice) => {
         const pct = total > 0 ? Math.round((slice.value / total) * 100) : 0;
-        roundRect(ctx, lx, ly - 14, width - lx - 28, 44, 8);
-        ctx.fillStyle = T.panel;
-        ctx.fill();
+        return {
+            slice,
+            pct,
+            text: `${slice.label}  ·  ${formatTick(slice.value)}  ·  ${pct}%`,
+            w: 0,
+        };
+    });
+    items.forEach((it) => {
+        it.w = 18 + ctx.measureText(it.text).width;
+    });
+    const gapX = 28;
+    const totalW = items.reduce((s, it) => s + it.w, 0) + gapX * Math.max(0, items.length - 1);
+    let lx = (width - totalW) / 2;
 
-        ctx.fillStyle = slice.color;
-        roundRect(ctx, lx + 12, ly - 4, 12, 12, 3);
+    for (const it of items) {
+        ctx.fillStyle = it.slice.color;
+        roundRect(ctx, lx, legendY - 6, 12, 12, 3);
         ctx.fill();
-
         ctx.fillStyle = T.ink;
-        ctx.font = `600 12.5px ${FONT}`;
+        ctx.font = FS(12);
         ctx.textAlign = "left";
         ctx.textBaseline = "middle";
-        ctx.fillText(slice.label, lx + 34, ly - 2);
-
-        ctx.fillStyle = T.muted;
-        ctx.font = `500 11px ${FONT}`;
-        ctx.fillText(`${formatTick(slice.value)}   ·   ${pct}%`, lx + 34, ly + 16);
-        ly += 56;
+        ctx.fillText(it.text, lx + 18, legendY);
+        lx += it.w + gapX;
     }
 
     return { dataUrl: toDataUrl(canvas), width, height };
@@ -1013,19 +1149,20 @@ export function renderRadarChart(opts: {
     color?: string;
 }): ChartImage {
     const width = opts.width ?? 740;
-    const height = opts.height ?? 320;
+    const axes = opts.axes.filter((a) => a.label);
+    const rowCount = Math.ceil(axes.length / 3);
+    const height = opts.height ?? 500 + Math.max(0, rowCount - 2) * 36;
     const { canvas, ctx } = createCanvas(width, height);
     paintCard(ctx, width, height);
 
-    const axes = opts.axes.filter((a) => a.label);
     if (axes.length < 3) {
         emptyState(ctx, width, height, "Need at least 3 metrics for a radar chart.");
         return { dataUrl: toDataUrl(canvas), width, height };
     }
 
-    const cx = width * 0.38;
-    const cy = height / 2 + 6;
-    const R = Math.min(width, height) * 0.32;
+    const cx = width / 2;
+    const R = Math.min(width * 0.3, 118);
+    const cy = 36 + R;
     const color = opts.color ?? T.ok;
     const n = axes.length;
 
@@ -1035,7 +1172,6 @@ export function renderRadarChart(opts: {
         return { x: cx + Math.cos(a) * R * t, y: cy + Math.sin(a) * R * t };
     };
 
-    // Rings
     for (const ring of [0.25, 0.5, 0.75, 1]) {
         ctx.beginPath();
         for (let i = 0; i < n; i++) {
@@ -1049,8 +1185,7 @@ export function renderRadarChart(opts: {
         ctx.stroke();
     }
 
-    // Spokes + labels
-    axes.forEach((ax, i) => {
+    axes.forEach((_, i) => {
         const p = point(i, 1);
         ctx.strokeStyle = T.axis;
         ctx.lineWidth = 1;
@@ -1058,16 +1193,8 @@ export function renderRadarChart(opts: {
         ctx.moveTo(cx, cy);
         ctx.lineTo(p.x, p.y);
         ctx.stroke();
-
-        const lp = point(i, 1.18);
-        ctx.fillStyle = T.ink;
-        ctx.font = `500 11px ${FONT}`;
-        ctx.textAlign = lp.x < cx - 8 ? "right" : lp.x > cx + 8 ? "left" : "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(truncate(ctx, ax.label, 110), lp.x, lp.y);
     });
 
-    // Polygon
     ctx.beginPath();
     axes.forEach((ax, i) => {
         const max = ax.max && ax.max > 0 ? ax.max : 100;
@@ -1080,7 +1207,7 @@ export function renderRadarChart(opts: {
     ctx.fillStyle = withAlpha(color, 0.2);
     ctx.fill();
     ctx.strokeStyle = color;
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 3.5;
     ctx.stroke();
 
     axes.forEach((ax, i) => {
@@ -1088,32 +1215,48 @@ export function renderRadarChart(opts: {
         const t = Math.max(0, Math.min(1, ax.value / max));
         const p = point(i, t);
         ctx.beginPath();
-        ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+        ctx.arc(p.x, p.y, 5.5, 0, Math.PI * 2);
         ctx.fillStyle = color;
         ctx.fill();
         ctx.strokeStyle = T.white;
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = 2.5;
         ctx.stroke();
+
+        const lp = point(i, 1.14);
+        ctx.fillStyle = T.muted;
+        ctx.font = FS(10);
+        ctx.textAlign = lp.x < cx - 10 ? "right" : lp.x > cx + 10 ? "left" : "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(truncate(ctx, ax.label, 88), lp.x, lp.y);
     });
 
-    // Side stats
-    let ly = 56;
-    const lx = width * 0.62;
-    ctx.font = `600 12px ${FONT}`;
+    // Metric profile summary below the radar
+    const statsY = cy + R + 56;
+    const colCount = Math.min(axes.length, 3);
+    const colW = Math.min(220, (width - 80) / colCount);
+    const statsW = colW * colCount;
+    const statsX = (width - statsW) / 2;
+
+    ctx.font = FS(13);
     ctx.fillStyle = T.ink;
-    ctx.textAlign = "left";
-    ctx.fillText("Metric profile", lx, ly);
-    ly += 22;
-    for (const ax of axes) {
-        ctx.fillStyle = T.muted;
-        ctx.font = `500 11px ${FONT}`;
-        ctx.fillText(ax.label, lx, ly);
-        ctx.fillStyle = T.ink;
-        ctx.font = `700 12px ${FONT}`;
+    ctx.textAlign = "center";
+    ctx.fillText("Metric profile", width / 2, statsY);
+
+    const rowH = 46;
+    axes.forEach((ax, i) => {
+        const col = i % colCount;
+        const row = Math.floor(i / colCount);
+        const x = statsX + col * colW + colW / 2;
+        const y = statsY + 24 + row * rowH;
         const max = ax.max && ax.max > 0 ? ax.max : 100;
-        ctx.fillText(`${formatTick(ax.value)}${max === 100 ? "%" : ""}`, lx + 160, ly);
-        ly += 24;
-    }
+
+        ctx.fillStyle = T.muted;
+        ctx.font = FS(11);
+        ctx.fillText(ax.label, x, y);
+        ctx.fillStyle = T.ink;
+        ctx.font = FB(15);
+        ctx.fillText(`${formatTick(ax.value)}${max === 100 ? "%" : ""}`, x, y + 18);
+    });
 
     return { dataUrl: toDataUrl(canvas), width, height };
 }
@@ -1127,42 +1270,53 @@ export function chartDailyVolume(head: string[], body: string[][]): ChartImage |
     const totI = col(head, "total_messages");
     const critI = col(head, "critical_messages");
     const stdI = col(head, "standard_messages");
-    if (dayI < 0 || totI < 0 || body.length === 0) return null;
+    if (dayI < 0 || totI < 0) return null;
 
-    const categories = body.map((row) => {
-        const raw = row[dayI] || "";
+    const sparse = body.map((row) => ({
+        day: row[dayI] || "",
+        total_messages: parseCellNumber(row[totI] ?? ""),
+        critical_messages: critI >= 0 ? parseCellNumber(row[critI] ?? "") : 0,
+        standard_messages: stdI >= 0 ? parseCellNumber(row[stdI] ?? "") : 0,
+    }));
+    // Prefer continuous calendar fill; fall back to last 7 days when range is empty/single-day sparse.
+    let filled = fillDailyMessageVolumeRange(sparse);
+    if (filled.length < 2) {
+        filled = fillDailyMessageVolumePeriod(sparse, 7);
+    }
+    if (filled.length === 0) return null;
+
+    const categories = filled.map((row) => {
         try {
-            const d = new Date(`${raw}T12:00:00`);
+            const d = new Date(`${row.day}T12:00:00`);
             if (!Number.isNaN(d.getTime())) {
                 return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
             }
         } catch {
             /* keep */
         }
-        return raw;
+        return row.day;
     });
 
-    const total = body.map((r) => parseCellNumber(r[totI] ?? ""));
-    const critical = critI >= 0 ? body.map((r) => parseCellNumber(r[critI] ?? "")) : [];
-    const standard = stdI >= 0 ? body.map((r) => parseCellNumber(r[stdI] ?? "")) : [];
+    const total = filled.map((r) => r.total_messages);
+    const critical = filled.map((r) => r.critical_messages);
+    const standard = filled.map((r) => r.standard_messages);
 
-    // Prefer stacked columns for short windows; area for longer trends
-    if (categories.length <= 14 && critical.length && standard.length) {
-        return renderStackedColumns({
-            categories,
-            series: [
-                { name: "Standard", data: standard, color: T.ok },
-                { name: "Critical", data: critical, color: T.danger },
-            ],
-        });
+    // Prefer stacked charts when breakdown is available (total ≈ standard + critical)
+    if (critical.some((v) => v > 0) || standard.some((v) => v > 0)) {
+        const breakdown = [
+            { name: "Standard", data: standard, color: T.info },
+            { name: "Critical", data: critical, color: T.danger },
+        ];
+        if (categories.length <= 14) {
+            return renderStackedColumns({ categories, series: breakdown });
+        }
+        return renderStackedAreaChart({ categories, series: breakdown });
     }
 
-    const series: LineSeries[] = [
-        { name: "Total", data: total, color: T.ok, fill: true },
-    ];
-    if (critical.length) series.push({ name: "Critical", data: critical, color: T.danger, fill: false });
-    if (standard.length) series.push({ name: "Standard", data: standard, color: T.info, fill: false });
-    return renderAreaChart({ categories, series });
+    return renderAreaChart({
+        categories,
+        series: [{ name: "Total", data: total, color: T.ok, fill: true }],
+    });
 }
 
 export function chartRankedMetric(
