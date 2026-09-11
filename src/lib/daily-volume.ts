@@ -27,8 +27,9 @@ function num(v: unknown): number {
 }
 
 /**
- * Build `periodDays` consecutive calendar days ending on `endDay` (or the latest
- * day present in the data / today). Missing days are filled with zeros.
+ * Build `periodDays` consecutive calendar days ending on `endDay`, or today
+ * when omitted. Missing days are filled with zeros so sparse facilities still
+ * show a full recent window (e.g. past 7 days from today).
  */
 export function fillDailyMessageVolumePeriod(
     dailyVolume: Array<Partial<DailyMessageVolumePoint> & { day?: string }> | null | undefined,
@@ -37,7 +38,7 @@ export function fillDailyMessageVolumePeriod(
 ): DailyMessageVolumePoint[] {
     const days = Math.max(1, Math.floor(periodDays) || 1);
     const byDay = indexByDay(dailyVolume);
-    const end = resolveEndDay(byDay, endDay);
+    const end = resolveEndDay(endDay);
 
     const out: DailyMessageVolumePoint[] = [];
     for (let i = days - 1; i >= 0; i--) {
@@ -106,15 +107,9 @@ function indexByDay(
     return byDay;
 }
 
-function resolveEndDay(byDay: Map<string, DailyMessageVolumePoint>, endDay?: string | null): Date {
+function resolveEndDay(endDay?: string | null): Date {
     if (endDay) return parseDay(endDay);
-    if (byDay.size > 0) {
-        let max = "";
-        for (const key of byDay.keys()) {
-            if (key > max) max = key;
-        }
-        return parseDay(max);
-    }
+    // Period charts (7/14/30) always end on the local calendar "today".
     return parseDay(dayKeyLocal(new Date()));
 }
 
