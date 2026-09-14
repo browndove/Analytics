@@ -124,7 +124,7 @@ const KPIGrid = ({ data }: { data?: Record<string, unknown> }) => {
                     data && escalationPct != null
                         ? `${num(escalationPct).toFixed(1)}%`
                         : "—",
-                subtitle: "Percentage of critical messages that escalated.",
+                subtitle: "Share of critical messages that triggered an escalation.",
                 trend: {
                     type: "down" as const,
                     value:
@@ -133,7 +133,23 @@ const KPIGrid = ({ data }: { data?: Record<string, unknown> }) => {
                             : "None escalated",
                     isPositive: escalated === 0,
                 },
-                infoText: "Percentage of critical messages that escalated.",
+                spreadStats: [
+                    {
+                        label: "Critical",
+                        value: criticalMessages > 0 ? criticalMessages.toLocaleString() : "—",
+                    },
+                    {
+                        label: "Escalated",
+                        value: escalated > 0 ? escalated.toLocaleString() : "0",
+                    },
+                    {
+                        label: "Rate",
+                        value:
+                            escalationPct != null ? `${num(escalationPct).toFixed(1)}%` : "—",
+                    },
+                ],
+                infoText:
+                    "Percentage of critical messages that escalated. Critical = critical messages in the window; Escalated = how many of those triggered escalation.",
             },
         ];
     }, [data]);
@@ -144,7 +160,7 @@ const KPIGrid = ({ data }: { data?: Record<string, unknown> }) => {
                 {kpiData.map((kpi, index) => (
                     <div
                         key={kpi.title}
-                        className="min-w-0 w-full h-full min-h-[168px] [&>*]:min-w-0 [&>*]:w-full animate-slide-in-up"
+                        className="min-w-0 w-full h-full min-h-0 [&>*]:min-w-0 [&>*]:w-full animate-slide-in-up"
                         style={{
                             animationDelay: `${index * 100}ms`,
                             opacity: 0,
