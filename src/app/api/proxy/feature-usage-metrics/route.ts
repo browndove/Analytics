@@ -17,9 +17,9 @@ export async function GET(req: NextRequest) {
         const internalToken = getInternalTokenFromCookie(req);
         const isInternal = Boolean(internalToken && isInternalAdminToken(internalToken));
 
-        let facilityId = explicitFacilityId;
+        let facilityId: string | null = explicitFacilityId;
         if (!facilityId && !isInternal) {
-            facilityId = await resolveFacilityId(req, API_BASE_URL);
+            facilityId = (await resolveFacilityId(req, API_BASE_URL)) ?? null;
             if (!facilityId) {
                 return NextResponse.json(
                     { error: "Unable to resolve facility for current session. Please log in again." },
