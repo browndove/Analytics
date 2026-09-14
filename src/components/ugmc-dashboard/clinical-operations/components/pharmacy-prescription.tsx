@@ -164,7 +164,7 @@ const PharmacyPrescription: React.FC<PharmacyPrescriptionProps> = ({ callMetrics
             followCursor: true,
             style: {
                 fontSize: "12px",
-                fontFamily: "Montserrat, sans-serif",
+                fontFamily: "system-ui, -apple-system, sans-serif",
             },
             custom: function ({ series, seriesIndex }: { series: number[]; seriesIndex: number }) {
                 const value = series[seriesIndex] ?? 0;
@@ -175,7 +175,7 @@ const PharmacyPrescription: React.FC<PharmacyPrescriptionProps> = ({ callMetrics
                     totalCalls > 0 ? `${((value / totalCalls) * 100).toFixed(0)}%` : "0%";
 
                 return `
-                    <div style="padding: 10px 14px; background: var(--bg-primary); border: none !important; outline: none !important; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); font-family: Montserrat, sans-serif; min-width: 180px; max-width: 220px; overflow: hidden; position: relative;">
+                    <div style="padding: 10px 14px; background: var(--bg-primary); border: none !important; outline: none !important; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); font-family: system-ui, -apple-system, sans-serif; min-width: 180px; max-width: 220px; overflow: hidden; position: relative;">
                         <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
                             <div style="width: 14px; height: 14px; border-radius: 3px; background: ${color}; flex-shrink: 0;"></div>
                             <span style="font-weight: 600; font-size: 13px; color: var(--text-primary);">${label}</span>

@@ -100,7 +100,7 @@ const RatioItem: React.FC<RatioItemProps> = ({
     
     return (
         <div 
-            className="flex items-center justify-between py-4 px-4 bg-secondary rounded-[10px] h-[85px] transition-all duration-300 hover:bg-tertiary hover:-translate-y-0.5"
+            className="flex items-center justify-between py-4 px-4 bg-secondary rounded-[10px] h-[85px] transition-all duration-300 hover:bg-tertiary"
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >

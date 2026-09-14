@@ -21,6 +21,7 @@ import DashboardSidebar, { type DashboardTab } from "@/components/sidebar/sideba
 import GenerateReportModal from "@/components/report/GenerateReportModal";
 import { appendUsageMetricsRange } from "@/lib/usage-metrics-range";
 import { extractTransferMetricsFromUsage } from "@/lib/transfer-metrics";
+import { extractFeatureUsageSummary, formatAvgMinutesPerUserDay } from "@/lib/feature-usage-metrics";
 import { API_ENDPOINTS } from "@/lib/config";
 import { type ApiFacility, type DirectoryFacility, mapApiList } from "@/lib/facility-directory";
 
@@ -51,6 +52,8 @@ export interface AnalyticsData {
     escalation_rate_percent: number;
     escalated_critical_messages: number;
     escalation_rate_of_total_messages_percent: number;
+    critical_messages_read_percent?: number;
+    critical_messages_acknowledged_percent?: number;
     role_fill_rate_percent: number;
     filled_roles: number;
     total_roles: number;
@@ -135,6 +138,7 @@ export default function InternalFacilityDashboard() {
     }, [activeTab]);
 
     const analyticsCacheRef = useRef<Map<string, AnalyticsData>>(new Map());
+    const featureUsageCacheRef = useRef<Map<string, { dailyUsersAvg: number | null; avgMinutesPerUserDay: number | null }>>(new Map());
 
     const initialFrom = searchParams.get("from");
     const initialTo = searchParams.get("to");
@@ -151,16 +155,20 @@ export default function InternalFacilityDashboard() {
     const initialDateState = getInitialDates();
     const [dateFrom, setDateFrom] = useState(initialDateState.from);
     const [dateTo, setDateTo] = useState(initialDateState.to);
+    const [dailyUsersAvg, setDailyUsersAvg] = useState<number | null>(null);
+    const [avgMinutesPerUserDay, setAvgMinutesPerUserDay] = useState<number | null>(null);
 
     // Load facilities for filter dropdown
     const loadFacilities = useCallback(async () => {
         setFacilitiesLoading(true);
         try {
-            const res = await fetch(API_ENDPOINTS.FACILITIES, { credentials: "include" });
+            const res = await fetch(API_ENDPOINTS.INTERNAL_FACILITIES, { credentials: "include" });
             const json = await res.json();
             if (res.ok) {
                 const rows = Array.isArray(json) ? (json as ApiFacility[]) : [];
-                setFacilities(mapApiList(rows));
+                setFacilities(
+                    mapApiList(rows).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }))
+                );
             }
         } catch {
             // Facilities picker may be unavailable — dashboard still works
@@ -170,6 +178,21 @@ export default function InternalFacilityDashboard() {
     }, []);
 
     useEffect(() => { loadFacilities(); }, [loadFacilities]);
+
+    // Legacy act-as sessions should start on the All-facilities view.
+    useEffect(() => {
+        fetch(API_ENDPOINTS.INTERNAL_ACT_AS, { credentials: "include" })
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data: { support_mode?: boolean } | null) => {
+                if (data?.support_mode) {
+                    fetch(API_ENDPOINTS.INTERNAL_EXIT_ACT_AS, {
+                        method: "POST",
+                        credentials: "include",
+                    }).catch(() => undefined);
+                }
+            })
+            .catch(() => undefined);
+    }, []);
 
     const fetchAnalytics = useCallback(async () => {
         const params = new URLSearchParams();
@@ -196,8 +219,13 @@ export default function InternalFacilityDashboard() {
         }
 
         const cached = analyticsCacheRef.current.get(cacheKey);
+        const cachedFeature = featureUsageCacheRef.current.get(cacheKey);
         if (cached) {
             setData(cached);
+            if (cachedFeature) {
+                setDailyUsersAvg(cachedFeature.dailyUsersAvg);
+                setAvgMinutesPerUserDay(cachedFeature.avgMinutesPerUserDay);
+            }
             setLoading(false);
         } else {
             setLoading(true);
@@ -218,13 +246,36 @@ export default function InternalFacilityDashboard() {
                 const qs = params.toString();
                 url = `${API_ENDPOINTS.USAGE_METRICS}${qs ? `?${qs}` : ""}`;
             }
+
+            const featureParams = new URLSearchParams();
+            if (facilityId) featureParams.set("facility_id", facilityId);
+            if (dateFrom && dateTo) {
+                appendUsageMetricsRange(featureParams, dateFrom, dateTo);
+            }
+            const featureQs = featureParams.toString();
+            const featureUrl = `${API_ENDPOINTS.FEATURE_USAGE_METRICS}${featureQs ? `?${featureQs}` : ""}`;
+
             console.log("[internal-dashboard] Fetching:", url);
-            const res = await fetch(url, { credentials: "include", cache: "no-store" });
+            const [res, featureRes] = await Promise.all([
+                fetch(url, { credentials: "include", cache: "no-store" }),
+                fetch(featureUrl, { credentials: "include", cache: "no-store" }),
+            ]);
             if (res.ok) {
                 const json = (await res.json()) as AnalyticsData;
                 console.log("[internal-dashboard] Response window_days:", json.window_days, "total_messages:", json.total_messages, "role_metrics:", json.role_metrics?.length ?? 0);
                 analyticsCacheRef.current.set(cacheKey, json);
                 setData(json);
+            }
+            if (featureRes.ok) {
+                const summary = extractFeatureUsageSummary(await featureRes.json());
+                featureUsageCacheRef.current.set(cacheKey, summary);
+                setDailyUsersAvg(summary.dailyUsersAvg);
+                setAvgMinutesPerUserDay(summary.avgMinutesPerUserDay);
+            } else {
+                const empty = { dailyUsersAvg: null, avgMinutesPerUserDay: null };
+                featureUsageCacheRef.current.set(cacheKey, empty);
+                setDailyUsersAvg(null);
+                setAvgMinutesPerUserDay(null);
             }
         } catch (err) {
             console.error("Failed to fetch analytics:", err);
@@ -239,8 +290,6 @@ export default function InternalFacilityDashboard() {
 
     const activeUsers = data?.active_users_count ?? 0;
     const activityRate = data?.active_users_rate_percent ?? 0;
-    const totalMessages = data?.total_messages ?? 0;
-    const criticalRate = data?.critical_messages_rate_percent ?? 0;
     const escalationRate = data?.escalation_rate_percent ?? 0;
     const escalatedCount = data?.escalated_critical_messages ?? 0;
     const roleFillRate = data?.role_fill_rate_percent ?? 0;
@@ -248,18 +297,18 @@ export default function InternalFacilityDashboard() {
     const totalRoles = data?.total_roles ?? 0;
 
     const facilityOptions: DropdownOption[] = useMemo(() => [
-        { value: "", label: "All Facilities" },
+        { value: "", label: "All" },
         ...facilities.map((f) => ({ value: f.id, label: f.name })),
     ], [facilities]);
 
     const scopeLabel = useMemo(() => {
         if (!data) return "";
-        if (data.scope === "global") {
-            return `All facilities (${data.facilities_in_scope ?? 0})`;
+        if (data.scope === "global" || !facilityId) {
+            return `All facilities (${data.facilities_in_scope ?? facilities.length})`;
         }
-        const f = facilities.find((x) => x.id === data.filter_facility_id);
+        const f = facilities.find((x) => x.id === (data.filter_facility_id ?? facilityId));
         return f?.name ?? "Filtered facility";
-    }, [data, facilities]);
+    }, [data, facilities, facilityId]);
 
     return (
         <div style={{ ["--sidebar-width" as string]: isSidebarDocked ? "58px" : "243px" }}>
@@ -275,6 +324,14 @@ export default function InternalFacilityDashboard() {
                 onClose={() => setReportModalOpen(false)}
                 defaultDateFrom={dateFrom}
                 defaultDateTo={dateTo}
+                facilityId={facilityId}
+                facilityName={
+                    scopeLabel ||
+                    (facilityId
+                        ? facilities.find((f) => f.id === facilityId)?.name ?? null
+                        : "All facilities")
+                }
+                globalScope={!facilityId}
             />
             <div className={clsx('usage-dashboard-shell')}>
                 <div className="usage-inner">
@@ -302,7 +359,7 @@ export default function InternalFacilityDashboard() {
                                 options={facilityOptions}
                                 value={facilityId ?? ""}
                                 onChange={(v) => setFacilityId(v || null)}
-                                placeholder="All Facilities"
+                                placeholder="All"
                                 renderMenuInPortal
                                 portalZIndex={10000}
                             />
@@ -334,10 +391,18 @@ export default function InternalFacilityDashboard() {
                     <KpiCard
                         icon={<FaEnvelope className="w-5 h-5 text-accent-green" />}
                         iconBgColor="bg-[rgba(0,200,179,0.1)]"
-                        label="Total Messages"
-                        value={loading ? '—' : fmt(totalMessages)}
-                        change={{ value: `${criticalRate.toFixed(1)}%`, label: "Critical Rate", trend: criticalRate > 20 ? "up" : "down" }}
-                        infoText="Total messages sent across all departments including critical and standard messages."
+                        label="Daily users"
+                        value={loading ? '—' : dailyUsersAvg == null ? '—' : fmt(Math.round(dailyUsersAvg))}
+                        change={
+                            !loading && avgMinutesPerUserDay != null
+                                ? {
+                                      value: formatAvgMinutesPerUserDay(avgMinutesPerUserDay),
+                                      label: "avg time/day",
+                                      trend: avgMinutesPerUserDay >= 15 ? "up" : "down",
+                                  }
+                                : undefined
+                        }
+                        infoText="Average number of users that log into the app at least once per day. Trend shows average time spent in the app per user-day."
                         animationDelay={1}
                     />
                     <KpiCard

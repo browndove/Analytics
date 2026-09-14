@@ -50,13 +50,13 @@ const MortalityIndexChart = ({ isFullscreen = false, onToggleFullscreen }: { isF
 			categories: ["JAN", "FEB", "MAR", "APR", "MAY", "JUN"],
 			axisBorder: { show: false },
 			axisTicks: { show: false },
-			labels: { style: { colors: "var(--text-secondary)", fontSize: "10px", fontWeight: 500, fontFamily: "Montserrat" } },
+			labels: { style: { colors: "var(--text-secondary)", fontSize: "10px", fontWeight: 500, fontFamily: "system-ui, -apple-system, sans-serif" } },
 		},
 		yaxis: {
 			min: 0, max: 600, tickAmount: 4,
 			axisBorder: { show: false },
 			axisTicks: { show: false },
-			labels: { style: { colors: "var(--text-secondary)", fontSize: "10px", fontWeight: 500, fontFamily: "Montserrat" }, formatter: (val) => val.toString() },
+			labels: { style: { colors: "var(--text-secondary)", fontSize: "10px", fontWeight: 500, fontFamily: "system-ui, -apple-system, sans-serif" }, formatter: (val) => val.toString() },
 		},
 		grid: {
 			show: true, borderColor: "var(--bg-tertiary)", strokeDashArray: 4,
@@ -66,7 +66,7 @@ const MortalityIndexChart = ({ isFullscreen = false, onToggleFullscreen }: { isF
 		},
 		legend: {
 			show: true, position: "bottom", horizontalAlign: "center",
-			fontFamily: "Montserrat", fontSize: "12px", fontWeight: 500,
+			fontFamily: "system-ui, -apple-system, sans-serif", fontSize: "12px", fontWeight: 500,
 			labels: { colors: "var(--text-secondary)" },
 			markers: { size: 8, shape: "square" as const, offsetX: -4 },
 			itemMargin: { horizontal: 16 },
@@ -74,7 +74,7 @@ const MortalityIndexChart = ({ isFullscreen = false, onToggleFullscreen }: { isF
 		tooltip: {
 			theme: resolvedTheme === "dark" || resolvedTheme === "blue" ? "dark" : "light",
 			shared: true, intersect: false,
-			style: { fontSize: '12px', fontFamily: "Montserrat" },
+			style: { fontSize: '12px', fontFamily: "system-ui, -apple-system, sans-serif" },
 			y: { formatter: (val) => `${val}` },
 		},
 	};
@@ -112,13 +112,13 @@ const MortalityIndexChart = ({ isFullscreen = false, onToggleFullscreen }: { isF
 	if (isFullscreen) {
 		return (
 			<FullscreenOverlay onClose={() => onToggleFullscreen?.()}>
-				<div className="bg-primary rounded-[15px] w-full max-w-6xl max-h-[90vh] overflow-auto p-6 flex flex-col gap-[15px]">{chartContent}</div>
+				<div className="bg-primary rounded-[18px] w-full max-w-6xl max-h-[90vh] overflow-auto p-6 flex flex-col gap-[15px]">{chartContent}</div>
 			</FullscreenOverlay>
 		);
 	}
 
 	return (
-		<DashboardCard padding="none" className="w-full flex-[2] rounded-[15px] flex flex-col" style={{ padding: 18, height: 320, gap: 15 }}>{chartContent}</DashboardCard>
+		<DashboardCard padding="none" className="w-full flex-[2] rounded-[18px] flex flex-col" style={{ padding: 18, height: 320, gap: 15 }}>{chartContent}</DashboardCard>
 	);
 };
 
@@ -136,13 +136,13 @@ const MortalityRiskAgeGrid = () => {
 		dataLabels: { enabled: false },
 		xaxis: {
 			min: 0, max: 2.5, tickAmount: 5, categories: ["55-64", "64-74", "74-84", "85+"],
-			labels: { style: { colors: "var(--text-secondary)", fontSize: "10px", fontWeight: 500, fontFamily: "Montserrat" }, formatter: (val) => { const num = Number(val); return Number.isInteger(num) ? `${num}` : num.toFixed(1); } },
+			labels: { style: { colors: "var(--text-secondary)", fontSize: "10px", fontWeight: 500, fontFamily: "system-ui, -apple-system, sans-serif" }, formatter: (val) => { const num = Number(val); return Number.isInteger(num) ? `${num}` : num.toFixed(1); } },
 			axisBorder: { show: false }, axisTicks: { show: false },
 		},
-		yaxis: { labels: { style: { colors: "var(--text-secondary)", fontSize: "10px", fontWeight: 500, fontFamily: "Montserrat" } } },
+		yaxis: { labels: { style: { colors: "var(--text-secondary)", fontSize: "10px", fontWeight: 500, fontFamily: "system-ui, -apple-system, sans-serif" } } },
 		grid: { show: true, borderColor: "var(--bg-tertiary)", strokeDashArray: 4, xaxis: { lines: { show: true } }, yaxis: { lines: { show: true } }, padding: { top: 0, right: 10, bottom: 0, left: 0 } },
 		legend: { show: false },
-		tooltip: { enabled: true, theme: resolvedTheme === "dark" || resolvedTheme === "blue" ? "dark" : "light", style: { fontSize: '12px', fontFamily: "Montserrat" } },
+		tooltip: { enabled: true, theme: resolvedTheme === "dark" || resolvedTheme === "blue" ? "dark" : "light", style: { fontSize: '12px', fontFamily: "system-ui, -apple-system, sans-serif" } },
 	};
 
 	const ageMixSeries = [{ name: "Mortality ratio", data: [0.9, 1.7, 2.2, 0.4] }];
@@ -182,7 +182,7 @@ const MortalityRiskAgeGrid = () => {
 				<div style={{ gridColumn: 'span 4' }}>
 					<MortalityIndexChart isFullscreen={isFullscreen} onToggleFullscreen={() => setIsFullscreen(!isFullscreen)} />
 				</div>
-				<DashboardCard padding="none" className="w-full rounded-[10px] shadow-soft flex flex-col justify-between" style={{ padding: 16, height: 320, gridColumn: 'span 4' }}>
+				<DashboardCard padding="none" className="w-full rounded-[10px] flex flex-col justify-between" style={{ padding: 16, height: 320, gridColumn: 'span 4' }}>
 					<Text variant="body-md-semibold" color="text-primary">High-risk cohorts</Text>
 					<div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 						{highRiskCohorts.map((item, index) => (
@@ -206,7 +206,7 @@ const MortalityRiskAgeGrid = () => {
 						))}
 					</div>
 				</DashboardCard>
-				<DashboardCard padding="none" className="w-full rounded-[15px] shadow-soft flex flex-col" style={{ padding: 18, height: 320, gap: 15, gridColumn: 'span 4' }}>
+				<DashboardCard padding="none" className="w-full rounded-[18px] border border-black/[0.08] flex flex-col" style={{ padding: 18, height: 320, gap: 15, gridColumn: 'span 4' }}>
 					<div className="flex flex-col gap-[5px]">
 						<Text variant="body-md-semibold" color="text-primary">Age mix index</Text>
 						<Text variant="body-sm" color="text-tertiary">Mortality ratio</Text>

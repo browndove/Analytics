@@ -18,6 +18,8 @@ interface KpiCardProps {
     };
     infoText?: string;
     animationDelay?: number;
+    /** Optional surface treatment — e.g. soft pink for Daily users. */
+    surface?: "default" | "pink";
 }
 
 // Parse value to extract number and format info
@@ -42,7 +44,25 @@ const formatNumber = (num: number, decimals: number): string => {
     return Math.round(num).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 };
 
-const KpiCard = ({ icon, iconBgColor, label, value, change, infoText, animationDelay = 0 }: KpiCardProps) => {
+const SURFACE_STYLES: Record<NonNullable<KpiCardProps["surface"]>, React.CSSProperties> = {
+    default: {},
+    pink: {
+        background:
+            "linear-gradient(155deg, #fff9fb 0%, #ffeef3 42%, #ffe4ec 100%)",
+        borderColor: "rgba(255, 143, 171, 0.28)",
+    },
+};
+
+const KpiCard = ({
+    icon,
+    iconBgColor,
+    label,
+    value,
+    change,
+    infoText,
+    animationDelay = 0,
+    surface = "default",
+}: KpiCardProps) => {
     const [isHovered, setIsHovered] = useState(false);
     const [isVisible, setIsVisible] = useState(false);
     const [animatedNumber, setAnimatedNumber] = useState(0);
@@ -89,14 +109,15 @@ const KpiCard = ({ icon, iconBgColor, label, value, change, infoText, animationD
     return (
         <div
             className={clsx(
-                "relative box-border flex h-full min-h-0 w-full flex-col bg-primary rounded-[15px] shadow-soft",
+                "relative box-border flex h-full min-h-0 w-full flex-col bg-primary rounded-[18px] border border-black/[0.08]",
                 "transition-all duration-500 ease-out",
-                "hover:shadow-[0_8px_30px_rgba(0,0,0,0.12)] hover:-translate-y-1",
+                " hover:-translate-y-1",
                 isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
             )}
             style={{
-                padding: 24,
-                transitionDelay: `${animationDelay * 100}ms`
+                padding: 16,
+                transitionDelay: `${animationDelay * 100}ms`,
+                ...SURFACE_STYLES[surface],
             }}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
@@ -171,11 +192,14 @@ const KpiCard = ({ icon, iconBgColor, label, value, change, infoText, animationD
             {/* Subtle gradient overlay on hover */}
             <div
                 className={clsx(
-                    "absolute inset-0 rounded-[15px] pointer-events-none transition-opacity duration-500",
+                    "absolute inset-0 rounded-[18px] pointer-events-none transition-opacity duration-500",
                     isHovered ? "opacity-100" : "opacity-0"
                 )}
                 style={{
-                    background: "linear-gradient(135deg, rgba(41, 128, 211, 0.03) 0%, transparent 50%)"
+                    background:
+                        surface === "pink"
+                            ? "linear-gradient(135deg, rgba(255, 105, 145, 0.08) 0%, transparent 55%)"
+                            : "linear-gradient(135deg, rgba(41, 128, 211, 0.03) 0%, transparent 50%)",
                 }}
             />
         </div>

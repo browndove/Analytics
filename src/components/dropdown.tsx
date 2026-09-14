@@ -89,7 +89,7 @@ const Dropdown = ({
         <div
             ref={menuRef}
             className={clsx(
-                'overflow-hidden rounded-[12px] border border-[#e8eaef] bg-white shadow-[0_8px_24px_rgba(15,23,42,0.08)] z-50',
+                'overflow-hidden rounded-[18px] border border-black/[0.08] bg-white z-50',
                 renderMenuInPortal ? 'fixed' : 'absolute right-0 mt-2 min-w-[220px]',
                 menuClassName
             )}
@@ -165,11 +165,11 @@ const Dropdown = ({
                     });
                 }}
                 className={clsx(
-                    'relative flex min-h-[42px] cursor-pointer items-center gap-2.5 rounded-[11px] border px-3.5 py-2.5',
-                    'border-[#e8eaef] bg-white shadow-[0_1px_3px_rgba(15,23,42,0.04)]',
-                    'transition-all duration-200',
-                    'hover:border-accent-primary/25 hover:shadow-[0_2px_10px_rgba(41,128,211,0.08)]',
-                    open && 'border-accent-primary/30 shadow-[0_2px_10px_rgba(41,128,211,0.12)]',
+                    'relative flex min-h-[44px] cursor-pointer items-center gap-2.5 rounded-full border px-4 py-2.5',
+                    'border-black/[0.08] bg-white',
+                    'transition-[border-color,transform,background-color] duration-150',
+                    'hover:border-black/[0.14] active:scale-[0.95]',
+                    open && 'border-accent-primary/40',
                     triggerClassName,
                 )}
             >

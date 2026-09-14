@@ -232,6 +232,30 @@ export function sumInboundMissed(cm?: CallMetricsSlice | null): number {
     return roles.reduce((sum, r) => sum + num(r.missed_calls), 0);
 }
 
+/** Summary metrics for Calls Insight card (avoids duplicating Call Duration). */
+export function buildCallInsightSummary(cm?: CallMetricsSlice | null) {
+    const { answerRate, answered, unanswered, hasCallData } = getCallSummary(cm);
+    const topOutbound = getTopOutboundRole(cm);
+
+    const denom = answered + unanswered;
+    const connectProgress = denom > 0 ? Math.min(100, (answered / denom) * 100) : 0;
+
+    const heroValue =
+        answerRate != null && hasCallData ? `${answerRate.toFixed(1)}%` : null;
+
+    const topCallerLabel = topOutbound
+        ? `${formatRoleName(topOutbound.role_name)} · ${num(topOutbound.total_calls_made).toLocaleString()} placed`
+        : null;
+
+    return {
+        heroValue,
+        topCallerLabel,
+        unanswered,
+        connectProgress,
+        hasData: hasCallData && (heroValue != null || topCallerLabel != null),
+    };
+}
+
 export function getTopDepartments(cm?: CallMetricsSlice | null, limit = 4): CallOutboundDepartmentMetric[] {
     const depts = cm?.by_outbound_department;
     if (!Array.isArray(depts) || !depts.length) return [];

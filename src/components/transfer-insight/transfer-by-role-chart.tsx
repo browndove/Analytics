@@ -64,7 +64,7 @@ const TransferByRoleChart = ({ data, loading }: TransferByRoleChartProps) => {
             custom: ({ dataPointIndex }) => {
                 const value = values[dataPointIndex] ?? 0;
                 const role = fullRoleNames[dataPointIndex] ?? categories[dataPointIndex] ?? "";
-                return `<div class="px-2 py-1.5 text-xs" style="font-family:Montserrat,sans-serif">
+                return `<div class="px-2 py-1.5 text-xs" style="font-family:system-ui,-apple-system,sans-serif">
                     <div style="font-weight:600;margin-bottom:2px">${role}</div>
                     <div>${value} request${value === 1 ? "" : "s"}</div>
                 </div>`;

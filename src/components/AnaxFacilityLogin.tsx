@@ -280,7 +280,7 @@ export default function AnaxFacilityLogin() {
             display: 'flex',
             background: C.panelBg,
             color: C.textDark,
-            fontFamily: "'Inter', 'Montserrat', system-ui, -apple-system, sans-serif",
+            fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
         }}>
             {/* ============================================================
                 LEFT PANEL — Dark brand side

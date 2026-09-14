@@ -29,8 +29,14 @@ const MessagesByRoleBreakdown: React.FC<{ data?: any }> = ({ data }) => {
         if (!data?.role_metrics || data.role_metrics.length === 0) return [];
         
         // Separate by priority
-        const standardRoles = [...data.role_metrics].filter(r => r.priority === 'standard').sort((a, b) => (b.total_messages || 0) - (a.total_messages || 0)).slice(0, 3);
-        const criticalRoles = [...data.role_metrics].filter(r => r.priority === 'critical').sort((a, b) => (b.total_messages || 0) - (a.total_messages || 0)).slice(0, 2);
+        const standardRoles = [...data.role_metrics]
+            .filter((r) => r.priority === "standard" && (r.total_messages || 0) > 0)
+            .sort((a, b) => (b.total_messages || 0) - (a.total_messages || 0))
+            .slice(0, 3);
+        const criticalRoles = [...data.role_metrics]
+            .filter((r) => r.priority === "critical" && (r.total_messages || 0) > 0)
+            .sort((a, b) => (b.total_messages || 0) - (a.total_messages || 0))
+            .slice(0, 2);
         
         // Combine: critical first, then standard
         const selectedRoles = [...criticalRoles, ...standardRoles];
@@ -53,8 +59,14 @@ const MessagesByRoleBreakdown: React.FC<{ data?: any }> = ({ data }) => {
     // Calculate selected total for the display
     const selectedTotal = React.useMemo(() => {
         if (!data?.role_metrics || data.role_metrics.length === 0) return 0;
-        const standardRoles = [...data.role_metrics].filter(r => r.priority === 'standard').sort((a, b) => (b.total_messages || 0) - (a.total_messages || 0)).slice(0, 3);
-        const criticalRoles = [...data.role_metrics].filter(r => r.priority === 'critical').sort((a, b) => (b.total_messages || 0) - (a.total_messages || 0)).slice(0, 2);
+        const standardRoles = [...data.role_metrics]
+            .filter((r) => r.priority === "standard" && (r.total_messages || 0) > 0)
+            .sort((a, b) => (b.total_messages || 0) - (a.total_messages || 0))
+            .slice(0, 3);
+        const criticalRoles = [...data.role_metrics]
+            .filter((r) => r.priority === "critical" && (r.total_messages || 0) > 0)
+            .sort((a, b) => (b.total_messages || 0) - (a.total_messages || 0))
+            .slice(0, 2);
         const selectedRoles = [...criticalRoles, ...standardRoles];
         return selectedRoles.reduce((acc, curr) => acc + (curr.total_messages || 0), 0);
     }, [data]);
@@ -97,17 +109,23 @@ const MessagesByRoleBreakdown: React.FC<{ data?: any }> = ({ data }) => {
                 </div>
             </div>
             <div className="flex h-[35px] rounded-[10px] overflow-hidden">
-                {[0, 1, 2, 3, 4].map((i) => (
-                    <div
-                        key={i}
-                        className={i === 4 ? "flex-1 transition-all duration-100" : "shrink-0 transition-all duration-100"}
-                        style={{
-                            width: i === 4 ? `${animatedBars[i]}%` : `${animatedBars[i]}%`,
-                            minWidth: i === 4 ? `${animatedBars[i]}%` : undefined,
-                            backgroundColor: roleCategories[i]?.color || 'transparent'
-                        }}
-                    />
-                ))}
+                {roleCategories.length === 0 ? (
+                    <div className="flex h-full w-full items-center justify-center rounded-[10px] border border-dashed border-tertiary bg-secondary/30">
+                        <Text variant="body-sm" color="text-secondary">No role message breakdown for this period.</Text>
+                    </div>
+                ) : (
+                    [0, 1, 2, 3, 4].map((i) => (
+                        <div
+                            key={i}
+                            className={i === 4 ? "flex-1 transition-all duration-100" : "shrink-0 transition-all duration-100"}
+                            style={{
+                                width: i === 4 ? `${animatedBars[i]}%` : `${animatedBars[i]}%`,
+                                minWidth: i === 4 ? `${animatedBars[i]}%` : undefined,
+                                backgroundColor: roleCategories[i]?.color || "transparent",
+                            }}
+                        />
+                    ))
+                )}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {roleCategories.map((category, index) => (

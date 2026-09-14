@@ -37,7 +37,7 @@ const RedZoneAlerts = ({ roles = [] }: RedZoneAlertsProps) => {
     return (
         <div
             className={clsx(
-                "bg-primary border rounded-[15px] flex flex-col shadow-soft overflow-hidden relative",
+                "bg-primary border rounded-[18px] flex flex-col overflow-hidden relative",
                 "transition-all duration-500",
                 "animate-border-glow",
                 isHovered ? "border-accent-red/70 shadow-[0_0_20px_rgba(255,95,87,0.15)]" : "border-accent-red/50"

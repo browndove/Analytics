@@ -195,17 +195,20 @@ function pickNestedMinutes(
     return mapMinutesDistribution(parent);
 }
 
-/** Unwrap `data` / `usage` envelopes then extract nested MinutesDistribution blocks. */
-export function extractUsageTimeDistributions(payload: unknown): UsageTimeDistributions {
-    if (!isRecord(payload)) return {};
-    let root = payload;
+/** Unwrap a `data` / `usage` / `metrics` / `result` envelope, if present. */
+export function unwrapUsageRoot(payload: unknown): Record<string, unknown> | undefined {
+    if (!isRecord(payload)) return undefined;
     for (const key of ["data", "usage", "metrics", "result"]) {
         const inner = payload[key];
-        if (isRecord(inner)) {
-            root = inner;
-            break;
-        }
+        if (isRecord(inner)) return inner;
     }
+    return payload;
+}
+
+/** Unwrap `data` / `usage` envelopes then extract nested MinutesDistribution blocks. */
+export function extractUsageTimeDistributions(payload: unknown): UsageTimeDistributions {
+    const root = unwrapUsageRoot(payload);
+    if (!root) return {};
 
     return {
         readAll: pickNestedMinutes(root, "read_minutes", "all"),
@@ -292,17 +295,61 @@ export function resolveCriticalAckMinutes(
     return undefined;
 }
 
+const CRITICAL_COVERAGE_KEYS = {
+    read: ["critical_messages_read_percent"],
+    acknowledged: ["critical_messages_acknowledged_percent", "critical_messages_acked_percent"],
+} as const;
+
+/**
+ * Share of critical messages read / acknowledged, as a 0–100 percentage.
+ * Unlike the minutes resolvers, 0 is a valid reading (nothing covered), so only
+ * a missing or non-numeric field yields null.
+ */
+export function resolveCriticalCoveragePercent(
+    payload: unknown,
+    kind: "read" | "acknowledged"
+): number | null {
+    const root = unwrapUsageRoot(payload);
+    if (!root) return null;
+
+    for (const key of CRITICAL_COVERAGE_KEYS[kind]) {
+        if (!(key in root)) continue;
+        const raw = root[key];
+        if (raw === undefined || raw === null || raw === "") continue;
+        const parsed = typeof raw === "string" ? parseFloat(raw) : Number(raw);
+        if (!Number.isFinite(parsed)) continue;
+        return Math.min(100, Math.max(0, parsed));
+    }
+    return null;
+}
+
+export function resolveRoleSignInMinutes(role?: Record<string, unknown> | null): number | null {
+    if (!role) return null;
+    const roleDist = mapMinutesDistribution(role.sign_in_minutes);
+    const fromRole = pickTypicalMinutes(roleDist);
+    if (fromRole != null) return fromRole;
+    const legacy = pickDefinedNum(role, "avg_sign_in_minutes_since_midnight_utc");
+    return legacy !== undefined && legacy > 0 ? legacy : null;
+}
+
+export function resolveRoleSignOutMinutes(role?: Record<string, unknown> | null): number | null {
+    if (!role) return null;
+    const roleDist = mapMinutesDistribution(role.sign_out_minutes);
+    const fromRole = pickTypicalMinutes(roleDist);
+    if (fromRole != null) return fromRole;
+    const legacy = pickDefinedNum(role, "avg_sign_out_minutes_since_midnight_utc");
+    return legacy !== undefined && legacy > 0 ? legacy : null;
+}
+
+export function roleHasSignInOutData(role?: Record<string, unknown> | null): boolean {
+    return resolveRoleSignInMinutes(role) != null || resolveRoleSignOutMinutes(role) != null;
+}
+
 export function resolveSignInMinutes(
     root: Record<string, unknown> | undefined,
     role?: Record<string, unknown> | null
 ): number | null {
-    if (role) {
-        const roleDist = mapMinutesDistribution(role.sign_in_minutes);
-        const fromRole = pickTypicalMinutes(roleDist);
-        if (fromRole != null) return fromRole;
-        const legacy = pickDefinedNum(role, "avg_sign_in_minutes_since_midnight_utc");
-        if (legacy !== undefined && legacy > 0) return legacy;
-    }
+    if (role) return resolveRoleSignInMinutes(role);
     if (!root) return null;
     const globalDist = extractUsageTimeDistributions(root).signIn;
     const fromGlobal = pickTypicalMinutes(globalDist);
@@ -315,13 +362,7 @@ export function resolveSignOutMinutes(
     root: Record<string, unknown> | undefined,
     role?: Record<string, unknown> | null
 ): number | null {
-    if (role) {
-        const roleDist = mapMinutesDistribution(role.sign_out_minutes);
-        const fromRole = pickTypicalMinutes(roleDist);
-        if (fromRole != null) return fromRole;
-        const legacy = pickDefinedNum(role, "avg_sign_out_minutes_since_midnight_utc");
-        if (legacy !== undefined && legacy > 0) return legacy;
-    }
+    if (role) return resolveRoleSignOutMinutes(role);
     if (!root) return null;
     const globalDist = extractUsageTimeDistributions(root).signOut;
     const fromGlobal = pickTypicalMinutes(globalDist);

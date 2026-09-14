@@ -9,19 +9,19 @@ import { RiExpandDiagonalLine } from "react-icons/ri";
 import { GrContract } from "react-icons/gr";
 import InfoTooltip from "@/components/info-tooltip";
 import FullscreenOverlay from "@/components/fullscreen-overlay";
+import { formatDurationSeconds } from "@/lib/distribution-metrics";
 import {
     type CallMetricsSlice,
     formatRoleName,
-    getCallSummary,
+    hasAnsweredDuration,
     hasInboundOutcomes,
     hasOutboundOutcomes,
     num,
+    pickTypicalSeconds,
     sortInboundDepartmentsByVolume,
     sortInboundRolesByVolume,
     sortOutboundDepartmentsByVolume,
     sortOutboundRolesByVolume,
-    sumInboundAnswered,
-    sumInboundMissed,
     truncateLabel,
 } from "./call-metrics-helpers";
 
@@ -32,28 +32,40 @@ export type CallChartDimension = "department" | "role";
 
 type BarChartSeries = { name: string; data: number[] }[];
 
-export type CallOutcomeBarChartProps = {
-    callMetrics?: CallMetricsSlice;
-    direction: CallChartDirection;
-    dimension: CallChartDimension;
-    title: string;
-    infoText: string;
-    limit?: number;
-    showLiveBadge?: boolean;
-    headerExtra?: React.ReactNode;
-    emptyLabel?: string;
+type ChartBuildResult = {
+    categories: string[];
+    fullNames: string[];
+    series: BarChartSeries;
+    chartYMax: number;
+    hasOutcomes: boolean;
+    summaryAnswered: number;
+    summaryNegative: number;
 };
 
 function truncateCategory(name: string, max = 14): string {
     return truncateLabel(name, max);
 }
 
+function sumSeries(data: number[]): number {
+    return data.reduce((sum, n) => sum + n, 0);
+}
+
+const EMPTY_CHART: ChartBuildResult = {
+    categories: [],
+    fullNames: [],
+    series: [],
+    chartYMax: 80,
+    hasOutcomes: false,
+    summaryAnswered: 0,
+    summaryNegative: 0,
+};
+
 function buildChartData(
     callMetrics: CallMetricsSlice | undefined,
     direction: CallChartDirection,
     dimension: CallChartDimension,
     limit: number
-) {
+): ChartBuildResult {
     const isOutbound = direction === "outbound";
     const isRole = dimension === "role";
 
@@ -62,15 +74,7 @@ function buildChartData(
             ? sortOutboundRolesByVolume(callMetrics, limit)
             : sortOutboundDepartmentsByVolume(callMetrics, limit);
 
-        if (!rows.length) {
-            return {
-                categories: [] as string[],
-                fullNames: [] as string[],
-                series: [] as BarChartSeries,
-                chartYMax: 80,
-                hasOutcomes: false,
-            };
-        }
+        if (!rows.length) return EMPTY_CHART;
 
         const fullNames = isRole
             ? (rows as ReturnType<typeof sortOutboundRolesByVolume>).map((r) =>
@@ -82,17 +86,19 @@ function buildChartData(
 
         if (hasOutcomes) {
             const answeredData = rows.map((r) => num(r.answered_calls));
-            const negativeData = rows.map((r) => num(r.unanswered_calls));
-            const peak = Math.max(...answeredData, ...negativeData, 0);
+            const unansweredData = rows.map((r) => num(r.unanswered_calls));
+            const peak = Math.max(...answeredData, ...unansweredData, 0);
             return {
                 categories,
                 fullNames,
                 chartYMax: peak <= 0 ? 80 : Math.ceil((peak * 1.15) / 10) * 10,
                 hasOutcomes: true,
+                summaryAnswered: sumSeries(answeredData),
+                summaryNegative: sumSeries(unansweredData),
                 series: [
                     { name: "Answered", data: answeredData },
-                    { name: "Unanswered", data: negativeData },
-                ] as BarChartSeries,
+                    { name: "Unanswered", data: unansweredData },
+                ],
             };
         }
 
@@ -103,7 +109,9 @@ function buildChartData(
             fullNames,
             chartYMax: peak <= 0 ? 80 : Math.ceil((peak * 1.15) / 10) * 10,
             hasOutcomes: false,
-            series: [{ name: "Calls placed", data: volumeData }] as BarChartSeries,
+            summaryAnswered: sumSeries(volumeData),
+            summaryNegative: 0,
+            series: [{ name: "Calls placed", data: volumeData }],
         };
     }
 
@@ -111,15 +119,7 @@ function buildChartData(
         ? sortInboundRolesByVolume(callMetrics, limit)
         : sortInboundDepartmentsByVolume(callMetrics, limit);
 
-    if (!rows.length) {
-        return {
-            categories: [] as string[],
-            fullNames: [] as string[],
-            series: [] as BarChartSeries,
-            chartYMax: 80,
-            hasOutcomes: false,
-        };
-    }
+    if (!rows.length) return EMPTY_CHART;
 
     const fullNames = isRole
         ? (rows as ReturnType<typeof sortInboundRolesByVolume>).map((r) => formatRoleName(r.role_name))
@@ -134,12 +134,26 @@ function buildChartData(
         fullNames,
         chartYMax: peak <= 0 ? 80 : Math.ceil((peak * 1.15) / 10) * 10,
         hasOutcomes: rows.some(hasInboundOutcomes),
+        summaryAnswered: sumSeries(answeredData),
+        summaryNegative: sumSeries(missedData),
         series: [
             { name: "Answered", data: answeredData },
             { name: "Missed", data: missedData },
-        ] as BarChartSeries,
+        ],
     };
 }
+
+export type CallOutcomeBarChartProps = {
+    callMetrics?: CallMetricsSlice;
+    direction: CallChartDirection;
+    dimension: CallChartDimension;
+    title: string;
+    infoText: string;
+    limit?: number;
+    showLiveBadge?: boolean;
+    headerExtra?: React.ReactNode;
+    emptyLabel?: string;
+};
 
 const CallOutcomeBarChart: React.FC<CallOutcomeBarChartProps> = ({
     callMetrics,
@@ -158,22 +172,22 @@ const CallOutcomeBarChart: React.FC<CallOutcomeBarChartProps> = ({
     const [animatedPositive, setAnimatedPositive] = useState(0);
     const [animatedNegative, setAnimatedNegative] = useState(0);
 
-    const { answered, unanswered, hasCallData } = getCallSummary(callMetrics);
     const isOutbound = direction === "outbound";
-
-    const positiveTotal = isOutbound ? answered : sumInboundAnswered(callMetrics);
-    const negativeTotal = isOutbound ? unanswered : sumInboundMissed(callMetrics);
-    const showStats = isOutbound
-        ? hasCallData
-        : positiveTotal > 0 || negativeTotal > 0 || num(callMetrics?.total_missed_calls) > 0;
-
     const positiveLabel = "Answered";
     const negativeLabel = isOutbound ? "Unanswered" : "Missed";
+    const hasAnswered = isOutbound && hasAnsweredDuration(callMetrics);
+    const typicalSeconds = isOutbound ? pickTypicalSeconds(callMetrics?.answered) : null;
 
     const chart = useMemo(
         () => buildChartData(callMetrics, direction, dimension, limit),
         [callMetrics, direction, dimension, limit]
     );
+
+    const positiveTotal = chart.summaryAnswered;
+    const negativeTotal = chart.summaryNegative;
+    const showStats =
+        chart.categories.length > 0 &&
+        (positiveTotal > 0 || negativeTotal > 0 || chart.series.some((s) => s.data.some((v) => v > 0)));
 
     useEffect(() => {
         setIsVisible(true);
@@ -247,7 +261,7 @@ const CallOutcomeBarChart: React.FC<CallOutcomeBarChartProps> = ({
                         colors: "var(--text-secondary)",
                         fontSize: "10px",
                         fontWeight: 500,
-                        fontFamily: "Montserrat",
+                        fontFamily: "system-ui, -apple-system, sans-serif",
                     },
                 },
             },
@@ -273,7 +287,7 @@ const CallOutcomeBarChart: React.FC<CallOutcomeBarChartProps> = ({
                 show: chart.series.length > 1 || chart.series[0]?.name !== "Calls placed",
                 position: "bottom",
                 horizontalAlign: "center",
-                fontFamily: "Montserrat, sans-serif",
+                fontFamily: "system-ui, -apple-system, sans-serif",
                 fontSize: "11px",
                 fontWeight: 500,
                 labels: { colors: "var(--text-secondary)" },
@@ -281,7 +295,7 @@ const CallOutcomeBarChart: React.FC<CallOutcomeBarChartProps> = ({
             tooltip: {
                 theme: "light",
                 fillSeriesColor: false,
-                style: { fontSize: "12px", fontFamily: "Montserrat" },
+                style: { fontSize: "12px", fontFamily: "system-ui, -apple-system, sans-serif" },
                 x: {
                     formatter: (_val, opts) => chart.fullNames[opts?.dataPointIndex ?? 0] ?? _val,
                 },
@@ -296,8 +310,8 @@ const CallOutcomeBarChart: React.FC<CallOutcomeBarChartProps> = ({
             ? "No role breakdown available for this period."
             : "No department breakdown available for this period.";
 
-    const chartBody = (height: string) => (
-        <div className="call-outcome-chart w-full" style={{ height }}>
+    const chartBody = (heightClass: string) => (
+        <div className={`call-outcome-chart w-full min-h-[260px] ${heightClass}`}>
             {chart.categories.length > 0 ? (
                 <Chart
                     options={chartOptions}
@@ -316,8 +330,8 @@ const CallOutcomeBarChart: React.FC<CallOutcomeBarChartProps> = ({
         </div>
     );
 
-    const panel = (height: string) => (
-        <>
+    const panel = (chartHeightClass: string) => (
+        <div className="flex h-full min-h-0 flex-col gap-4">
             <div className="flex items-start justify-between">
                 <Text variant="body-md-semibold" color="text-primary">
                     {title}
@@ -345,7 +359,23 @@ const CallOutcomeBarChart: React.FC<CallOutcomeBarChartProps> = ({
                 </div>
             </div>
 
-            {headerExtra}
+            {isOutbound ? (
+                <div className="flex min-h-[58px] flex-wrap gap-3">
+                    {hasAnswered && typicalSeconds != null ? (
+                        <div className="rounded-[10px] bg-secondary px-[15px] py-[8px]">
+                            <Text variant="body-sm" color="text-secondary">
+                                Avg answered call duration
+                            </Text>
+                            <Text variant="heading-sm" color="text-primary">
+                                {formatDurationSeconds(typicalSeconds)}
+                            </Text>
+                        </div>
+                    ) : null}
+                    {headerExtra}
+                </div>
+            ) : (
+                headerExtra
+            )}
 
             <div className="flex flex-wrap gap-3">
                 <div className="flex min-w-[160px] flex-1 items-center justify-between rounded-[10px] bg-accent-green/10 px-[15px] py-[8px]">
@@ -370,19 +400,19 @@ const CallOutcomeBarChart: React.FC<CallOutcomeBarChartProps> = ({
                 </div>
             </div>
 
-            {chartBody(height)}
-        </>
+            {chartBody(chartHeightClass)}
+        </div>
     );
 
     return (
         <>
             <DashboardCard
-                className="flex min-w-[320px] flex-1 flex-col gap-4"
+                className="flex h-full min-h-0 min-w-[320px] flex-1 flex-col"
                 padding="lg"
                 onMouseEnter={() => setIsHovered(true)}
                 onMouseLeave={() => setIsHovered(false)}
             >
-                {panel("260px")}
+                {panel("flex-1")}
             </DashboardCard>
 
             {isFullscreen ? (
@@ -391,12 +421,12 @@ const CallOutcomeBarChart: React.FC<CallOutcomeBarChartProps> = ({
                     panelClassName="bg-transparent shadow-none p-0 w-full!"
                 >
                     <DashboardCard
-                        className="flex w-[80vw]! flex-col gap-4"
+                        className="flex w-[80vw]! flex-col"
                         padding="lg"
                         onMouseEnter={() => setIsHovered(true)}
                         onMouseLeave={() => setIsHovered(false)}
                     >
-                        {panel("600px")}
+                        {panel("h-[600px]")}
                     </DashboardCard>
                 </FullscreenOverlay>
             ) : null}

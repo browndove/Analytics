@@ -27,6 +27,19 @@ const TransferByFacilityChart = ({ data, loading }: TransferByFacilityChartProps
 
     const total = rows.reduce((sum, r) => sum + r.total_transfer_requests, 0);
     const maxValue = Math.max(...rows.map((r) => r.total_transfer_requests), 1);
+    const xAxisTicks = React.useMemo(
+        () =>
+            [
+                ...new Set([
+                    0,
+                    Math.ceil(maxValue / 4),
+                    Math.ceil(maxValue / 2),
+                    Math.ceil((3 * maxValue) / 4),
+                    maxValue,
+                ]),
+            ],
+        [maxValue]
+    );
 
     React.useEffect(() => {
         setIsVisible(true);
@@ -115,8 +128,8 @@ const TransferByFacilityChart = ({ data, loading }: TransferByFacilityChartProps
                         ))}
                     </div>
                     <div className="ml-[110px] flex justify-between pr-8">
-                        {[0, Math.ceil(maxValue / 4), Math.ceil(maxValue / 2), Math.ceil((3 * maxValue) / 4), maxValue].map((val) => (
-                            <Text key={val} variant="body-xs" color="text-tertiary">
+                        {xAxisTicks.map((val, index) => (
+                            <Text key={`axis-tick-${index}`} variant="body-xs" color="text-tertiary">
                                 {val}
                             </Text>
                         ))}

@@ -53,14 +53,14 @@ const TotalRevenueGenerated: React.FC<{ data?: any }> = ({ data }) => {
             categories,
             axisBorder: { show: false },
             axisTicks: { show: false },
-            labels: { rotate: -20, style: { colors: "var(--text-secondary)", fontSize: "10px", fontWeight: 500, fontFamily: "Montserrat" } },
+            labels: { rotate: -20, style: { colors: "var(--text-secondary)", fontSize: "10px", fontWeight: 500, fontFamily: "system-ui, -apple-system, sans-serif" } },
         },
         yaxis: {
             min: 0,
             max: yAxisMax,
             tickAmount: 4,
             labels: {
-                style: { colors: "var(--text-secondary)", fontSize: "10px", fontWeight: 500, fontFamily: "Montserrat" },
+                style: { colors: "var(--text-secondary)", fontSize: "10px", fontWeight: 500, fontFamily: "system-ui, -apple-system, sans-serif" },
                 formatter: (val) => `${val.toFixed(0)}%`,
             },
         },
@@ -68,7 +68,7 @@ const TotalRevenueGenerated: React.FC<{ data?: any }> = ({ data }) => {
         legend: { show: false },
         tooltip: {
             theme: resolvedTheme === "dark" || resolvedTheme === "blue" ? "dark" : "light",
-            style: { fontSize: '12px', fontFamily: 'Montserrat' },
+            style: { fontSize: '12px', fontFamily: "system-ui, -apple-system, sans-serif" },
             x: {
                 formatter: (_: string, opts?: any) => {
                     const idx = opts?.dataPointIndex ?? 0;

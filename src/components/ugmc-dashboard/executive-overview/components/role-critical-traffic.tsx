@@ -106,9 +106,9 @@ const RoleCriticalTraffic = ({ roles = [] }: RoleCriticalTrafficProps) => {
     return (
         <div
             className={clsx(
-                'box-border flex h-full min-h-0 w-full flex-col gap-0 bg-primary rounded-[15px] shadow-soft',
+                'box-border flex h-full min-h-0 w-full flex-col gap-0 bg-primary rounded-[18px] border border-black/[0.08]',
                 'transition-all duration-500',
-                isHovered && 'shadow-[0_8px_30px_rgba(0,0,0,0.1)]'
+                isHovered && 'border-black/[0.14]'
             )}
             style={{ padding: '18px 20px 20px' }}
             onMouseEnter={() => setIsHovered(true)}

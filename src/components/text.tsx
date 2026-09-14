@@ -1,44 +1,36 @@
 "use client";
 
-import { Montserrat } from "next/font/google";
 import * as React from "react";
 import clsx from "clsx";
 import { tailwindTextColors } from "@/lib/theme-colors";
 
-const montserrat = Montserrat({
-    subsets: ["latin"],
-    weight: ["400", "500", "600", "700"],
-    variable: "--font-montserrat",
-});
-
 /* --------------------------------------------
- * Typography scale (design tokens)
+ * Typography scale — Apple rhythm, Helix colors
+ * Weight ladder: 300 / 400 / 600 (no 500, sparse 700)
+ * Body at 17px; display with tight tracking
  * -------------------------------------------- */
 const textVariants = {
-    "body-xs": "text-[10px] leading-[1.05] font-medium",
-    "body-xs-semibold": "text-[10px] leading-[1.05] font-semibold",
-    "body-sm": "text-xs leading-[1.05] font-medium",
-    "body-sm-semibold": "text-xs leading-[1.05] font-semibold",
-    "body-md": "text-sm leading-[1.05] font-medium",
-    "body-md-semibold": "text-sm leading-[1.05] font-bold",
-    "body-lg": "text-base leading-[1.05] font-bold",
-    "body-lg-semibold": "text-base leading-[1.05] font-bold",
+    "body-xs": "text-[12px] leading-[1.3] font-normal tracking-[-0.01em]",
+    "body-xs-semibold": "text-[12px] leading-[1.3] font-semibold tracking-[-0.01em]",
+    "body-sm": "text-[14px] leading-[1.43] font-normal tracking-[-0.016em]",
+    "body-sm-semibold": "text-[14px] leading-[1.29] font-semibold tracking-[-0.016em]",
+    "body-md": "text-[17px] leading-[1.47] font-normal tracking-[-0.022em]",
+    "body-md-semibold": "text-[17px] leading-[1.24] font-semibold tracking-[-0.022em]",
+    "body-lg": "text-[21px] leading-[1.19] font-semibold tracking-[0.01em]",
+    "body-lg-semibold": "text-[21px] leading-[1.19] font-semibold tracking-[0.01em]",
 
-    "heading-sm": "text-base leading-[1.05] font-bold",
-    "heading-md": "text-lg leading-[1.05] font-bold",
-    "heading-lg": "text-2xl leading-[1.05] font-bold",
-    "heading-xl": "text-3xl leading-[1.05] font-bold",
-    "heading-2xl": "text-4xl leading-[1.05] font-bold",
-    "heading-3xl": "text-5xl leading-[1.05] font-bold",
+    "heading-sm": "text-[21px] leading-[1.19] font-semibold tracking-[0.01em]",
+    "heading-md": "text-[28px] leading-[1.14] font-normal tracking-[0.007em]",
+    "heading-lg": "text-[34px] leading-[1.1] font-semibold tracking-[-0.01em]",
+    "heading-xl": "text-[40px] leading-[1.1] font-semibold tracking-tight",
+    "heading-2xl": "text-[48px] leading-[1.07] font-semibold tracking-[-0.02em]",
+    "heading-3xl": "text-[56px] leading-[1.07] font-semibold tracking-[-0.02em]",
 } as const;
 
 type TextVariant = keyof typeof textVariants;
 
 type TextColor = keyof typeof tailwindTextColors | "none";
 
-/* --------------------------------------------
- * Polymorphic typing
- * -------------------------------------------- */
 type TextProps<T extends React.ElementType> = {
     as?: T;
     variant?: TextVariant;
@@ -49,9 +41,6 @@ type TextProps<T extends React.ElementType> = {
     children: React.ReactNode;
 } & Omit<React.ComponentPropsWithoutRef<T>, "as" | "children">;
 
-/* --------------------------------------------
- * Component
- * -------------------------------------------- */
 function Text<T extends React.ElementType = "span">({
     as,
     variant = "body-sm",
@@ -67,8 +56,7 @@ function Text<T extends React.ElementType = "span">({
     return (
         <Component
             className={clsx(
-                montserrat.variable,
-                "tracking-tight",
+                "font-[family-name:var(--font-sans)] antialiased",
                 textVariants[variant],
                 color !== "none" && tailwindTextColors[color],
                 truncate && "truncate",

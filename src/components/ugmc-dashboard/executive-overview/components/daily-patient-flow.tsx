@@ -9,6 +9,7 @@ import { GrContract } from "react-icons/gr";
 import { useTheme } from "next-themes";
 import clsx from "clsx";
 import FullscreenOverlay from "@/components/fullscreen-overlay";
+import { fillDailyMessageVolumePeriod } from "@/lib/daily-volume";
 
 const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
@@ -49,26 +50,28 @@ const DailyPatientFlow = ({ isFullscreen = false, onToggleFullscreen, dailyVolum
 
     useEffect(() => { hasMounted.current = true; }, []);
 
-    // Take last 7 days
+    // Always last 7 calendar days (zeros when a day had no messages)
     const volKey = JSON.stringify(dailyVolume);
-    const last7 = useMemo(() => dailyVolume.slice(-7),
+    const last7 = useMemo(
+        () => fillDailyMessageVolumePeriod(dailyVolume, 7),
         // eslint-disable-next-line react-hooks/exhaustive-deps
         [volKey]
     );
-    const dayLabels = useMemo(() => last7.map(d => {
-        const date = new Date(d.day);
-        return date.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }), [volKey]);
+    const dayLabels = useMemo(
+        () =>
+            last7.map((d) => {
+                const date = new Date(`${d.day}T12:00:00`);
+                return date.toLocaleDateString("en-US", { weekday: "short" }).toUpperCase();
+            }),
+        [last7]
+    );
 
     const stackedMax = useMemo(() => {
-        if (last7.length === 0) return 1;
         return Math.max(
             ...last7.map((d) => d.standard_messages + d.critical_messages),
             1
         );
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [volKey]);
+    }, [last7]);
 
     const yAxisMax = useMemo(() => niceMax(stackedMax, TICK_COUNT), [stackedMax]);
 
@@ -119,7 +122,7 @@ const DailyPatientFlow = ({ isFullscreen = false, onToggleFullscreen, dailyVolum
                     colors: "var(--text-secondary)",
                     fontSize: "12px",
                     fontWeight: 500,
-                    fontFamily: "Montserrat",
+                    fontFamily: "system-ui, -apple-system, sans-serif",
                 },
             },
         },
@@ -133,7 +136,7 @@ const DailyPatientFlow = ({ isFullscreen = false, onToggleFullscreen, dailyVolum
                     colors: "var(--text-secondary)",
                     fontSize: "12px",
                     fontWeight: 500,
-                    fontFamily: "Montserrat",
+                    fontFamily: "system-ui, -apple-system, sans-serif",
                 },
             },
         },
@@ -161,7 +164,7 @@ const DailyPatientFlow = ({ isFullscreen = false, onToggleFullscreen, dailyVolum
             theme: tooltipTheme,
             style: {
                 fontSize: '12px',
-                fontFamily: "Montserrat",
+                fontFamily: "system-ui, -apple-system, sans-serif",
             },
             y: {
                 formatter: (val: number) => `${Math.round(val).toLocaleString()} messages`,
@@ -190,15 +193,15 @@ const DailyPatientFlow = ({ isFullscreen = false, onToggleFullscreen, dailyVolum
         height?: string;
     }) => {
         const cardPadding = isFullscreen
-            ? { padding: 24, boxSizing: "border-box" as const }
+            ? { padding: 16, boxSizing: "border-box" as const }
             : { padding: "20px 24px 24px", boxSizing: "border-box" as const };
 
         return (
             <div
                 className={clsx(
-                    "group bg-primary rounded-[15px] shadow-soft flex min-w-0 w-full flex-col gap-0 overflow-hidden",
+                    "group bg-primary rounded-[18px] border border-black/[0.08] flex min-w-0 w-full flex-col gap-0 overflow-hidden",
                     "transition-all duration-500",
-                    !isFullscreen && "hover:shadow-[0_8px_30px_rgba(0,0,0,0.1)]"
+                    !isFullscreen && ""
                 )}
                 style={cardPadding}
             >

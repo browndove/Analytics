@@ -14,5 +14,11 @@ const ibmMono = IBM_Plex_Mono({
 });
 
 export default function InternalLayout({ children }: { children: React.ReactNode }) {
-    return <div className={`${fraunces.variable} ${ibmMono.variable} min-h-screen`}>{children}</div>;
+    return (
+        <div
+            className={`${fraunces.variable} ${ibmMono.variable} min-h-screen bg-[#f7f8fa] text-[#1a2332] antialiased`}
+        >
+            {children}
+        </div>
+    );
 }

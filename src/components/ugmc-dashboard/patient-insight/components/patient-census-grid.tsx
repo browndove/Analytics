@@ -11,6 +11,7 @@ import { useTheme } from "next-themes";
 import FullscreenOverlay from "@/components/fullscreen-overlay";
 import clsx from "clsx";
 import { buildNiceYAxisScale } from "@/lib/nice-chart-axis";
+import { fillDailyMessageVolumePeriod, fillDailyMessageVolumeRange } from "@/lib/daily-volume";
 
 const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
@@ -29,11 +30,18 @@ const AlertIcon = () => (
 );
 
 const PatientSatisfactionScore = ({ data }: { data: any }) => {
-	const satisfactionData = [
-		{ label: 'Critical Msgs', percentage: data?.critical_messages_rate_percent || 0, color: '#FF5F57', scoreRange: 'Of total messages' },
-		{ label: 'Role Coverage', percentage: data?.role_fill_rate_percent || 0, color: '#00C8B3', scoreRange: 'Of required roles' },
-		{ label: 'Active Users', percentage: data?.active_users_rate_percent || 0, color: '#2980D3', scoreRange: 'Of total staff' },
-	];
+	const satisfactionData = useMemo(
+		() => [
+			{ label: 'Critical Msgs', percentage: data?.critical_messages_rate_percent || 0, color: '#FF5F57', scoreRange: 'Of total messages' },
+			{ label: 'Role Coverage', percentage: data?.role_fill_rate_percent || 0, color: '#00C8B3', scoreRange: 'Of required roles' },
+			{ label: 'Active Users', percentage: data?.active_users_rate_percent || 0, color: '#2980D3', scoreRange: 'Of total staff' },
+		],
+		[
+			data?.critical_messages_rate_percent,
+			data?.role_fill_rate_percent,
+			data?.active_users_rate_percent,
+		]
+	);
 
 	const radius = 90;
 	const strokeWidth = 45;
@@ -41,7 +49,7 @@ const PatientSatisfactionScore = ({ data }: { data: any }) => {
 
 	const [animatedScore, setAnimatedScore] = useState(0);
 	const [animatedArc, setAnimatedArc] = useState(0);
-	const [animatedBars, setAnimatedBars] = useState(satisfactionData.map(() => 0));
+	const [animatedBars, setAnimatedBars] = useState(() => satisfactionData.map(() => 0));
 	const [isVisible, setIsVisible] = useState(false);
 
 	const targetScore = data?.escalation_rate_percent || 0;
@@ -51,21 +59,32 @@ const PatientSatisfactionScore = ({ data }: { data: any }) => {
 
 	useEffect(() => {
 		if (!isVisible) return;
+		let cancelled = false;
 		const duration = 2500;
 		const startTime = Date.now();
+		let frame = 0;
 		const animate = () => {
+			if (cancelled) return;
 			const elapsed = Date.now() - startTime;
 			const progress = Math.min(elapsed / duration, 1);
 			const eased = 1 - Math.pow(1 - progress, 3);
 			setAnimatedScore(targetScore * eased);
 			setAnimatedArc(targetArcPercent * eased);
 			setAnimatedBars(satisfactionData.map(item => item.percentage * eased));
-			if (progress < 1) requestAnimationFrame(animate);
-			else { setAnimatedScore(targetScore); setAnimatedArc(targetArcPercent); setAnimatedBars(satisfactionData.map(item => item.percentage)); }
+			if (progress < 1) {
+				frame = requestAnimationFrame(animate);
+			} else {
+				setAnimatedScore(targetScore);
+				setAnimatedArc(targetArcPercent);
+				setAnimatedBars(satisfactionData.map(item => item.percentage));
+			}
 		};
-		requestAnimationFrame(animate);
-	// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [isVisible]);
+		frame = requestAnimationFrame(animate);
+		return () => {
+			cancelled = true;
+			cancelAnimationFrame(frame);
+		};
+	}, [isVisible, targetScore, targetArcPercent, satisfactionData]);
 
 	return (
 		<DashboardCard padding="none" className="flex flex-col" style={{ padding: 18, height: 440, gridColumn: 'span 4' }}>
@@ -119,10 +138,23 @@ const PatientCensusChart = ({ isFullscreen = false, onToggleFullscreen, data }: 
 	const { resolvedTheme } = useTheme();
 	const [activeTab, setActiveTab] = useState<MessageVolumeTab>('all');
 
-	const dailyVolume = useMemo(
-		() => (Array.isArray(data?.daily_message_volume) ? data.daily_message_volume : []),
-		[data?.daily_message_volume]
-	);
+	const dailyVolume = useMemo(() => {
+		const raw = Array.isArray(data?.daily_message_volume) ? data.daily_message_volume : [];
+		const from =
+			typeof data?.daily_message_volume_from === "string" ? data.daily_message_volume_from : null;
+		const to = typeof data?.daily_message_volume_to === "string" ? data.daily_message_volume_to : null;
+		if (from && to) return fillDailyMessageVolumeRange(raw, from, to);
+		const windowDays = Number(data?.daily_message_volume_window_days);
+		return fillDailyMessageVolumePeriod(
+			raw,
+			Number.isFinite(windowDays) && windowDays > 0 ? windowDays : 7
+		);
+	}, [
+		data?.daily_message_volume,
+		data?.daily_message_volume_from,
+		data?.daily_message_volume_to,
+		data?.daily_message_volume_window_days,
+	]);
 
 	const categories = useMemo(
 		() =>
@@ -209,7 +241,7 @@ const PatientCensusChart = ({ isFullscreen = false, onToggleFullscreen, data }: 
 					rotateAlways: false,
 					hideOverlappingLabels: true,
 					style: {
-						fontFamily: 'Montserrat, sans-serif',
+						fontFamily: 'system-ui, -apple-system, sans-serif',
 						fontWeight: 500,
 						fontSize: '11px',
 						colors: 'var(--text-secondary)',
@@ -224,7 +256,7 @@ const PatientCensusChart = ({ isFullscreen = false, onToggleFullscreen, data }: 
 				decimalsInFloat: 0,
 				labels: {
 					style: {
-						fontFamily: 'Montserrat, sans-serif',
+						fontFamily: 'system-ui, -apple-system, sans-serif',
 						fontWeight: 500,
 						fontSize: '11px',
 						colors: 'var(--text-secondary)',
@@ -242,7 +274,7 @@ const PatientCensusChart = ({ isFullscreen = false, onToggleFullscreen, data }: 
 			tooltip: {
 				enabled: true,
 				theme: resolvedTheme === 'dark' || resolvedTheme === 'blue' ? 'dark' : 'light',
-				style: { fontSize: '12px', fontFamily: 'Montserrat, sans-serif' },
+				style: { fontSize: '12px', fontFamily: 'system-ui, -apple-system, sans-serif' },
 				x: {
 					formatter: (_val, opts) => {
 						const row = dailyVolume[opts?.dataPointIndex ?? 0];
@@ -330,7 +362,7 @@ const PatientCensusChart = ({ isFullscreen = false, onToggleFullscreen, data }: 
 	if (isFullscreen) {
 		return (
 			<FullscreenOverlay onClose={() => onToggleFullscreen?.()}>
-				<div className="bg-primary rounded-[15px] w-full max-w-6xl max-h-[90vh] overflow-auto" style={{ padding: 24 }}>{chartContent}</div>
+				<div className="bg-primary rounded-[18px] w-full max-w-6xl max-h-[90vh] overflow-auto" style={{ padding: 24 }}>{chartContent}</div>
 			</FullscreenOverlay>
 		);
 	}
