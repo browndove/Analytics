@@ -208,7 +208,7 @@ export default function DashboardSidebar({ isDocked, onDockToggle, activeTab, on
     return (
         <aside
             className={clsx(
-                "fixed left-0 top-0 z-30 hidden h-full flex-col justify-between border-r border-tertiary bg-primary shadow-soft transition-all duration-300 lg:flex",
+                "fixed left-0 top-0 z-30 hidden h-full flex-col justify-between border-r border-tertiary bg-primary transition-all duration-300 lg:flex",
                 isDocked ? "w-[58px]" : "w-[243px]"
             )}
             style={{ boxSizing: "border-box" }}

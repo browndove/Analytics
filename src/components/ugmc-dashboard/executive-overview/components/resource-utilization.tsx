@@ -110,11 +110,11 @@ const ResourceUtilization = ({ departments = [] }: ResourceUtilizationProps) => 
     return (
         <div
             className={clsx(
-                "bg-primary rounded-[15px] shadow-soft flex flex-col justify-between h-full min-h-[250px] w-full",
+                "bg-primary rounded-[18px] border border-black/[0.08] flex flex-col justify-between h-full min-h-[250px] w-full",
                 "transition-all duration-500",
-                isHovered && "shadow-[0_8px_30px_rgba(0,0,0,0.1)]"
+                isHovered && "border-black/[0.14]"
             )}
-            style={{ padding: 24 }}
+            style={{ padding: 16 }}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >

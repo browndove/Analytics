@@ -64,7 +64,7 @@ const BillingFinancePage = ({ data, onEditRole }: { data?: any; onEditRole?: (ro
                 {kpiData.map((kpi, index) => (
                     <div
                         key={index}
-                        className="min-w-0 w-full h-full min-h-[149px] [&>*]:min-w-0 [&>*]:w-full animate-slide-in-up"
+                        className="min-w-0 w-full h-full min-h-[120px] [&>*]:min-w-0 [&>*]:w-full animate-slide-in-up"
                         style={{ animationDelay: `${index * 100}ms`, opacity: 0, animationFillMode: 'forwards' }}
                     >
                         <KPICard {...kpi} />

@@ -137,22 +137,22 @@ const KPICard: React.FC<KPICardProps> = ({
         <DashboardCard
             className={clsx(
                 "relative flex h-full flex-col overflow-hidden",
-                hasSpread ? "min-h-[210px]" : "min-h-[149px]"
+                hasSpread ? "min-h-[168px]" : "min-h-[120px]"
             )}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
             {infoText && (
-                <div className="absolute top-2 right-2 z-20">
+                <div className="absolute top-1.5 right-1.5 z-20">
                     <InfoTooltip text={infoText} show={isHovered} />
                 </div>
             )}
-            <div className="flex min-h-0 flex-1 flex-col gap-3 pr-6">
-                <div className="flex min-h-[52px] items-start justify-between gap-2">
+            <div className="flex min-h-0 flex-1 flex-col gap-2 pr-6">
+                <div className="flex items-start justify-between gap-2">
                     <Text
                         variant="body-md-semibold"
                         color="text-primary"
-                        className="min-w-0 flex-1 min-h-[2.5rem] leading-tight"
+                        className="min-w-0 flex-1 leading-tight"
                     >
                         {title}
                     </Text>
@@ -160,11 +160,11 @@ const KPICard: React.FC<KPICardProps> = ({
                         <div className="mt-1 h-[10px] w-[10px] shrink-0 rounded-[2px] bg-[#00C8B3] animate-breathe" />
                     )}
                 </div>
-                <div className="flex min-w-0 flex-col gap-2">
+                <div className="flex min-w-0 flex-col gap-1.5">
                     <span
                         className={clsx(
                             valueFontClass(displayValue),
-                            "min-w-0 break-words font-bold leading-none tracking-tight text-text-primary tabular-nums",
+                            "min-w-0 break-words font-semibold leading-none tracking-tight text-text-primary tabular-nums",
                             "transition-transform duration-300",
                             isHovered && !isLiteralValue && "origin-left scale-[1.02]"
                         )}
@@ -179,18 +179,18 @@ const KPICard: React.FC<KPICardProps> = ({
                                 trendBgColor,
                                 trendTextColor
                             )}
-                            style={{ gap: 5, padding: "4px 10px" }}
+                            style={{ gap: 5, padding: "3px 8px" }}
                         >
                             {trend.isPositive ? <IncreaseIcon /> : <DecreaseIcon />}
-                            <span className="text-[12px] font-semibold whitespace-nowrap">{trend.value}</span>
+                            <span className="text-[11px] font-semibold whitespace-nowrap">{trend.value}</span>
                         </div>
                     )}
                 </div>
             </div>
-            <div className="mt-auto shrink-0 pt-3">
-                <div className="w-full shrink-0 border-t-2 border-dashed border-tertiary" />
+            <div className="mt-auto shrink-0 pt-2.5">
+                <div className="w-full shrink-0 border-t border-dashed border-tertiary" />
                 {hasSpread && spreadStats && spreadStats.length > 0 && (
-                    <div className="mt-3 grid grid-cols-3 gap-x-1 gap-y-1">
+                    <div className="mt-2 grid grid-cols-3 gap-x-1 gap-y-0.5">
                         {spreadStats.map((stat) => (
                             <SpreadStatCell key={stat.label} {...stat} />
                         ))}
@@ -201,7 +201,7 @@ const KPICard: React.FC<KPICardProps> = ({
                     color="text-secondary"
                     className={clsx(
                         "leading-snug",
-                        hasSpread ? "mt-2.5 text-[11px] line-clamp-2" : "mt-3 min-h-[44px]"
+                        hasSpread ? "mt-1.5 text-[11px] line-clamp-2" : "mt-2 text-[12px] line-clamp-2"
                     )}
                 >
                     {subtitle}

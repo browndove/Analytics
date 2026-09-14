@@ -12,4 +12,5 @@ export const API_ENDPOINTS = {
     INTERNAL_ACT_AS: `/api/proxy/internal/act-as`,
     INTERNAL_EXIT_ACT_AS: `/api/proxy/internal/exit-act-as`,
     USAGE_METRICS: `/api/proxy/usage-metrics`,
+    FEATURE_USAGE_METRICS: `/api/proxy/feature-usage-metrics`,
 };

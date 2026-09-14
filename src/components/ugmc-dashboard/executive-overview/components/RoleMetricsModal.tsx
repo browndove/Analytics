@@ -102,7 +102,7 @@ export default function RoleMetricsModal({ isOpen, onClose, roles }: RoleMetrics
     return (
         <FullscreenOverlay onClose={onClose}>
             <div
-                className="bg-primary rounded-[15px] shadow-xl w-[95vw] h-[90vh] flex flex-col"
+                className="bg-primary rounded-[18px] shadow-xl w-[95vw] h-[90vh] flex flex-col"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}

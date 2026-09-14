@@ -29,9 +29,9 @@ const TransferDirectionChart = ({ data, loading }: TransferDirectionChartProps) 
                     size: "72%",
                     labels: {
                         show: true,
-                        name: { fontFamily: "Montserrat", fontSize: "11px" },
+                        name: { fontFamily: "system-ui, -apple-system, sans-serif", fontSize: "11px" },
                         value: {
-                            fontFamily: "Montserrat",
+                            fontFamily: "system-ui, -apple-system, sans-serif",
                             fontSize: "18px",
                             fontWeight: 700,
                             formatter: (val) => String(val),
@@ -39,7 +39,7 @@ const TransferDirectionChart = ({ data, loading }: TransferDirectionChartProps) 
                         total: {
                             show: true,
                             label: "Total",
-                            fontFamily: "Montserrat",
+                            fontFamily: "system-ui, -apple-system, sans-serif",
                             fontSize: "11px",
                             color: "var(--text-secondary)",
                             formatter: () => String(total),
@@ -51,7 +51,7 @@ const TransferDirectionChart = ({ data, loading }: TransferDirectionChartProps) 
         legend: {
             show: true,
             position: "bottom",
-            fontFamily: "Montserrat",
+            fontFamily: "system-ui, -apple-system, sans-serif",
             fontSize: "11px",
             labels: { colors: "var(--text-secondary)" },
         },

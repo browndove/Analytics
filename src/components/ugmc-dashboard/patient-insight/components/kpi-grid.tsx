@@ -144,7 +144,7 @@ const KPIGrid = ({ data }: { data?: Record<string, unknown> }) => {
                 {kpiData.map((kpi, index) => (
                     <div
                         key={kpi.title}
-                        className="min-w-0 w-full h-full min-h-[200px] [&>*]:min-w-0 [&>*]:w-full animate-slide-in-up"
+                        className="min-w-0 w-full h-full min-h-[168px] [&>*]:min-w-0 [&>*]:w-full animate-slide-in-up"
                         style={{
                             animationDelay: `${index * 100}ms`,
                             opacity: 0,

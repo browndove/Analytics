@@ -121,7 +121,7 @@ export default function ImagingRadiology({ data }: { data?: SignInOutData }) {
             stacked: false,
             background: LIGHT.cardBg,
             foreColor: LIGHT.muted,
-            fontFamily: "Montserrat, system-ui, sans-serif",
+            fontFamily: "system-ui, -apple-system, sans-serif",
         },
         plotOptions: {
             bar: {
@@ -135,7 +135,7 @@ export default function ImagingRadiology({ data }: { data?: SignInOutData }) {
         xaxis: {
             categories: chartCategories.length ? chartCategories : [],
             labels: {
-                style: { colors: LIGHT.muted, fontSize: narrow ? "9px" : "11px", fontFamily: "Montserrat" },
+                style: { colors: LIGHT.muted, fontSize: narrow ? "9px" : "11px", fontFamily: "system-ui, -apple-system, sans-serif" },
                 rotate: narrow ? -35 : 0,
                 rotateAlways: narrow,
                 hideOverlappingLabels: false,
@@ -150,7 +150,7 @@ export default function ImagingRadiology({ data }: { data?: SignInOutData }) {
             max: yAxisMax,
             stepSize: yAxisStep,
             labels: {
-                style: { colors: LIGHT.muted, fontSize: narrow ? "9px" : "10px", fontFamily: "Montserrat" },
+                style: { colors: LIGHT.muted, fontSize: narrow ? "9px" : "10px", fontFamily: "system-ui, -apple-system, sans-serif" },
                 formatter: (v) => formatClockAxis(v),
             },
         },

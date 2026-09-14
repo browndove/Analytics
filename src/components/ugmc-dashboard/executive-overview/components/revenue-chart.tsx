@@ -19,7 +19,7 @@ import {
 const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
 const infoText =
-    "Daily message volume with period totals. Critical rate is critical messages as a share of all messages.";
+    "Daily message volume for the selected period. Total messages and critical rate match the days shown in the chart; the critical count is how many of those messages were marked critical.";
 
 export type DailyMessageVolumeItem = DailyMessageVolumePoint;
 
@@ -38,13 +38,17 @@ function formatCount(n: number): string {
     return Math.round(n).toLocaleString();
 }
 
+function periodPlainLabel(period: string): string {
+    if (period === "14d") return "14 days";
+    if (period === "30d") return "30 days";
+    return "7 days";
+}
+
 interface RevenueChartProps {
     isFullscreen?: boolean;
     onToggleFullscreen?: () => void;
     isHovered?: boolean;
     dailyVolume?: DailyMessageVolumeItem[];
-    totalMessages?: number;
-    criticalRate?: number;
 }
 
 const RevenueChart = ({
@@ -52,8 +56,6 @@ const RevenueChart = ({
     onToggleFullscreen,
     isHovered = false,
     dailyVolume = [],
-    totalMessages,
-    criticalRate,
 }: RevenueChartProps) => {
     const { resolvedTheme } = useTheme();
     const [period, setPeriod] = useState("7d");
@@ -100,10 +102,10 @@ const RevenueChart = ({
         return { total, critical, rate };
     }, [sliced]);
 
-    const displayTotal =
-        totalMessages != null && Number.isFinite(totalMessages) ? totalMessages : periodTotals.total;
-    const displayCriticalRate =
-        criticalRate != null && Number.isFinite(criticalRate) ? criticalRate : periodTotals.rate;
+    // Always mirror the chart window so the summary matches what people see plotted.
+    const displayTotal = periodTotals.total;
+    const displayCriticalRate = periodTotals.rate;
+    const periodLabel = periodPlainLabel(period);
 
     const chartOptions: ApexCharts.ApexOptions = {
         chart: {
@@ -276,11 +278,11 @@ const RevenueChart = ({
                     </div>
                 </div>
 
-                {/* Moved from KPI row: total messages + critical rate */}
+                {/* Summary for the selected chart period */}
                 <div className="mt-3 flex flex-wrap items-end gap-x-6 gap-y-2">
                     <div className="min-w-0">
                         <div className="text-[11px] font-medium tracking-[-0.01em] text-text-secondary">
-                            Total messages
+                            Total messages · {periodLabel}
                         </div>
                         <div className="mt-0.5 text-[22px] font-semibold leading-none tracking-[-0.02em] tabular-nums text-text-primary">
                             {formatCount(displayTotal)}
@@ -289,17 +291,17 @@ const RevenueChart = ({
                     <div className="h-8 w-px self-center bg-black/[0.08]" aria-hidden />
                     <div className="min-w-0">
                         <div className="text-[11px] font-medium tracking-[-0.01em] text-text-secondary">
-                            Critical rate
+                            Critical share · {periodLabel}
                         </div>
-                        <div className="mt-0.5 flex items-baseline gap-1.5">
+                        <div className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
                             <span className="text-[22px] font-semibold leading-none tracking-[-0.02em] tabular-nums text-text-primary">
                                 {displayCriticalRate.toFixed(1)}%
                             </span>
-                            {periodTotals.critical > 0 && (
-                                <span className="text-[11px] text-text-tertiary tabular-nums">
-                                    {formatCount(periodTotals.critical)} critical in view
-                                </span>
-                            )}
+                            <span className="text-[11px] text-text-tertiary tabular-nums">
+                                {periodTotals.critical > 0
+                                    ? `${formatCount(periodTotals.critical)} of ${formatCount(displayTotal)} messages were critical`
+                                    : `No critical messages in these ${periodLabel}`}
+                            </span>
                         </div>
                     </div>
                 </div>

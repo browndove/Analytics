@@ -104,9 +104,9 @@ const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
     return (
         <div
             className={clsx(
-                "bg-primary rounded-[15px] shadow-soft p-4 flex flex-col gap-2 min-w-[200px] flex-1 relative",
+                "bg-primary rounded-[18px] border border-black/[0.08] p-4 flex flex-col gap-2 min-w-[200px] flex-1 relative",
                 "transition-all duration-300",
-                "hover:shadow-[0_8px_30px_rgba(0,0,0,0.12)] hover:-translate-y-0.5"
+                ""
             )}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => {

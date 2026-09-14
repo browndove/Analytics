@@ -86,7 +86,7 @@ const KPIGrid = () => {
 		<div className="w-full">
 			<div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16 }}>
 				{/* Readmissions Card */}
-				<DashboardCard padding="none" className="group relative w-full rounded-[15px] flex justify-between" style={{ padding: 18, height: 135 }}>
+				<DashboardCard padding="none" className="group relative w-full rounded-[18px] flex justify-between" style={{ padding: 18, height: 135 }}>
 					{renderInfo("51 readmissions out of 540 discharges.")}
 					<div style={{ flex: 1, height: 88, display: 'flex', flexDirection: 'column', gap: 12 }}>
 						<div className="w-full h-[49px] flex flex-col gap-[5px]">
@@ -104,7 +104,7 @@ const KPIGrid = () => {
 				</DashboardCard>
 
 				{/* Average Days To Readmit Card */}
-				<DashboardCard padding="none" className="group relative w-full rounded-[15px] flex justify-between" style={{ padding: 18, height: 135 }}>
+				<DashboardCard padding="none" className="group relative w-full rounded-[18px] flex justify-between" style={{ padding: 18, height: 135 }}>
 					{renderInfo("Average days to readmit within a 30-day window.")}
 					<div style={{ width: '100%', height: 88, display: 'flex', flexDirection: 'column', gap: 12 }}>
 						<div className="w-full h-[49px] flex items-start justify-between">
@@ -122,7 +122,7 @@ const KPIGrid = () => {
 				</DashboardCard>
 
 				{/* Post-op Complications Card */}
-				<DashboardCard padding="none" className="group relative w-full rounded-[15px] flex justify-between" style={{ padding: 18, height: 135 }}>
+				<DashboardCard padding="none" className="group relative w-full rounded-[18px] flex justify-between" style={{ padding: 18, height: 135 }}>
 					{renderInfo("Post-operative complications recorded this period.")}
 					<div style={{ width: '100%', height: 88, display: 'flex', flexDirection: 'column', gap: 12 }}>
 						<div className="w-full h-[49px] flex items-start justify-between">
@@ -140,7 +140,7 @@ const KPIGrid = () => {
 				</DashboardCard>
 
 				{/* Incoming Transfer Request Card */}
-				<DashboardCard padding="none" className="group relative w-full rounded-[15px] flex justify-between" style={{ padding: 18, height: 135 }}>
+				<DashboardCard padding="none" className="group relative w-full rounded-[18px] flex justify-between" style={{ padding: 18, height: 135 }}>
 					{renderInfo("Transition calls completed within 48 hours.")}
 					<div style={{ width: '100%', height: 88, display: 'flex', flexDirection: 'column', gap: 12 }}>
 						<div className="w-full h-[49px] flex items-start justify-between">

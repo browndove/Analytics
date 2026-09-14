@@ -94,9 +94,9 @@ const AppointmentCancellationChart = ({ isFullscreen = false, onToggleFullscreen
 		plotOptions: { bar: { borderRadius: 4, columnWidth: '50%', barHeight: '100%', colors: { backgroundBarColors: [] } } },
 		dataLabels: { enabled: false },
 		grid: { borderColor: '#e5e7eb', strokeDashArray: 0, xaxis: { lines: { show: false } }, yaxis: { lines: { show: true } } },
-		xaxis: { categories, axisBorder: { show: false }, axisTicks: { show: false }, labels: { rotate: 0, rotateAlways: false, style: { fontFamily: 'Montserrat', fontWeight: 500, fontSize: '12px', colors: '#9ca3af' } } },
-		yaxis: { min: 0, tickAmount: 5, labels: { style: { fontFamily: 'Montserrat', fontWeight: 500, fontSize: '12px', colors: '#9ca3af' }, formatter: (val) => `${val.toFixed(1)}m` } },
-		tooltip: { enabled: true, theme: resolvedTheme === "dark" || resolvedTheme === "blue" ? "dark" : "light", style: { fontSize: '12px', fontFamily: "Montserrat" },
+		xaxis: { categories, axisBorder: { show: false }, axisTicks: { show: false }, labels: { rotate: 0, rotateAlways: false, style: { fontFamily: "system-ui, -apple-system, sans-serif", fontWeight: 500, fontSize: '12px', colors: '#9ca3af' } } },
+		yaxis: { min: 0, tickAmount: 5, labels: { style: { fontFamily: "system-ui, -apple-system, sans-serif", fontWeight: 500, fontSize: '12px', colors: '#9ca3af' }, formatter: (val) => `${val.toFixed(1)}m` } },
+		tooltip: { enabled: true, theme: resolvedTheme === "dark" || resolvedTheme === "blue" ? "dark" : "light", style: { fontSize: '12px', fontFamily: "system-ui, -apple-system, sans-serif" },
             y: { formatter: (val) => `${val.toFixed(1)} mins` }
         },
 	};
@@ -152,7 +152,7 @@ const AppointmentCancellationChart = ({ isFullscreen = false, onToggleFullscreen
 	if (isFullscreen) {
 		return (
 			<FullscreenOverlay onClose={() => onToggleFullscreen?.()}>
-				<div className="bg-primary rounded-[15px] w-full max-w-6xl max-h-[90vh] overflow-auto" style={{ padding: 24 }}>{chartContent}</div>
+				<div className="bg-primary rounded-[18px] w-full max-w-6xl max-h-[90vh] overflow-auto" style={{ padding: 24 }}>{chartContent}</div>
 			</FullscreenOverlay>
 		);
 	}

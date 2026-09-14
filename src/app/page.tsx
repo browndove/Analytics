@@ -20,6 +20,7 @@ import DashboardSidebar, { type DashboardTab } from "@/components/sidebar/sideba
 import GenerateReportModal from "@/components/report/GenerateReportModal";
 import { appendUsageMetricsRange } from "@/lib/usage-metrics-range";
 import { extractTransferMetricsFromUsage } from "@/lib/transfer-metrics";
+import { extractFeatureUsageSummary, formatAvgMinutesPerUserDay } from "@/lib/feature-usage-metrics";
 import { API_ENDPOINTS } from "@/lib/config";
 import InternalFacilityDashboard from "@/components/InternalFacilityDashboard";
 
@@ -177,6 +178,7 @@ function UsagePageContent() {
 
     /** In-memory analytics by range key — instant restore when revisiting the same window. */
     const analyticsCacheRef = useRef<Map<string, AnalyticsData>>(new Map());
+    const featureUsageCacheRef = useRef<Map<string, { dailyUsersAvg: number | null; avgMinutesPerUserDay: number | null }>>(new Map());
 
     const initialFrom = searchParams.get("from");
     const initialTo = searchParams.get("to");
@@ -197,6 +199,8 @@ function UsagePageContent() {
     const initialDateState = getInitialDates();
     const [dateFrom, setDateFrom] = useState(initialDateState.from);
     const [dateTo, setDateTo] = useState(initialDateState.to);
+    const [dailyUsersAvg, setDailyUsersAvg] = useState<number | null>(null);
+    const [avgMinutesPerUserDay, setAvgMinutesPerUserDay] = useState<number | null>(null);
 
     const fetchAnalytics = useCallback(async () => {
         const params = new URLSearchParams();
@@ -219,8 +223,13 @@ function UsagePageContent() {
         }
 
         const cached = analyticsCacheRef.current.get(cacheKey);
+        const cachedFeature = featureUsageCacheRef.current.get(cacheKey);
         if (cached) {
             setData(cached);
+            if (cachedFeature) {
+                setDailyUsersAvg(cachedFeature.dailyUsersAvg);
+                setAvgMinutesPerUserDay(cachedFeature.avgMinutesPerUserDay);
+            }
             setLoading(false);
         } else {
             setLoading(true);
@@ -228,14 +237,29 @@ function UsagePageContent() {
 
         try {
             const qs = params.toString();
-            const url = `/api/proxy/analytics${qs ? `?${qs}` : ""}`;
-            console.log("[usage] Fetching:", url);
-            const res = await fetch(url, { cache: "no-store" });
-            if (res.ok) {
-                const json = (await res.json()) as AnalyticsData;
+            const analyticsUrl = `/api/proxy/analytics${qs ? `?${qs}` : ""}`;
+            const featureUrl = `${API_ENDPOINTS.FEATURE_USAGE_METRICS}${qs ? `?${qs}` : ""}`;
+            console.log("[usage] Fetching:", analyticsUrl);
+            const [analyticsRes, featureRes] = await Promise.all([
+                fetch(analyticsUrl, { cache: "no-store" }),
+                fetch(featureUrl, { cache: "no-store" }),
+            ]);
+            if (analyticsRes.ok) {
+                const json = (await analyticsRes.json()) as AnalyticsData;
                 console.log("[usage] Response window_days:", json.window_days, "total_messages:", json.total_messages);
                 analyticsCacheRef.current.set(cacheKey, json);
                 setData(json);
+            }
+            if (featureRes.ok) {
+                const summary = extractFeatureUsageSummary(await featureRes.json());
+                featureUsageCacheRef.current.set(cacheKey, summary);
+                setDailyUsersAvg(summary.dailyUsersAvg);
+                setAvgMinutesPerUserDay(summary.avgMinutesPerUserDay);
+            } else {
+                const empty = { dailyUsersAvg: null, avgMinutesPerUserDay: null };
+                featureUsageCacheRef.current.set(cacheKey, empty);
+                setDailyUsersAvg(null);
+                setAvgMinutesPerUserDay(null);
             }
         } catch (err) {
             console.error("Failed to fetch analytics:", err);
@@ -251,8 +275,6 @@ function UsagePageContent() {
 
     const activeUsers = data?.active_users_count ?? 0;
     const activityRate = data?.active_users_rate_percent ?? 0;
-    const totalMessages = data?.total_messages ?? 0;
-    const criticalRate = data?.critical_messages_rate_percent ?? 0;
     const escalationRate = data?.escalation_rate_percent ?? 0;
     const escalatedCount = data?.escalated_critical_messages ?? 0;
     const roleFillRate = data?.role_fill_rate_percent ?? 0;
@@ -324,8 +346,17 @@ function UsagePageContent() {
                         icon={<FaEnvelope className="w-5 h-5 text-accent-green" />}
                         iconBgColor="bg-[rgba(0,200,179,0.1)]"
                         label="Daily users"
-                        value={loading ? '—' : '0'}
-                        infoText="Average number of users that log into the app at least once per day."
+                        value={loading ? '—' : dailyUsersAvg == null ? '—' : fmt(Math.round(dailyUsersAvg))}
+                        change={
+                            !loading && avgMinutesPerUserDay != null
+                                ? {
+                                      value: formatAvgMinutesPerUserDay(avgMinutesPerUserDay),
+                                      label: "avg time/day",
+                                      trend: avgMinutesPerUserDay >= 15 ? "up" : "down",
+                                  }
+                                : undefined
+                        }
+                        infoText="Average number of users that log into the app at least once per day. Trend shows average time spent in the app per user-day."
                         animationDelay={1}
                     />
                     <KpiCard
@@ -356,8 +387,6 @@ function UsagePageContent() {
                                 isFullscreen={revenueFullscreen}
                                 onToggleFullscreen={() => setRevenueFullscreen(!revenueFullscreen)}
                                 dailyVolume={data?.daily_message_volume}
-                                totalMessages={totalMessages}
-                                criticalRate={criticalRate}
                             />
                         </div>
 

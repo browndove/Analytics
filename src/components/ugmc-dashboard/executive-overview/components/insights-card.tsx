@@ -120,9 +120,9 @@ const InsightsCard = ({ data }: InsightsCardProps) => {
     return (
         <div
             className={clsx(
-                "flex h-full min-h-0 w-full flex-col overflow-hidden rounded-[12px] bg-primary shadow-soft",
+                "flex h-full min-h-0 w-full flex-col overflow-hidden rounded-[18px] border border-black/[0.08] bg-primary",
                 "transition-shadow duration-300",
-                isHovered && "shadow-[0_6px_24px_rgba(0,0,0,0.08)]",
+                isHovered && "border-black/[0.14]",
             )}
             style={{ padding: 12 }}
             onMouseEnter={() => setIsHovered(true)}

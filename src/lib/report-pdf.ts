@@ -258,7 +258,7 @@ function drawSectionTitle(
     doc.setLineWidth(0.4);
     doc.line(margin + 42, ruleY + 0.5, margin + contentW, ruleY + 0.5);
 
-    return y + 28;
+    return y + 32;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -419,23 +419,25 @@ export function buildAnalyticsReportPdfBlob(
     };
 
     const addChart = (title: string, chart: ChartImage | null, emptyHint = "No data for this period.") => {
-        ensureSpace(72);
+        y += 20; // breathing room between sections
+        ensureSpace(96);
         y = drawSectionTitle(doc, title, y, margin, contentW, sectionIndex++);
+        y += 14; // gap between title rule and chart
 
         if (!chart) {
             doc.setFont("helvetica", "italic");
             doc.setFontSize(9);
             doc.setTextColor(...MUTED);
             doc.text(emptyHint, margin, y);
-            y += 28;
+            y += 36;
             return;
         }
 
         const imgW = contentW;
         const imgH = (chart.height / chart.width) * imgW;
-        ensureSpace(imgH + 20);
+        ensureSpace(imgH + 32);
         doc.addImage(chart.dataUrl, "PNG", margin, y, imgW, imgH);
-        y += imgH + 28;
+        y += imgH + 48;
     };
 
     const sectionOrNull = (s: ReportTableSection | null) => (s && s.body.length > 0 ? s : null);
@@ -444,7 +446,7 @@ export function buildAnalyticsReportPdfBlob(
     ensureSpace(60);
     y = drawSectionTitle(doc, "Key metrics", y, margin, contentW, sectionIndex++);
     y = drawSummaryMetrics(doc, collected.scalarRows, y, margin, contentW, pageH, footerReserve);
-    y += 8;
+    y += 24;
 
     const hasMessagingScalars = collected.scalarRows.some(
         (r) => r.group === "Messaging" || r.group === "Escalation"

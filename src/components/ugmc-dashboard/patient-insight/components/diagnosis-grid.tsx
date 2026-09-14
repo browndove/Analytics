@@ -85,7 +85,7 @@ const RoleEscalationsTable = ({ data }: { data?: { top_escalated_roles?: Escalat
 						<IoChevronDown size={14} className="text-text-secondary" />
 					</button>
 					{isDropdownOpen && (
-						<div className="absolute top-full right-0 bg-secondary border border-tertiary rounded-[8px] shadow-soft z-10 min-w-[150px]" style={{ marginTop: 4 }}>
+						<div className="absolute top-full right-0 bg-secondary border border-tertiary rounded-[8px] z-10 min-w-[150px]" style={{ marginTop: 4 }}>
 							{domainOptions.map((option) => (
 								<button
 									key={option}

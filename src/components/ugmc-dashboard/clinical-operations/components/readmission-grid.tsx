@@ -22,16 +22,16 @@ const ReadmissionGrid = () => {
 		colors: ["#2980D3"],
 		xaxis: {
 			categories: ["JAN", "FEB", "MAR", "APR", "MAY", "JUN"],
-			labels: { style: { fontFamily: "Montserrat", fontWeight: 500, fontSize: "10px", colors: "var(--text-secondary)" } },
+			labels: { style: { fontFamily: "system-ui, -apple-system, sans-serif", fontWeight: 500, fontSize: "10px", colors: "var(--text-secondary)" } },
 			axisBorder: { show: false }, axisTicks: { show: false },
 		},
 		yaxis: {
 			min: 0, max: 80, tickAmount: 4,
-			labels: { style: { fontFamily: "Montserrat", fontWeight: 500, fontSize: "10px", colors: "var(--text-secondary)" }, formatter: (val: number) => String(Math.round(val)) },
+			labels: { style: { fontFamily: "system-ui, -apple-system, sans-serif", fontWeight: 500, fontSize: "10px", colors: "var(--text-secondary)" }, formatter: (val: number) => String(Math.round(val)) },
 		},
 		grid: { borderColor: "var(--bg-tertiary)", strokeDashArray: 4, xaxis: { lines: { show: false } }, yaxis: { lines: { show: true } } },
-		legend: { show: true, position: "bottom", horizontalAlign: "center", fontFamily: "Montserrat", fontWeight: 500, fontSize: "12px", labels: { colors: "var(--text-secondary)" }, markers: { size: 6, offsetX: -4 }, itemMargin: { horizontal: 8 } },
-		tooltip: { enabled: true, theme: resolvedTheme === "dark" || resolvedTheme === "blue" ? "dark" : "light", style: { fontSize: '12px', fontFamily: "Montserrat" }, y: { formatter: (val: number) => `${val}` } },
+		legend: { show: true, position: "bottom", horizontalAlign: "center", fontFamily: "system-ui, -apple-system, sans-serif", fontWeight: 500, fontSize: "12px", labels: { colors: "var(--text-secondary)" }, markers: { size: 6, offsetX: -4 }, itemMargin: { horizontal: 8 } },
+		tooltip: { enabled: true, theme: resolvedTheme === "dark" || resolvedTheme === "blue" ? "dark" : "light", style: { fontSize: '12px', fontFamily: "system-ui, -apple-system, sans-serif" }, y: { formatter: (val: number) => `${val}` } },
 	};
 
 	const barChartSeries = [{ name: "Readmission Rate", data: [65, 70, 38, 54, 20, 38] }];
@@ -71,7 +71,7 @@ const ReadmissionGrid = () => {
 		<>
 			{isFullscreen && (
 				<FullscreenOverlay onClose={() => setIsFullscreen(false)}>
-					<div className="bg-primary rounded-[15px] w-full max-w-6xl max-h-[90vh] overflow-auto p-6 flex flex-col gap-[2px]">{readmissionChartContent}</div>
+					<div className="bg-primary rounded-[18px] w-full max-w-6xl max-h-[90vh] overflow-auto p-6 flex flex-col gap-[2px]">{readmissionChartContent}</div>
 				</FullscreenOverlay>
 			)}
 			<div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 16 }}>
@@ -81,7 +81,7 @@ const ReadmissionGrid = () => {
 
 				{/* Current Readmission Rate Card with Gradient Border */}
 				<div
-					className="flex flex-col justify-between w-full rounded-[15px] bg-primary shadow-soft"
+					className="flex flex-col justify-between w-full rounded-[18px] bg-primary"
 					style={{
 						gridColumn: 'span 3',
 						height: 320,

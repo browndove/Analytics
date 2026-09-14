@@ -261,7 +261,7 @@ const CallOutcomeBarChart: React.FC<CallOutcomeBarChartProps> = ({
                         colors: "var(--text-secondary)",
                         fontSize: "10px",
                         fontWeight: 500,
-                        fontFamily: "Montserrat",
+                        fontFamily: "system-ui, -apple-system, sans-serif",
                     },
                 },
             },
@@ -287,7 +287,7 @@ const CallOutcomeBarChart: React.FC<CallOutcomeBarChartProps> = ({
                 show: chart.series.length > 1 || chart.series[0]?.name !== "Calls placed",
                 position: "bottom",
                 horizontalAlign: "center",
-                fontFamily: "Montserrat, sans-serif",
+                fontFamily: "system-ui, -apple-system, sans-serif",
                 fontSize: "11px",
                 fontWeight: 500,
                 labels: { colors: "var(--text-secondary)" },
@@ -295,7 +295,7 @@ const CallOutcomeBarChart: React.FC<CallOutcomeBarChartProps> = ({
             tooltip: {
                 theme: "light",
                 fillSeriesColor: false,
-                style: { fontSize: "12px", fontFamily: "Montserrat" },
+                style: { fontSize: "12px", fontFamily: "system-ui, -apple-system, sans-serif" },
                 x: {
                     formatter: (_val, opts) => chart.fullNames[opts?.dataPointIndex ?? 0] ?? _val,
                 },

@@ -20,25 +20,28 @@ export function truncateChartLabel(label: string, maxLen = 26): string {
     return `${trimmed.slice(0, maxLen - 1)}…`;
 }
 
+const chartFont =
+    'system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif';
+
 export const chartLabelStyle = {
     colors: "var(--text-secondary)",
     fontSize: "10px",
-    fontWeight: 500,
-    fontFamily: "Montserrat",
+    fontWeight: 400,
+    fontFamily: chartFont,
 };
 
 export const roleChartLabelStyle = {
     colors: "var(--text-primary)",
     fontSize: "12px",
-    fontWeight: 700,
-    fontFamily: "Montserrat",
+    fontWeight: 600,
+    fontFamily: chartFont,
 };
 
 export const roleChartAxisStyle = {
     colors: "var(--text-secondary)",
     fontSize: "11px",
     fontWeight: 600,
-    fontFamily: "Montserrat",
+    fontFamily: chartFont,
 };
 
 export const ROLE_CHART_BAR_COLOR = "#1A5FAD";
@@ -48,7 +51,7 @@ export const baseChartOptions: ApexOptions = {
         toolbar: { show: false },
         zoom: { enabled: false },
         animations: { enabled: true, speed: 800 },
-        fontFamily: "Montserrat",
+        fontFamily: chartFont,
     },
     dataLabels: { enabled: false },
     grid: {
@@ -60,6 +63,6 @@ export const baseChartOptions: ApexOptions = {
     },
     tooltip: {
         theme: "light",
-        style: { fontSize: "12px", fontFamily: "Montserrat" },
+        style: { fontSize: "12px", fontFamily: chartFont },
     },
 };

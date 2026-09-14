@@ -80,7 +80,7 @@ const MessageVolumeBreakdown: React.FC<{ data?: any }> = ({ data }) => {
                 const subTextColor = "#A3B2BE";
                 const shadow = isDark ? "0 4px 12px rgba(0,0,0,0.4)" : "0 4px 12px rgba(0,0,0,0.15)";
                 const border = isDark ? "1px solid #2D3748" : "none";
-                return `<div style="padding: 10px 14px; background: ${bg}; border: ${border} !important; outline: none !important; border-radius: 8px; box-shadow: ${shadow}; font-family: Montserrat, sans-serif; min-width: 180px; max-width: 220px; overflow: hidden; position: relative;">
+                return `<div style="padding: 10px 14px; background: ${bg}; border: ${border} !important; outline: none !important; border-radius: 8px; box-shadow: ${shadow}; font-family: system-ui, -apple-system, sans-serif; min-width: 180px; max-width: 220px; overflow: hidden; position: relative;">
                     <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
                         <div style="width: 14px; height: 14px; border-radius: 3px; background: ${color}; flex-shrink: 0;"></div>
                         <span style="font-weight: 600; font-size: 13px; color: ${textColor};">${label.name}</span>

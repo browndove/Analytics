@@ -30,16 +30,16 @@ const InfectionsGrid = () => {
 		xaxis: {
 			categories: ["JAN", "FEB", "MAR", "APR", "MAY", "JUN"],
 			axisBorder: { show: false }, axisTicks: { show: false },
-			labels: { style: { colors: "var(--text-secondary)", fontSize: "10px", fontWeight: 500, fontFamily: "Montserrat" } },
+			labels: { style: { colors: "var(--text-secondary)", fontSize: "10px", fontWeight: 500, fontFamily: "system-ui, -apple-system, sans-serif" } },
 		},
 		yaxis: {
 			min: 0, max: 600, tickAmount: 4,
 			axisBorder: { show: false }, axisTicks: { show: false },
-			labels: { style: { colors: "var(--text-secondary)", fontSize: "10px", fontWeight: 500, fontFamily: "Montserrat" }, formatter: (val) => val.toString() },
+			labels: { style: { colors: "var(--text-secondary)", fontSize: "10px", fontWeight: 500, fontFamily: "system-ui, -apple-system, sans-serif" }, formatter: (val) => val.toString() },
 		},
 		grid: { show: true, borderColor: "var(--bg-tertiary)", strokeDashArray: 4, xaxis: { lines: { show: true } }, yaxis: { lines: { show: true } }, padding: { top: 0, right: 10, bottom: 0, left: 10 } },
 		legend: { show: false },
-		tooltip: { theme: resolvedTheme === "dark" || resolvedTheme === "blue" ? "dark" : "light", shared: true, intersect: false, style: { fontSize: '12px', fontFamily: "Montserrat" }, y: { formatter: (val) => `${val}` } },
+		tooltip: { theme: resolvedTheme === "dark" || resolvedTheme === "blue" ? "dark" : "light", shared: true, intersect: false, style: { fontSize: '12px', fontFamily: "system-ui, -apple-system, sans-serif" }, y: { formatter: (val) => `${val}` } },
 	};
 
 	const chartSeries = [{ name: "Infections", data: [30, 470, 150, 260, 560, 320] }];
@@ -103,11 +103,11 @@ const InfectionsGrid = () => {
 		<>
 			{isFullscreen && (
 				<FullscreenOverlay onClose={() => setIsFullscreen(false)}>
-					<div className="bg-primary rounded-[15px] w-full max-w-6xl max-h-[90vh] overflow-auto p-6 flex flex-col gap-[15px]">{infectionsChartContent}</div>
+					<div className="bg-primary rounded-[18px] w-full max-w-6xl max-h-[90vh] overflow-auto p-6 flex flex-col gap-[15px]">{infectionsChartContent}</div>
 				</FullscreenOverlay>
 			)}
 			<div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 16 }}>
-				<DashboardCard padding="none" className="rounded-[15px] flex flex-col" style={{ padding: 15, height: 360, gap: 15, gridColumn: 'span 9' }}>
+				<DashboardCard padding="none" className="rounded-[18px] flex flex-col" style={{ padding: 15, height: 360, gap: 15, gridColumn: 'span 9' }}>
 					{infectionsChartContent}
 				</DashboardCard>
 				<DashboardCard padding="none" className="" style={{ padding: 16, height: 360, gridColumn: 'span 3' }}>

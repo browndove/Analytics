@@ -29,14 +29,14 @@ const DashboardCard: React.FC<DashboardCardProps> = ({
         <div
             {...rest}
             className={clsx(
-                "bg-primary rounded-[15px] shadow-soft",
-                "transition-all duration-300 ease-out",
-                "hover:shadow-[0_8px_30px_rgba(0,0,0,0.12)] hover:-translate-y-0.5",
+                "bg-primary rounded-[18px] border border-black/[0.08]",
+                "transition-[border-color,background-color] duration-200 ease-out",
+                "hover:border-black/[0.12]",
                 paddingClasses[padding],
                 borderColor && `border border-[${borderColor}]`,
                 className
             )}
-            style={borderColor ? { ...(style || {}), borderColor } : style}
+            style={{ boxShadow: "none", ...(borderColor ? { ...(style || {}), borderColor } : style) }}
         >
             {children}
         </div>

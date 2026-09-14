@@ -89,9 +89,9 @@ const LiveUpdates = ({ responseTimes }: LiveUpdatesProps) => {
     return (
         <div 
             className={clsx(
-                "bg-primary rounded-[15px] flex flex-col shadow-soft overflow-hidden",
+                "bg-primary rounded-[18px] flex flex-col overflow-hidden",
                 "transition-all duration-500",
-                isHovered && "shadow-[0_8px_30px_rgba(41,128,211,0.1)]"
+                isHovered && "border-black/[0.14]"
             )}
             style={{ padding: 16, width: '100%', height: 'fit-content' }}
             onMouseEnter={() => setIsHovered(true)}
