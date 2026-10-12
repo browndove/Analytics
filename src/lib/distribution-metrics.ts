@@ -222,6 +222,95 @@ export function extractUsageTimeDistributions(payload: unknown): UsageTimeDistri
     };
 }
 
+export type ResponseMinuteKind =
+    | "critical_ack"
+    | "read_all"
+    | "read_critical"
+    | "read_standard"
+    | "reply_all"
+    | "reply_critical";
+
+function blockMedian(value: unknown): number | null {
+    if (!isRecord(value)) return null;
+    const median = pickDefinedNum(value, "median_minutes", "medianMinutes", "p50_minutes", "p50", "median");
+    return median === undefined ? null : median;
+}
+
+/**
+ * Median minutes for a response-time bucket.
+ * Reads the distribution block (and flat median_* aliases). Does not substitute avg_*.
+ */
+export function medianResponseMinutes(
+    row: Record<string, unknown> | null | undefined,
+    kind: ResponseMinuteKind
+): number | null {
+    if (!row) return null;
+    const root = unwrapUsageRoot(row) ?? row;
+
+    if (kind === "critical_ack") {
+        return (
+            blockMedian(root.critical_ack_minutes) ??
+            (pickDefinedNum(root, "median_critical_ack_minutes", "critical_ack_median_minutes") ?? null)
+        );
+    }
+
+    if (kind === "read_all" || kind === "read_critical" || kind === "read_standard") {
+        const child = kind === "read_all" ? "all" : kind === "read_critical" ? "critical" : "standard";
+        const parent = root.read_minutes;
+        if (isRecord(parent)) {
+            const nested = blockMedian(parent[child]);
+            if (nested != null) return nested;
+            if (child === "all") {
+                const top = blockMedian(parent);
+                if (top != null) return top;
+            }
+        }
+        const flat =
+            kind === "read_all"
+                ? ["median_read_minutes_all", "median_first_read_minutes_all"]
+                : kind === "read_critical"
+                  ? ["median_read_minutes_critical", "median_first_read_minutes_critical"]
+                  : [
+                        "median_read_minutes_standard",
+                        "median_first_read_minutes_non_critical",
+                        "median_read_minutes_non_critical",
+                    ];
+        const value = pickDefinedNum(root, ...flat);
+        return value === undefined ? null : value;
+    }
+
+    const child = kind === "reply_all" ? "all" : "critical";
+    const parent = root.reply_minutes;
+    if (isRecord(parent)) {
+        const nested = blockMedian(parent[child]);
+        if (nested != null) return nested;
+        if (child === "all") {
+            const top = blockMedian(parent);
+            if (top != null) return top;
+        }
+    }
+    const flat =
+        kind === "reply_all"
+            ? ["median_reply_minutes_all", "median_reply_response_minutes_all"]
+            : ["median_reply_minutes_critical", "median_reply_response_minutes_critical"];
+    const value = pickDefinedNum(root, ...flat);
+    return value === undefined ? null : value;
+}
+
+/** Median when the payload has one, otherwise the legacy average. */
+export function responseMinutes(
+    row: Record<string, unknown> | null | undefined,
+    kind: ResponseMinuteKind,
+    averageKeys: string[]
+): number | null {
+    const median = medianResponseMinutes(row, kind);
+    if (median != null) return median;
+    if (!row) return null;
+    const root = unwrapUsageRoot(row) ?? row;
+    const average = pickDefinedNum(root, ...averageKeys);
+    return average === undefined ? null : average;
+}
+
 /** Prefer median, then avg, from a MinutesDistribution. */
 export function pickTypicalMinutes(dist?: MinutesDistribution | null): number | null {
     if (!dist || !minutesDistributionHasData(dist)) return null;

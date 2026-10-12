@@ -7,6 +7,7 @@ import {
     fillDailyMessageVolumePeriod,
     fillDailyMessageVolumeRange,
 } from "@/lib/daily-volume";
+import { medianResponseMinutes, type ResponseMinuteKind } from "@/lib/distribution-metrics";
 
 export type ReportMetricKind =
     | "scalar"
@@ -31,6 +32,19 @@ export type ReportMetricDef = {
 
 export type ReportScalarRow = { label: string; value: string; group: string };
 
+export const GROUP_ORDER: string[] = [
+    "Staff & activity",
+    "Messaging",
+    "Escalation",
+    "Roles",
+    "Response times",
+    "Scheduling",
+    "Window",
+    "Charts",
+    "Calls",
+    "Transfers",
+];
+
 export const REPORT_METRICS: ReportMetricDef[] = [
     { id: "scalar_active_users_count", group: "Staff & activity", label: "Active users (count)", kind: "scalar", field: "active_users_count" },
     { id: "scalar_active_users_rate_percent", group: "Staff & activity", label: "Active users (% of registered)", kind: "scalar", field: "active_users_rate_percent" },
@@ -52,11 +66,11 @@ export const REPORT_METRICS: ReportMetricDef[] = [
     { id: "scalar_critical_filled_roles", group: "Roles", label: "Critical roles filled (count)", kind: "scalar", field: "critical_filled_roles" },
     { id: "scalar_critical_total_roles", group: "Roles", label: "Critical roles total (count)", kind: "scalar", field: "critical_total_roles" },
 
-    { id: "scalar_avg_critical_ack_minutes", group: "Response times", label: "Avg critical acknowledgment (minutes)", kind: "scalar", field: "avg_critical_ack_minutes" },
-    { id: "scalar_avg_first_read_minutes_all", group: "Response times", label: "Avg first read — all messages (minutes)", kind: "scalar", field: "avg_first_read_minutes_all" },
-    { id: "scalar_avg_first_read_minutes_critical", group: "Response times", label: "Avg first read — critical (minutes)", kind: "scalar", field: "avg_first_read_minutes_critical" },
-    { id: "scalar_avg_first_read_minutes_non_critical", group: "Response times", label: "Avg first read — non-critical (minutes)", kind: "scalar", field: "avg_first_read_minutes_non_critical" },
-    { id: "scalar_avg_read_minutes_standard", group: "Response times", label: "Avg read — standard messages (minutes)", kind: "scalar", field: "avg_read_minutes_standard" },
+    { id: "scalar_avg_critical_ack_minutes", group: "Response times", label: "Median critical acknowledgment (minutes)", kind: "scalar", field: "critical_ack_minutes.median_minutes" },
+    { id: "scalar_avg_first_read_minutes_all", group: "Response times", label: "Median read — all messages (minutes)", kind: "scalar", field: "read_minutes.all.median_minutes" },
+    { id: "scalar_avg_first_read_minutes_critical", group: "Response times", label: "Median read — critical (minutes)", kind: "scalar", field: "read_minutes.critical.median_minutes" },
+    { id: "scalar_avg_first_read_minutes_non_critical", group: "Response times", label: "Median read — non-critical (minutes)", kind: "scalar", field: "read_minutes.standard.median_minutes" },
+    { id: "scalar_avg_read_minutes_standard", group: "Response times", label: "Median read — standard messages (minutes)", kind: "scalar", field: "read_minutes.standard.median_minutes" },
     { id: "scalar_critical_messages_read_percent", group: "Response times", label: "Critical messages read (%)", kind: "scalar", field: "critical_messages_read_percent" },
     { id: "scalar_critical_messages_acknowledged_percent", group: "Response times", label: "Critical messages acknowledged (%)", kind: "scalar", field: "critical_messages_acknowledged_percent" },
     { id: "scalar_total_calls_made", group: "Response times", label: "Total calls made", kind: "scalar", field: "total_calls_made" },
@@ -156,9 +170,12 @@ const HEADER_LABEL_OVERRIDES: Record<string, string> = {
     escalation_rate_percent: "Escalation %",
     escalation_rate_of_total_messages_percent: "Escalation % of all msgs",
     escalation_rate_vs_dept_critical_messages_percent: "Escalation % of dept critical",
-    avg_critical_ack_minutes: "Avg critical ack (min)",
-    avg_reply_response_minutes_all: "Avg reply (min)",
-    avg_reply_response_minutes_critical: "Avg reply critical (min)",
+    avg_critical_ack_minutes: "Median critical ack (min)",
+    median_critical_ack_minutes: "Median critical ack (min)",
+    avg_reply_response_minutes_all: "Median reply (min)",
+    median_reply_minutes_all: "Median reply (min)",
+    avg_reply_response_minutes_critical: "Median reply critical (min)",
+    median_reply_minutes_critical: "Median reply critical (min)",
     avg_sign_in_minutes_since_midnight_utc: "Avg sign-in (UTC min)",
     avg_sign_out_minutes_since_midnight_utc: "Avg sign-out (UTC min)",
     total_messages: "Total msgs",
@@ -239,7 +256,7 @@ function escalationRows(
         const id = entry.role_id != null ? String(entry.role_id).trim() : "";
         const name = typeof entry.role_name === "string" ? entry.role_name.trim().toLowerCase() : "";
         const match = (id && roles.get(id)) || (name && roles.get(`name:${name}`)) || undefined;
-        merged.push(match ? { ...match, ...entry } : entry);
+        merged.push(withMedianResponse(match ? { ...match, ...entry } : entry));
     }
     return tableRows(merged, head);
 }
@@ -266,9 +283,9 @@ const DEPARTMENT_METRIC_HEADERS = [
     "filled_roles",
     "total_roles",
     "critical_messages_sent",
-    "avg_critical_ack_minutes",
-    "avg_reply_response_minutes_all",
-    "avg_reply_response_minutes_critical",
+    "median_critical_ack_minutes",
+    "median_reply_minutes_all",
+    "median_reply_minutes_critical",
     "escalation_notifications",
     "critical_filled_roles",
     "critical_total_roles",
@@ -329,7 +346,7 @@ const ESCALATION_ROLE_HEADERS = [
     "escalation_count",
     "critical_messages",
     "escalation_rate_percent",
-    "avg_critical_ack_minutes",
+    "median_critical_ack_minutes",
 ] as const;
 
 export type ReportTableSection = {
@@ -352,15 +369,46 @@ const ROLE_METRIC_PDF_COLUMNS = [
     "total_messages",
     "critical_messages",
     "escalation_rate_percent",
-    "avg_critical_ack_minutes",
+    "median_critical_ack_minutes",
 ] as const;
+
+const RESPONSE_SCALAR_KIND: Record<string, ResponseMinuteKind> = {
+    scalar_avg_critical_ack_minutes: "critical_ack",
+    scalar_avg_first_read_minutes_all: "read_all",
+    scalar_avg_first_read_minutes_critical: "read_critical",
+    scalar_avg_first_read_minutes_non_critical: "read_standard",
+    scalar_avg_read_minutes_standard: "read_standard",
+};
+
+/** Copy median response times onto stable column keys. Leaves averages out of the export. */
+function withMedianResponse(row: Record<string, unknown>): Record<string, unknown> {
+    const next: Record<string, unknown> = { ...row };
+    const write = (kind: ResponseMinuteKind, key: string) => {
+        const median = medianResponseMinutes(row, kind);
+        if (median != null) next[key] = median;
+    };
+    write("critical_ack", "median_critical_ack_minutes");
+    write("reply_all", "median_reply_minutes_all");
+    write("reply_critical", "median_reply_minutes_critical");
+    delete next.avg_critical_ack_minutes;
+    delete next.avg_reply_response_minutes_all;
+    delete next.avg_reply_response_minutes_critical;
+    delete next.avg_first_read_minutes_all;
+    delete next.avg_first_read_minutes_critical;
+    delete next.avg_first_read_minutes_non_critical;
+    delete next.avg_read_minutes_all;
+    delete next.avg_read_minutes_critical;
+    delete next.avg_read_minutes_standard;
+    return next;
+}
 
 /** Normalized rows for CSV / PDF (same selection rules). */
 export function collectReportData(data: AnalyticsRow, selected: Record<string, boolean>) {
     const scalarRows: ReportScalarRow[] = [];
     for (const def of REPORT_METRICS) {
         if (!selected[def.id] || def.kind !== "scalar" || !def.field) continue;
-        const v = getScalar(data, def.field);
+        const responseKind = RESPONSE_SCALAR_KIND[def.id];
+        const v = responseKind ? medianResponseMinutes(data, responseKind) : getScalar(data, def.field);
         scalarRows.push({ label: def.label, value: cell(v), group: def.group });
     }
 
@@ -393,7 +441,14 @@ export function collectReportData(data: AnalyticsRow, selected: Record<string, b
         departments = {
             title: "Department metrics",
             head,
-            body: tableRows(data.department_metrics, head),
+            body: tableRows(
+                Array.isArray(data.department_metrics)
+                    ? data.department_metrics.map((row) =>
+                          withMedianResponse(row as Record<string, unknown>)
+                      )
+                    : data.department_metrics,
+                head
+            ),
         };
     }
 
@@ -421,7 +476,9 @@ export function collectReportData(data: AnalyticsRow, selected: Record<string, b
 
     let roleMetrics: ReportTableSection | null = null;
     if (selected.table_role_metrics) {
-        const roles = data.role_metrics;
+        const roles = Array.isArray(data.role_metrics)
+            ? data.role_metrics.map((row) => withMedianResponse(row as Record<string, unknown>))
+            : data.role_metrics;
         const first = Array.isArray(roles) ? roles[0] : undefined;
         const head =
             first && typeof first === "object"

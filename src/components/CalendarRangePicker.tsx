@@ -164,13 +164,22 @@ export default function CalendarRangePicker({
     return (
         <div
             ref={ref}
-            style={{
-                position: "relative",
-                display: isBlock ? "flex" : "inline-flex",
-                alignItems: "center",
-                gap: 8,
-                width: isBlock ? "100%" : undefined,
-            }}
+            className={
+                isModalPill
+                    ? `flex w-full items-center rounded-full border bg-slate-50 py-1.5 pl-5 pr-1.5 ${open ? "border-indigo-300 ring-2 ring-indigo-500/20" : "border-slate-200"}`
+                    : undefined
+            }
+            style={
+                isModalPill
+                    ? { position: "relative" }
+                    : {
+                          position: "relative",
+                          display: isBlock ? "flex" : "inline-flex",
+                          alignItems: "center",
+                          gap: 8,
+                          width: isBlock ? "100%" : undefined,
+                      }
+            }
         >
             <button
                 type="button"
@@ -180,65 +189,54 @@ export default function CalendarRangePicker({
                 onClick={() => { setOpen(!open); if (!open && fromDate) { setViewYear(fromDate.getFullYear()); setViewMonth(fromDate.getMonth()); } }}
                 className={
                     isModalPill
-                        ? "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
+                        ? "flex min-w-0 flex-1 items-center gap-5 bg-transparent py-2 pr-3 text-left focus-visible:outline-none"
                         : undefined
                 }
-                style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: isModalPill ? 14 : 10,
-                    padding: isModalPill ? "14px 18px" : isBlock ? "12px 16px" : "6px 12px",
-                    borderRadius: isModalPill ? 12 : 12,
-                    background: isModalPill ? "#f8fafc" : "var(--surface-card)",
-                    border: `1px solid ${isModalPill ? "#e2e8f0" : "var(--border-default)"}`,
-                    fontSize: isBlock ? 13 : 12,
-                    fontWeight: 500,
-                    color: fromDate ? "var(--text-primary)" : "var(--text-muted)",
-                    cursor: "pointer",
-                    transition: "all 0.15s",
-                    boxShadow: open
-                        ? isModalPill
-                            ? "0 0 0 2px rgba(79, 70, 229, 0.25)"
-                            : "0 0 0 2px rgba(30,58,95,0.12)"
-                        : isModalPill
-                          ? "0 1px 2px rgba(15, 23, 42, 0.06)"
-                          : "none",
-                    flex: isBlock ? 1 : undefined,
-                    minWidth: isBlock ? 0 : undefined,
-                    justifyContent: isBlock ? (isModalPill ? "flex-start" : "space-between") : undefined,
-                    boxSizing: "border-box",
-                }}
+                style={
+                    isModalPill
+                        ? undefined
+                        : {
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 10,
+                              padding: isBlock ? "12px 16px" : "6px 12px",
+                              borderRadius: 12,
+                              background: "var(--surface-card)",
+                              border: "1px solid var(--border-default)",
+                              fontSize: isBlock ? 13 : 12,
+                              fontWeight: 500,
+                              color: fromDate ? "var(--text-primary)" : "var(--text-muted)",
+                              cursor: "pointer",
+                              transition: "all 0.15s",
+                              boxShadow: open ? "0 0 0 2px rgba(30,58,95,0.12)" : "none",
+                              flex: isBlock ? 1 : undefined,
+                              minWidth: isBlock ? 0 : undefined,
+                              justifyContent: isBlock ? "space-between" : undefined,
+                              boxSizing: "border-box",
+                          }
+                }
             >
                 {isModalPill ? (
                     <>
-                        <span className="material-icons-round shrink-0 text-slate-500" style={{ fontSize: 22 }}>
-                            calendar_today
-                        </span>
-                        <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
-                            <div className="min-w-0 flex-1">
-                                <div
-                                    className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500"
-                                    style={{ letterSpacing: "0.08em" }}
-                                >
-                                    From
-                                </div>
-                                <div className="truncate text-sm font-semibold text-slate-900">
+                        <span className="material-icons-round shrink-0 text-[20px] text-slate-400">calendar_today</span>
+                        <div className="flex min-w-0 flex-1 items-center justify-between gap-6">
+                            <div className="min-w-0">
+                                <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">From</div>
+                                <div className="truncate text-[15px] font-semibold leading-5 text-slate-900">
                                     {fromDate ? formatPillDate(fromDate) : "—"}
                                 </div>
                             </div>
-                            <div className="hidden shrink-0 text-slate-300 sm:block" aria-hidden>
-                                —
-                            </div>
-                            <div className="min-w-0 flex-1 sm:text-right">
-                                <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500 sm:text-right">To</div>
-                                <div className="truncate text-sm font-semibold text-slate-900 sm:text-right">
-                                    {toDate ? formatPillDate(toDate) : "—"}
+                            <div className="h-px w-10 shrink-0 bg-slate-300" aria-hidden />
+                            <div className="min-w-0 text-right">
+                                <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">To</div>
+                                <div className="flex items-center justify-end gap-2">
+                                    <span className="truncate text-[15px] font-semibold leading-5 text-slate-900">
+                                        {toDate ? formatPillDate(toDate) : "—"}
+                                    </span>
+                                    <span className="material-icons-round text-[18px] text-indigo-500">edit_calendar</span>
                                 </div>
                             </div>
                         </div>
-                        <span className="material-icons-round shrink-0 text-indigo-500" style={{ fontSize: 22 }}>
-                            edit_calendar
-                        </span>
                     </>
                 ) : isBlock ? (
                     <>
@@ -258,17 +256,32 @@ export default function CalendarRangePicker({
                 <button
                     type="button"
                     onClick={() => { onChange('', ''); setPicking('from'); }}
-                    className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1"
-                    style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        width: 22, height: 22, borderRadius: '50%',
-                        background: 'var(--surface-2)', border: '1px solid var(--border-subtle)',
-                        cursor: 'pointer', padding: 0, color: 'var(--text-muted)',
-                    }}
+                    className={
+                        isModalPill
+                            ? "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                            : "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1"
+                    }
+                    style={
+                        isModalPill
+                            ? undefined
+                            : {
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  width: 22,
+                                  height: 22,
+                                  borderRadius: "50%",
+                                  background: "var(--surface-2)",
+                                  border: "1px solid var(--border-subtle)",
+                                  cursor: "pointer",
+                                  padding: 0,
+                                  color: "var(--text-muted)",
+                              }
+                    }
                     title="Clear dates"
                     aria-label="Clear date range"
                 >
-                    <span className="material-icons-round" style={{ fontSize: 12 }}>close</span>
+                    <span className="material-icons-round" style={{ fontSize: isModalPill ? 16 : 12 }}>close</span>
                 </button>
             )}
 

@@ -5,11 +5,12 @@ import Text from "@/components/text";
 import InfoTooltip from "@/components/info-tooltip";
 import { tailwindTextColors } from "@/lib/theme-colors";
 import clsx from "clsx";
+import { responseMinutes } from "@/lib/distribution-metrics";
 
 const infoText =
     "Bar = department escalation index (from facility usage metrics), not role-level escalation counts. " +
     "Use Top Escalated Roles for per-role escalation volume. " +
-    "Numbers show critical messages sent, escalation notifications, and average time to first reply on critical threads.";
+    "Numbers show critical messages sent, escalation notifications, and median time to first reply on critical threads.";
 
 function fmtCriticalReplyMin(minutes: unknown): string | null {
     if (minutes === undefined || minutes === null || minutes === "") return null;
@@ -141,7 +142,11 @@ const ResourceUtilization = ({ departments = [] }: ResourceUtilizationProps) => 
                     const badgeRate = Math.round(deptRate(dept));
                     const criticalSent = Math.round(Number(dept.critical_messages_sent) || 0);
                     const alerts = Math.round(Number(dept.escalation_notifications) || 0);
-                    const replyLabel = fmtCriticalReplyMin(dept.avg_reply_response_minutes_critical);
+                    const replyLabel = fmtCriticalReplyMin(
+                        responseMinutes(dept as unknown as Record<string, unknown>, "reply_critical", [
+                            "avg_reply_response_minutes_critical",
+                        ])
+                    );
                     const criticalLabel =
                         criticalSent === 1
                             ? '1 critical message'

@@ -5,6 +5,7 @@ import Text from '@/components/text';
 import FullscreenOverlay from '@/components/fullscreen-overlay';
 import clsx from 'clsx';
 import { FiX } from 'react-icons/fi';
+import { responseMinutes } from '@/lib/distribution-metrics';
 
 interface RoleMetric {
     role_id: string;
@@ -63,8 +64,8 @@ export default function RoleMetricsModal({ isOpen, onClose, roles }: RoleMetrics
         'Total Messages',
         'Critical Msg',
         'Escalation Rate',
-        'Critical Ack',
-        'Avg Response',
+        'Median ack',
+        'Median reply',
     ];
 
     const rows = roles.map((role) => [
@@ -75,8 +76,8 @@ export default function RoleMetricsModal({ isOpen, onClose, roles }: RoleMetrics
         role.total_messages,
         role.critical_messages,
         role.escalation_rate_percent.toFixed(1),
-        role.avg_critical_ack_minutes.toFixed(2),
-        role.avg_reply_response_minutes_all.toFixed(2),
+        (responseMinutes(role as unknown as Record<string, unknown>, "critical_ack", ["avg_critical_ack_minutes"]) ?? 0).toFixed(2),
+        (responseMinutes(role as unknown as Record<string, unknown>, "reply_all", ["avg_reply_response_minutes_all"]) ?? 0).toFixed(2),
     ]);
 
     const sortedRows = sortConfig

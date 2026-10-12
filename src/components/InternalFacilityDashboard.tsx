@@ -302,11 +302,11 @@ export default function InternalFacilityDashboard() {
     ], [facilities]);
 
     const scopeLabel = useMemo(() => {
-        if (!data) return "";
-        if (data.scope === "global" || !facilityId) {
+        if (!facilityId) {
+            if (!data) return "";
             return `All facilities (${data.facilities_in_scope ?? facilities.length})`;
         }
-        const f = facilities.find((x) => x.id === (data.filter_facility_id ?? facilityId));
+        const f = facilities.find((x) => x.id === (data?.filter_facility_id ?? facilityId));
         return f?.name ?? "Filtered facility";
     }, [data, facilities, facilityId]);
 
@@ -325,13 +325,10 @@ export default function InternalFacilityDashboard() {
                 defaultDateFrom={dateFrom}
                 defaultDateTo={dateTo}
                 facilityId={facilityId}
-                facilityName={
-                    scopeLabel ||
-                    (facilityId
-                        ? facilities.find((f) => f.id === facilityId)?.name ?? null
-                        : "All facilities")
-                }
+                facilityName={facilityId ? facilities.find((f) => f.id === facilityId)?.name ?? null : null}
                 globalScope={!facilityId}
+                internal
+                sourceData={data as Record<string, unknown> | null}
             />
             <div className={clsx('usage-dashboard-shell')}>
                 <div className="usage-inner">
@@ -458,13 +455,7 @@ export default function InternalFacilityDashboard() {
                             <RedZoneAlerts roles={data?.top_escalated_roles} />
                         </div>
                         <div className="animate-slide-in-right stagger-4">
-                            <LiveUpdates responseTimes={data ? {
-                                avg_critical_ack_minutes: data.avg_critical_ack_minutes,
-                                avg_first_read_minutes_all: data.avg_first_read_minutes_all,
-                                avg_first_read_minutes_critical: data.avg_first_read_minutes_critical,
-                                avg_first_read_minutes_non_critical: data.avg_first_read_minutes_non_critical,
-                                total_calls_made: data.total_calls_made,
-                            } : undefined} />
+                            <LiveUpdates responseTimes={data ?? undefined} />
                         </div>
                         <div className="animate-slide-in-right stagger-5 usage-sidebar-sticky">
                             <InsightsCard data={data ?? undefined} />

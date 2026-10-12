@@ -4,13 +4,14 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import Text from "@/components/text";
 import InfoTooltip from "@/components/info-tooltip";
 import clsx from "clsx";
+import { responseMinutes } from "@/lib/distribution-metrics";
 
 const TOP_N = 5;
 
 const infoText =
-    "Top 5 roles with the fastest average critical acknowledgment time. " +
+    "Top 5 roles with the fastest median critical acknowledgment time. " +
     "The bar shows each role’s share of combined speed (faster roles take more of the bar). " +
-    "List shows each role’s average ack time on critical messages.";
+    "List shows each role’s median ack time on critical messages.";
 
 const SEGMENT_STYLES = [
     { bar: "#00C8B3", bg: "rgba(0,200,179,0.1)", text: "#089A8A" },
@@ -65,11 +66,18 @@ const InsightsCard = ({ data }: InsightsCardProps) => {
 
     const { topRoles, fastestMinutes } = useMemo(() => {
         const roles = (data?.role_metrics || [])
-            .filter((r) => num(r?.avg_critical_ack_minutes) > 0 && num(r?.critical_messages) > 0)
+            .map((r) => ({
+                role: r,
+                ackMinutes:
+                    responseMinutes(r as Record<string, unknown>, "critical_ack", [
+                        "avg_critical_ack_minutes",
+                    ]) ?? 0,
+            }))
+            .filter((r) => r.ackMinutes > 0 && num(r.role?.critical_messages) > 0)
             .map((r, i) => ({
-                id: String(r.role_id || "").trim() || `role-${i}`,
-                name: formatRoleName(r.role_name || "Role"),
-                ackMinutes: num(r.avg_critical_ack_minutes),
+                id: String(r.role.role_id || "").trim() || `role-${i}`,
+                name: formatRoleName(r.role.role_name || "Role"),
+                ackMinutes: r.ackMinutes,
             }))
             .sort((a, b) => a.ackMinutes - b.ackMinutes)
             .slice(0, TOP_N);

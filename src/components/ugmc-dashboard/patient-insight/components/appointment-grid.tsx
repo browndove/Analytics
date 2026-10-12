@@ -8,6 +8,7 @@ import dynamic from "next/dynamic";
 import { useTheme } from "next-themes";
 import clsx from "clsx";
 import FullscreenOverlay from "@/components/fullscreen-overlay";
+import { responseMinutes } from "@/lib/distribution-metrics";
 
 const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
@@ -76,11 +77,13 @@ const shortenRole = (name: string) => {
 };
 
 const AppointmentCancellationChart = ({ isFullscreen = false, onToggleFullscreen, data, onViewMore }: { isFullscreen?: boolean; onToggleFullscreen?: () => void; data?: any; onViewMore?: () => void }) => {
+	const ackMinutes = (role: Record<string, unknown>) =>
+		responseMinutes(role, "critical_ack", ["avg_critical_ack_minutes"]) ?? 0;
 	const rolesList = [...(data?.role_metrics || [])]
-		.filter((d: any) => Number(d?.avg_critical_ack_minutes) > 0)
-		.sort((a: any, b: any) => (Number(b?.avg_critical_ack_minutes) || 0) - (Number(a?.avg_critical_ack_minutes) || 0))
+		.filter((d: any) => ackMinutes(d) > 0)
+		.sort((a: any, b: any) => ackMinutes(b) - ackMinutes(a))
 		.slice(0, 6);
-	const chartData = rolesList.map((d: any) => Number(d.avg_critical_ack_minutes));
+	const chartData = rolesList.map((d: any) => ackMinutes(d));
 	const categories = rolesList.map((d: any) => shortenRole(d.role_name));
 	const hasChartData = rolesList.length > 0;
 
@@ -101,7 +104,7 @@ const AppointmentCancellationChart = ({ isFullscreen = false, onToggleFullscreen
         },
 	};
 
-	const chartSeries = [{ name: 'Average Acknowledgment Time', data: chartData }];
+	const chartSeries = [{ name: 'Median acknowledgment time', data: chartData }];
 
 	useEffect(() => {
 		if (isFullscreen) document.body.style.overflow = 'hidden';
