@@ -295,6 +295,7 @@ function UsagePageContent() {
                 onClose={() => setReportModalOpen(false)}
                 defaultDateFrom={dateFrom}
                 defaultDateTo={dateTo}
+                sourceData={data as Record<string, unknown> | null}
             />
             <div className={clsx('usage-dashboard-shell')}>
                 <div className="usage-inner">
@@ -413,13 +414,7 @@ function UsagePageContent() {
                             <RedZoneAlerts roles={data?.top_escalated_roles} />
                         </div>
                         <div className="animate-slide-in-right stagger-4">
-                            <LiveUpdates responseTimes={data ? {
-                                avg_critical_ack_minutes: data.avg_critical_ack_minutes,
-                                avg_first_read_minutes_all: data.avg_first_read_minutes_all,
-                                avg_first_read_minutes_critical: data.avg_first_read_minutes_critical,
-                                avg_first_read_minutes_non_critical: data.avg_first_read_minutes_non_critical,
-                                total_calls_made: data.total_calls_made,
-                            } : undefined} />
+                            <LiveUpdates responseTimes={data ?? undefined} />
                         </div>
                         <div className="animate-slide-in-right stagger-5 usage-sidebar-sticky">
                             <InsightsCard data={data ?? undefined} />

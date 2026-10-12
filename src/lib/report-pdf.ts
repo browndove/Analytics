@@ -1,5 +1,5 @@
 import jsPDF from "jspdf";
-import { collectReportData } from "@/lib/report-metrics";
+import { collectReportData, humanizeReportHeader } from "@/lib/report-metrics";
 import type { ReportScalarRow, ReportTableSection } from "@/lib/report-metrics";
 import type { ReportLogo } from "@/lib/report-logo";
 import {
@@ -9,6 +9,7 @@ import {
     chartPerformanceRadar,
     chartRankedMetric,
     chartStackedByColumns,
+    type ChartFrame,
     type ChartImage,
 } from "@/lib/report-charts";
 
@@ -20,8 +21,6 @@ type AnalyticsRow = Record<string, unknown>;
 type RGB = [number, number, number];
 
 const NAVY: RGB = [12, 24, 38];
-const NAVY_DEEP: RGB = [8, 18, 28];
-const TEAL_DEEP: RGB = [8, 42, 48];
 const TEAL: RGB = [13, 148, 136];
 const TEAL_SOFT: RGB = [45, 168, 158];
 const INK: RGB = [22, 30, 42];
@@ -82,16 +81,6 @@ function drawGradientRect(
     }
 }
 
-/** Diagonal-ish wash: left→right blend via vertical strips of horizontal gradients. */
-function drawCoverAtmosphere(doc: jsPDF, pageW: number, pageH: number) {
-    drawGradientRect(doc, 0, 0, pageW, pageH, NAVY, TEAL_DEEP, 1.5);
-    // Soft bottom fade toward deeper navy
-    drawGradientRect(doc, 0, pageH * 0.62, pageW, pageH * 0.38, TEAL_DEEP, NAVY_DEEP, 1.5);
-    // Quiet left accent wash (narrow vertical gradient strip)
-    const stripW = 6;
-    drawGradientRect(doc, 0, 0, stripW, pageH, TEAL, TEAL_SOFT, 2);
-}
-
 function truncateToWidth(doc: jsPDF, text: string, maxW: number): string {
     if (doc.getTextWidth(text) <= maxW) return text;
     let t = text;
@@ -135,7 +124,7 @@ function drawPageChrome(
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   Cover — gradient kept, ornament removed
+   Cover — white, same language as the key metrics page
    ═══════════════════════════════════════════════════════════════════════════ */
 function drawCoverPage(
     doc: jsPDF,
@@ -150,77 +139,100 @@ function drawCoverPage(
         logo: ReportLogo | null;
     }
 ) {
-    drawCoverAtmosphere(doc, pageW, pageH);
+    doc.setFillColor(...WHITE);
+    doc.rect(0, 0, pageW, pageH, "F");
+    drawGradientRect(doc, 0, 0, pageW, 4, TEAL, TEAL_SOFT, 0.5);
 
-    const left = margin + 8;
-    let y = 96;
+    const left = margin;
+    const right = pageW - margin;
+    let y = 48;
 
     if (meta.logo) {
         const h = 26;
         const w = logoWidthFor(meta.logo, h);
         doc.addImage(meta.logo.dataUrl, "PNG", left, y, w, h);
-        y += h + 36;
     } else {
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(10);
-        doc.setTextColor(...TEAL_SOFT);
-        doc.text("HELIX", left, y);
-        y += 36;
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(13);
+        doc.setTextColor(...TEAL);
+        doc.text("HELIX", left, y + 16);
     }
-
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(11);
-    doc.setTextColor(...TEAL_SOFT);
-    doc.text("Analytics report", left, y);
+    doc.setFontSize(9);
+    doc.setTextColor(...FAINT);
+    doc.text("Helix Analytics", right, y + 16, { align: "right" });
 
-    y += 36;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(36);
-    doc.setTextColor(...WHITE);
     const facilityTitle = meta.facilityName?.trim() || "Facility overview";
-    const titleLines = doc.splitTextToSize(facilityTitle, pageW - left - margin);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(34);
+    const titleLines = doc.splitTextToSize(facilityTitle, right - left) as string[];
+    const titleTop = 188;
+
+    doc.setFillColor(...TEAL);
+    doc.circle(left + 3, titleTop - 2, 3, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(...TEAL);
+    doc.text("ANALYTICS REPORT", left + 14, titleTop);
+
+    y = titleTop + 36;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(34);
+    doc.setTextColor(...INK);
     doc.text(titleLines, left, y);
-    y += titleLines.length * 40 + 8;
+    y += titleLines.length * 40 + 4;
 
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(12);
-    doc.setTextColor(180, 210, 210);
+    doc.setFontSize(13);
+    doc.setTextColor(...MUTED);
     doc.text("Usage, response, and operational performance", left, y);
 
-    // Thin gradient rule under title block
-    y += 28;
-    drawGradientRect(doc, left, y, Math.min(160, pageW - left - margin), 2, TEAL, TEAL_SOFT, 0.5);
+    y += 22;
+    drawGradientRect(doc, left, y, 48, 2, TEAL, TEAL_SOFT, 0.5);
 
-    // Meta block — typography only, no frosted card / pills
-    const metaY = pageH - 150;
     const period = formatPeriod(meta.dateFrom, meta.dateTo);
     const generated = formatGenerated(meta.generatedAtIso);
-
     const fields: { label: string; value: string }[] = [
+        { label: "Facility", value: facilityTitle },
         { label: "Period", value: period },
         { label: "Generated", value: generated },
     ];
-    if (meta.facilityName) {
-        fields.unshift({ label: "Facility", value: meta.facilityName });
-    }
 
-    const colW = (pageW - left - margin) / fields.length;
-    fields.forEach((f, i) => {
-        const x = left + i * colW;
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(8);
-        doc.setTextColor(...TEAL_SOFT);
-        doc.text(f.label.toUpperCase(), x, metaY);
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(11);
-        doc.setTextColor(...WHITE);
-        doc.text(truncateToWidth(doc, f.value, colW - 16), x, metaY + 18);
+    const panelTop = y + 36;
+    const panelBottom = pageH - 72;
+    const panelH = Math.max(180, panelBottom - panelTop);
+    doc.setFillColor(...WASH);
+    doc.roundedRect(left, panelTop, right - left, panelH, 12, 12, "F");
+    doc.setDrawColor(...RULE);
+    doc.setLineWidth(0.8);
+    doc.roundedRect(left, panelTop, right - left, panelH, 12, 12, "S");
+
+    const rowH = panelH / fields.length;
+    fields.forEach((field, i) => {
+        const rowY = panelTop + i * rowH;
+        if (i > 0) {
+            doc.setDrawColor(...RULE);
+            doc.setLineWidth(0.6);
+            doc.line(left + 20, rowY, right - 20, rowY);
+        }
+        const textY = rowY + rowH / 2;
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(...TEAL);
+        doc.text(field.label.toUpperCase(), left + 24, textY - 8);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(16);
+        doc.setTextColor(...INK);
+        const lines = doc.splitTextToSize(field.value, right - left - 48) as string[];
+        doc.text(lines[0] ?? "—", left + 24, textY + 14);
     });
 
+    doc.setFillColor(...TEAL);
+    doc.circle(left + 3, pageH - 28, 2.4, "F");
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(7.5);
-    doc.setTextColor(120, 145, 155);
-    doc.text("Confidential — for authorized recipients only", left, pageH - 36);
+    doc.setFontSize(8);
+    doc.setTextColor(...MUTED);
+    doc.text("Confidential & Proprietary  —  For Internal Executive Use Only", left + 14, pageH - 26);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -261,25 +273,116 @@ function drawSectionTitle(
     return y + 32;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   Summary metrics — clean columns, no card grid
-   ═══════════════════════════════════════════════════════════════════════════ */
-function drawSummaryMetrics(
+const GOOD: RGB = [15, 143, 104];
+const AMBER: RGB = [217, 119, 6];
+
+function metricNumber(value: string): number | null {
+    const n = Number(value.replace(/,/g, "").replace(/%/g, "").trim());
+    return Number.isFinite(n) ? n : null;
+}
+
+function metricDisplay(label: string, value: string): string {
+    if (!value.trim()) return "—";
+    const n = metricNumber(value);
+    if (n == null) return value;
+    const oneDecimal = /minute|sign-in|sign-out/i.test(label);
+    const formatted = oneDecimal || !Number.isInteger(n)
+        ? n.toLocaleString("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+        : n.toLocaleString("en-US");
+    if (/%|percent/i.test(label) && !value.includes("%")) return `${formatted} %`;
+    return formatted;
+}
+
+function metricColor(label: string, value: string): RGB {
+    const n = metricNumber(value);
+    if (n == null) return INK;
+    if (/\(%\)|percent/i.test(label) && n >= 90) return GOOD;
+    if (/minute/i.test(label) && !/sign-in|sign-out/i.test(label) && n >= 60) return GOOD;
+    return INK;
+}
+
+function metricHint(label: string, value: string): string {
+    const n = metricNumber(value);
+    if (/active users \(count\)/i.test(label)) return "Personnel";
+    if (/active users \(%/i.test(label)) return "Engagement";
+    if (/registered staff/i.test(label)) return "Total Roster";
+    if (/sign-in|sign-out/i.test(label) && n != null && n > 0) {
+        const total = Math.round(n);
+        const h24 = Math.floor(total / 60) % 24;
+        const min = total % 60;
+        return `~${h24}:${String(min).padStart(2, "0")} UTC`;
+    }
+    if (/minute/i.test(label) && n != null && n > 0) {
+        if (n >= 60) {
+            const hours = n / 60;
+            return `min   (~${hours >= 10 ? hours.toFixed(0) : hours.toFixed(1)}h)`;
+        }
+        return "min";
+    }
+    return "";
+}
+
+function drawKeyMetrics(
     doc: jsPDF,
     rows: ReportScalarRow[],
-    startY: number,
-    margin: number,
-    contentW: number,
-    pageH: number,
-    footerReserve: number
-): number {
-    if (rows.length === 0) {
-        doc.setFont("helvetica", "italic");
+    opts: {
+        margin: number;
+        contentW: number;
+        pageH: number;
+        footerReserve: number;
+        contentTop: number;
+        period: string;
+        generated: string;
+        sectionIndex: number;
+        onPage: () => void;
+    }
+): void {
+    const { margin, contentW, pageH, footerReserve, contentTop } = opts;
+    let y = contentTop;
+
+    const paintHeader = (continued: boolean) => {
+        doc.setFillColor(...TEAL);
+        doc.circle(margin + 3, y - 2, 3, "F");
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8);
+        doc.setTextColor(...TEAL);
+        doc.text("MONTHLY OPERATIONS REVIEW", margin + 12, y);
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7.5);
+        doc.setTextColor(...MUTED);
+        const periodText = `PERIOD:  ${opts.period.toUpperCase()}`;
+        const generatedText = `GENERATED:  ${opts.generated.toUpperCase()}`;
+        const right = margin + contentW;
+        doc.text(generatedText, right, y, { align: "right" });
+        doc.text(periodText, right - doc.getTextWidth(generatedText) - 18, y, { align: "right" });
+
+        y += 22;
+        const indexLabel = String(opts.sectionIndex).padStart(2, "0");
+        doc.setDrawColor(...RULE);
+        doc.setLineWidth(0.8);
+        doc.roundedRect(margin, y - 11, 22, 16, 4, 4, "S");
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8);
+        doc.setTextColor(...TEAL);
+        doc.text(indexLabel, margin + 11, y, { align: "center" });
+        doc.setFontSize(18);
+        doc.setTextColor(...INK);
+        doc.text("Key metrics", margin + 30, y + 1);
+        doc.setFont("helvetica", "normal");
         doc.setFontSize(9);
         doc.setTextColor(...MUTED);
-        doc.text("No summary metrics were included.", margin, startY);
-        return startY + 22;
-    }
+        const subtitle = continued ? "Continued" : "Executive Performance & Activity Summary";
+        doc.text(subtitle, margin + 142, y);
+        y += 10;
+        doc.setDrawColor(...RULE);
+        doc.setLineWidth(0.6);
+        doc.line(margin, y, margin + contentW, y);
+        y += 16;
+    };
+
+    paintHeader(false);
+    opts.onPage();
 
     const groups = new Map<string, ReportScalarRow[]>();
     for (const row of rows) {
@@ -287,61 +390,131 @@ function drawSummaryMetrics(
         groups.get(row.group)!.push(row);
     }
 
-    let y = startY;
-    const cols = 3;
-    const gap = 18;
-    const colW = (contentW - gap * (cols - 1)) / cols;
-    const rowH = 44;
-
-    const ensureSpace = (needed: number) => {
-        if (y + needed > pageH - footerReserve) {
-            doc.addPage();
-            y = margin + 42;
-        }
-    };
+    const joinedGroup = (name: string) => /messaging|roles|response/i.test(name);
 
     for (const [groupName, items] of groups) {
-        const groupRows = Math.ceil(items.length / cols);
-        ensureSpace(22 + groupRows * rowH + 16);
+        const cols = items.length === 1 ? 1 : items.length === 2 ? 2 : 3;
+        const rowsN = Math.ceil(items.length / cols);
+        const cellH = 62;
+        const gap = joinedGroup(groupName) ? 0 : 8;
+        const panelH = rowsN * cellH + Math.max(0, rowsN - 1) * gap;
+        if (y + 16 + panelH > pageH - footerReserve) {
+            doc.addPage("a4", "portrait");
+            y = contentTop;
+            paintHeader(true);
+            opts.onPage();
+        }
 
-        doc.setFont("helvetica", "normal");
+        doc.setFont("helvetica", "bold");
         doc.setFontSize(8);
         doc.setTextColor(...TEAL);
         doc.text(groupName.toUpperCase(), margin, y);
-        y += 14;
+        y += 12;
 
-        // Soft wash behind the group
-        const blockH = groupRows * rowH + 4;
-        doc.setFillColor(...WASH);
-        doc.rect(margin, y - 4, contentW, blockH, "F");
-
-        for (let i = 0; i < items.length; i++) {
-            const c = i % cols;
-            const r = Math.floor(i / cols);
-            const cx = margin + c * (colW + gap);
-            const cy = y + r * rowH;
-
-            if (c === 0 && r > 0) {
-                doc.setDrawColor(...RULE);
-                doc.setLineWidth(0.35);
-                doc.line(margin + 8, cy - 2, margin + contentW - 8, cy - 2);
+        const cellW = (contentW - gap * (cols - 1)) / cols;
+        if (joinedGroup(groupName)) {
+            doc.setDrawColor(...RULE);
+            doc.setLineWidth(0.8);
+            doc.roundedRect(margin, y, contentW, panelH, 8, 8, "S");
+            doc.setDrawColor(241, 245, 249);
+            for (let c = 1; c < cols; c++) {
+                doc.line(margin + c * cellW, y + 8, margin + c * cellW, y + panelH - 8);
             }
-
-            doc.setFont("helvetica", "normal");
-            doc.setFontSize(7.5);
-            doc.setTextColor(...MUTED);
-            doc.text(truncateToWidth(doc, items[i].label, colW - 8), cx + 10, cy + 14);
-
-            doc.setFont("helvetica", "bold");
-            doc.setFontSize(15);
-            doc.setTextColor(...INK);
-            doc.text(items[i].value || "—", cx + 10, cy + 32);
+            for (let r = 1; r < rowsN; r++) {
+                doc.line(margin + 10, y + r * cellH, margin + contentW - 10, y + r * cellH);
+            }
         }
 
-        y += blockH + 18;
-    }
+        items.forEach((item, i) => {
+            const c = i % cols;
+            const r = Math.floor(i / cols);
+            const x = margin + c * (cellW + gap);
+            const cy = y + r * (cellH + gap);
+            if (!joinedGroup(groupName)) {
+                doc.setDrawColor(...RULE);
+                doc.setLineWidth(0.8);
+                doc.roundedRect(x, cy, cellW, cellH, 8, 8, "S");
+            }
 
-    return y;
+            const shown = metricDisplay(item.label, item.value);
+            const hint = metricHint(item.label, item.value);
+            const n = metricNumber(item.value);
+            const minuteStat = /minute/i.test(item.label) && !/sign-in|sign-out/i.test(item.label);
+            const clockStat = /sign-in|sign-out/i.test(item.label);
+            const showTarget = /critical role fill/i.test(item.label) && n === 100;
+            const criticalDot = item.label === "Critical messages";
+
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(9);
+            doc.setTextColor(71, 85, 105);
+            const labelMax = cellW - 20 - (criticalDot ? 10 : 0);
+            const labelLines = (doc.splitTextToSize(item.label, labelMax) as string[]).slice(0, 2);
+            labelLines.forEach((line, lineIndex) => {
+                doc.text(line, x + 10, cy + 14 + lineIndex * 11);
+            });
+            if (criticalDot) {
+                doc.setFillColor(...AMBER);
+                doc.circle(x + 14 + doc.getTextWidth(labelLines[0] ?? ""), cy + 11, 2.2, "F");
+            }
+            const valueY = cy + (labelLines.length > 1 ? 48 : 40);
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(16);
+            doc.setTextColor(...metricColor(item.label, item.value));
+            doc.text(shown, x + 10, valueY);
+            const valueW = doc.getTextWidth(shown);
+            if (showTarget && x + 18 + valueW + 58 < x + cellW) {
+                const badgeX = x + 16 + valueW;
+                doc.setFillColor(220, 252, 231);
+                doc.roundedRect(badgeX, valueY - 10, 54, 13, 6, 6, "F");
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(7);
+                doc.setTextColor(...GOOD);
+                doc.text("100% Target", badgeX + 27, valueY - 1, { align: "center" });
+            }
+
+            if (/active users \(%/i.test(item.label) && n != null) {
+                doc.setDrawColor(...GOOD);
+                doc.setLineWidth(2);
+                doc.line(x + 10, valueY + 4, x + 10 + Math.min(valueW, 34), valueY + 4);
+            }
+
+            if (minuteStat && n != null && n > 0) {
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(8);
+                doc.setTextColor(...FAINT);
+                let unitX = x + 14 + valueW;
+                doc.text("min", unitX, valueY);
+                if (n >= 60) {
+                    unitX += doc.getTextWidth("min") + 4;
+                    const hours = n / 60;
+                    doc.text(`(~${hours >= 10 ? hours.toFixed(0) : hours.toFixed(1)}h)`, unitX, valueY);
+                }
+            } else if (clockStat && hint) {
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(8);
+                doc.setTextColor(...FAINT);
+                doc.text(hint, x + 10, Math.min(valueY + 12, cy + cellH - 8));
+                const iconX = x + cellW - 22;
+                const iconY = cy + 30;
+                doc.setDrawColor(...RULE);
+                doc.setLineWidth(0.8);
+                doc.circle(iconX, iconY, 8, "S");
+                doc.setDrawColor(...TEAL);
+                doc.setLineWidth(1);
+                const dir = /sign-out/i.test(item.label) ? 1 : -1;
+                doc.line(iconX - 3 * dir, iconY, iconX + 3 * dir, iconY);
+                doc.line(iconX + 3 * dir, iconY, iconX + dir, iconY - 2.2);
+                doc.line(iconX + 3 * dir, iconY, iconX + dir, iconY + 2.2);
+            } else if (hint) {
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(7);
+                doc.setTextColor(...FAINT);
+                doc.text(hint, x + cellW - 10, valueY, { align: "right" });
+            }
+        });
+
+        y += panelH + 12;
+    }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -370,6 +543,83 @@ function drawFooter(
 
     doc.setTextColor(...MUTED);
     doc.text(`${pageNum - 1} / ${totalPages - 1}`, pageW - margin, pageH - 24, { align: "right" });
+}
+
+function drawKeyMetricsFooter(
+    doc: jsPDF,
+    pageW: number,
+    pageH: number,
+    margin: number,
+    pageNum: number,
+    totalPages: number
+) {
+    const printed = pageNum - 1;
+    const totalPrinted = Math.max(1, totalPages - 1);
+    doc.setDrawColor(...RULE);
+    doc.setLineWidth(0.4);
+    doc.line(margin, pageH - 40, pageW - margin, pageH - 40);
+
+    doc.setFillColor(...TEAL);
+    doc.circle(margin + 3, pageH - 26, 2.4, "F");
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    doc.setTextColor(...MUTED);
+    doc.text("Confidential & Proprietary  —  For Internal Executive Use Only", margin + 12, pageH - 24);
+
+    const pageLabel = `Page ${printed} of ${totalPrinted}`;
+    doc.setTextColor(...FAINT);
+    doc.text(pageLabel, pageW - margin, pageH - 24, { align: "right" });
+    const ref = "Document Ref: OPS-METRICS-01";
+    doc.text(ref, pageW - margin - doc.getTextWidth(pageLabel) - 14, pageH - 24, { align: "right" });
+}
+
+type TocEntry = { index: number; title: string; page: number };
+
+function drawTocRow(
+    doc: jsPDF,
+    entry: TocEntry,
+    y: number,
+    margin: number,
+    contentW: number,
+    printedPage: number,
+    targetPage: number
+) {
+    const indexLabel = String(entry.index).padStart(2, "0");
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(...TEAL);
+    doc.text(indexLabel, margin, y);
+
+    const pageLabel = String(printedPage);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    const pageWidth = doc.getTextWidth(pageLabel);
+    const titleX = margin + 32;
+    const titleMax = contentW - 32 - pageWidth - 36;
+
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...INK);
+    const title = truncateToWidth(doc, entry.title, titleMax);
+    doc.text(title, titleX, y);
+
+    const dotsFrom = titleX + doc.getTextWidth(title) + 10;
+    const dotsTo = margin + contentW - pageWidth - 12;
+    doc.setFontSize(9);
+    doc.setTextColor(...FAINT);
+    const step = doc.getTextWidth("·") + 3.5;
+    for (let x = dotsFrom; x < dotsTo; x += step) {
+        doc.text("·", x, y);
+    }
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(...INK);
+    doc.text(pageLabel, margin + contentW, y, { align: "right" });
+
+    doc.setDrawColor(...RULE);
+    doc.setLineWidth(0.4);
+    doc.line(margin, y + 10, margin + contentW, y + 10);
+    doc.link(margin, y - 14, contentW, 28, { pageNumber: targetPage });
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -405,48 +655,143 @@ export function buildAnalyticsReportPdfBlob(
         logo,
     });
 
-    doc.addPage();
     let y = margin + 42;
     let sectionIndex = 1;
+    const contentTop = margin + 42;
+    const toc: TocEntry[] = [];
+    const rememberSection = (title: string) => {
+        toc.push({ index: sectionIndex, title, page: doc.getNumberOfPages() });
+    };
 
     const collected = collectReportData(data, selected);
 
-    const ensureSpace = (needed: number) => {
-        if (y + needed > pageH - footerReserve) {
-            doc.addPage();
-            y = margin + 42;
-        }
+    const chartAvailH = pageH - footerReserve - contentTop - 62;
+    const chartFrame: ChartFrame = {
+        width: 1400,
+        height: Math.max(980, Math.round(1400 * (chartAvailH / contentW))),
+    };
+    const landW = 841.89;
+    const landH = 595.28;
+    const landContentW = landW - margin * 2;
+    const landAvailH = landH - footerReserve - contentTop - 62;
+    const landscapeFrame: ChartFrame = {
+        width: 1680,
+        height: Math.max(780, Math.round(1680 * (landAvailH / landContentW))),
+    };
+    const keyMetricPages = new Set<number>();
+
+    const addChart = (title: string, chart: ChartImage | null, layout: "portrait" | "landscape" = "portrait") => {
+        if (!chart) return;
+
+        doc.addPage("a4", layout);
+        const w = doc.internal.pageSize.getWidth();
+        const h = doc.internal.pageSize.getHeight();
+        const boxContentW = w - margin * 2;
+        rememberSection(title);
+        y = contentTop;
+        y = drawSectionTitle(doc, title, y, margin, boxContentW, sectionIndex++);
+        y += 8;
+        const boxTop = y;
+        const boxH = h - footerReserve - boxTop - 8;
+        const boxW = boxContentW;
+
+        const scale = Math.min(boxW / chart.width, boxH / chart.height);
+        const imgW = chart.width * scale;
+        const imgH = chart.height * scale;
+        const x = margin + (boxW - imgW) / 2;
+        const iy = boxTop + Math.max(0, (boxH - imgH) / 2);
+        doc.addImage(chart.dataUrl, "PNG", x, iy, imgW, imgH);
     };
 
-    const addChart = (title: string, chart: ChartImage | null, emptyHint = "No data for this period.") => {
-        y += 20; // breathing room between sections
-        ensureSpace(96);
-        y = drawSectionTitle(doc, title, y, margin, contentW, sectionIndex++);
-        y += 14; // gap between title rule and chart
+    const columnsForPdf = (section: ReportTableSection) => {
+        const preferred = (section.pdfColumns?.length ? section.pdfColumns : section.head).filter(
+            (key) => section.head.includes(key) && !/_id$/i.test(key)
+        );
+        const keys = preferred.length > 0 ? preferred : section.head;
+        const indexes = keys.map((key) => section.head.indexOf(key));
+        return {
+            labels: keys.map((key) => humanizeReportHeader(key)),
+            rows: section.body.map((row) => indexes.map((index) => row[index] ?? "")),
+        };
+    };
 
-        if (!chart) {
-            doc.setFont("helvetica", "italic");
-            doc.setFontSize(9);
-            doc.setTextColor(...MUTED);
-            doc.text(emptyHint, margin, y);
-            y += 36;
-            return;
-        }
+    const addTable = (section: ReportTableSection) => {
+        const { labels, rows } = columnsForPdf(section);
+        if (labels.length === 0 || rows.length === 0) return;
 
-        const imgW = contentW;
-        const imgH = (chart.height / chart.width) * imgW;
-        ensureSpace(imgH + 32);
-        doc.addImage(chart.dataUrl, "PNG", margin, y, imgW, imgH);
-        y += imgH + 48;
+        doc.addPage("a4", "portrait");
+        rememberSection(section.title);
+        y = contentTop;
+        y = drawSectionTitle(doc, section.title, y, margin, contentW, sectionIndex++);
+        y += 4;
+
+        const fontSize = labels.length > 8 ? 6.5 : labels.length > 6 ? 7.5 : 8.5;
+        const padX = 4;
+        const rowH = 18;
+        const colW = contentW / labels.length;
+
+        const drawHeader = () => {
+            doc.setFillColor(...NAVY);
+            doc.rect(margin, y, contentW, rowH, "F");
+            doc.setDrawColor(...NAVY);
+            doc.setLineWidth(0.4);
+            doc.rect(margin, y, contentW, rowH);
+            for (let i = 1; i < labels.length; i++) {
+                doc.line(margin + i * colW, y, margin + i * colW, y + rowH);
+            }
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(fontSize);
+            doc.setTextColor(...WHITE);
+            labels.forEach((label, i) => {
+                doc.text(truncateToWidth(doc, label, colW - padX * 2), margin + i * colW + padX, y + 12);
+            });
+            y += rowH;
+        };
+
+        drawHeader();
+        rows.forEach((row, rowIndex) => {
+            if (y + rowH > pageH - footerReserve) {
+                doc.addPage("a4", "portrait");
+                y = contentTop;
+                drawHeader();
+            }
+            if (rowIndex % 2 === 0) {
+                doc.setFillColor(...WASH);
+                doc.rect(margin, y, contentW, rowH, "F");
+            }
+            doc.setDrawColor(...RULE);
+            doc.setLineWidth(0.35);
+            doc.rect(margin, y, contentW, rowH);
+            for (let i = 1; i < labels.length; i++) {
+                doc.line(margin + i * colW, y, margin + i * colW, y + rowH);
+            }
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(fontSize);
+            doc.setTextColor(...INK);
+            row.forEach((value, i) => {
+                doc.text(truncateToWidth(doc, value || "—", colW - padX * 2), margin + i * colW + padX, y + 12);
+            });
+            y += rowH;
+        });
     };
 
     const sectionOrNull = (s: ReportTableSection | null) => (s && s.body.length > 0 ? s : null);
 
-    // Summary
-    ensureSpace(60);
-    y = drawSectionTitle(doc, "Key metrics", y, margin, contentW, sectionIndex++);
-    y = drawSummaryMetrics(doc, collected.scalarRows, y, margin, contentW, pageH, footerReserve);
-    y += 24;
+    if (collected.scalarRows.length > 0) {
+        doc.addPage("a4", "portrait");
+        rememberSection("Key metrics");
+        drawKeyMetrics(doc, collected.scalarRows, {
+            margin,
+            contentW,
+            pageH,
+            footerReserve,
+            contentTop: 52,
+            period: formatPeriod(meta.dateFrom, meta.dateTo),
+            generated: formatGenerated(meta.generatedAtIso),
+            sectionIndex: sectionIndex++,
+            onPage: () => keyMetricPages.add(doc.getNumberOfPages()),
+        });
+    }
 
     const hasMessagingScalars = collected.scalarRows.some(
         (r) => r.group === "Messaging" || r.group === "Escalation"
@@ -454,17 +799,18 @@ export function buildAnalyticsReportPdfBlob(
     const hasStaffScalars = collected.scalarRows.some(
         (r) => r.group === "Staff & activity" || r.group === "Roles" || r.group === "Response times"
     );
-    if (hasMessagingScalars) addChart("Message mix", chartMessageMix(data));
-    if (hasMessagingScalars || hasStaffScalars) addChart("Performance profile", chartPerformanceRadar(data));
+    if (hasMessagingScalars) addChart("Message mix", chartMessageMix(data, chartFrame));
+    if (hasMessagingScalars || hasStaffScalars) addChart("Performance profile", chartPerformanceRadar(data, chartFrame));
 
     if (collected.daily) {
         const s = sectionOrNull(collected.daily);
-        addChart("Daily message volume", s ? chartDailyVolume(s.head, s.body) : null);
+        addChart("Daily message volume", s ? chartDailyVolume(s.head, s.body, chartFrame) : null);
+        if (s) addTable(collected.daily!);
     }
 
     if (collected.departments) {
         const s = sectionOrNull(collected.departments);
-        addChart("Department metric heatmap", s ? chartDepartmentHeatmap(s.head, s.body) : null);
+        addChart("Department metric heatmap", s ? chartDepartmentHeatmap(s.head, s.body, chartFrame) : null);
         addChart(
             "Department escalation rate",
             s
@@ -473,9 +819,10 @@ export function buildAnalyticsReportPdfBlob(
                       s.body,
                       "department_name",
                       "escalation_rate_vs_dept_critical_messages_percent",
-                      { valueSuffix: "%", maxItems: 10, style: "lollipop", color: "#EF4444" }
+                      { valueSuffix: "%", maxItems: 10, style: "lollipop", color: "#EF4444", frame: landscapeFrame }
                   )
-                : null
+                : null,
+            "landscape"
         );
         addChart(
             "Department role fill rate",
@@ -486,9 +833,12 @@ export function buildAnalyticsReportPdfBlob(
                       style: "bars",
                       colorFrom: "#5EEAD4",
                       colorTo: "#0F766E",
+                      frame: landscapeFrame,
                   })
-                : null
+                : null,
+            "landscape"
         );
+        if (s) addTable(collected.departments!);
     }
 
     if (collected.topEscalated) {
@@ -500,9 +850,12 @@ export function buildAnalyticsReportPdfBlob(
                       maxItems: 10,
                       style: "lollipop",
                       color: "#EF4444",
+                      frame: landscapeFrame,
                   })
-                : null
+                : null,
+            "landscape"
         );
+        if (s) addTable(collected.topEscalated!);
     }
     if (collected.leastEscalated) {
         const s = sectionOrNull(collected.leastEscalated);
@@ -514,9 +867,12 @@ export function buildAnalyticsReportPdfBlob(
                       sortDesc: false,
                       style: "lollipop",
                       color: "#3B82F6",
+                      frame: landscapeFrame,
                   })
-                : null
+                : null,
+            "landscape"
         );
+        if (s) addTable(collected.leastEscalated!);
     }
 
     if (collected.roleMetrics) {
@@ -529,9 +885,12 @@ export function buildAnalyticsReportPdfBlob(
                       style: "bars",
                       colorFrom: "#99F6E4",
                       colorTo: "#0D9488",
+                      frame: landscapeFrame,
                   })
-                : null
+                : null,
+            "landscape"
         );
+        if (s) addTable(collected.roleMetrics!);
     }
 
     const callStack = [
@@ -542,15 +901,19 @@ export function buildAnalyticsReportPdfBlob(
         const s = sectionOrNull(collected.callByRole);
         addChart(
             "Outbound calls by role",
-            s ? chartStackedByColumns(s.head, s.body, "role_name", callStack, 8, "grouped") : null
+            s ? chartStackedByColumns(s.head, s.body, "role_name", callStack, 8, "grouped", landscapeFrame) : null,
+            "landscape"
         );
+        if (s) addTable(collected.callByRole!);
     }
     if (collected.callByDept) {
         const s = sectionOrNull(collected.callByDept);
         addChart(
             "Outbound calls by department",
-            s ? chartStackedByColumns(s.head, s.body, "department_name", callStack, 8, "grouped") : null
+            s ? chartStackedByColumns(s.head, s.body, "department_name", callStack, 8, "grouped", landscapeFrame) : null,
+            "landscape"
         );
+        if (s) addTable(collected.callByDept!);
     }
 
     const transferStack = [
@@ -561,24 +924,64 @@ export function buildAnalyticsReportPdfBlob(
         const s = sectionOrNull(collected.transferByCounterparty);
         addChart(
             "Transfers by counterparty facility",
-            s ? chartStackedByColumns(s.head, s.body, "counterparty_facility_name", transferStack, 10) : null
+            s ? chartStackedByColumns(s.head, s.body, "counterparty_facility_name", transferStack, 10, "horizontal", landscapeFrame) : null,
+            "landscape"
         );
+        if (s) addTable(collected.transferByCounterparty!);
     }
     if (collected.transferByRole) {
         const s = sectionOrNull(collected.transferByRole);
         addChart(
             "Transfers by role",
-            s ? chartStackedByColumns(s.head, s.body, "role_name", transferStack, 10) : null
+            s ? chartStackedByColumns(s.head, s.body, "role_name", transferStack, 10, "horizontal", landscapeFrame) : null,
+            "landscape"
         );
+        if (s) addTable(collected.transferByRole!);
     }
 
+    let tocPages = 0;
+    if (toc.length > 0) {
+        const rowH = 32;
+        const listTop = contentTop + 44;
+        const perPage = Math.max(1, Math.floor((pageH - footerReserve - listTop) / rowH));
+        tocPages = Math.ceil(toc.length / perPage);
+        doc.setPage(1);
+        for (let i = 0; i < tocPages; i++) doc.insertPage(2 + i);
+
+        for (let p = 0; p < tocPages; p++) {
+            doc.setPage(2 + p);
+            let ty = drawSectionTitle(doc, "Contents", contentTop, margin, contentW);
+            ty += 12;
+            const slice = toc.slice(p * perPage, (p + 1) * perPage);
+            for (const entry of slice) {
+                drawTocRow(
+                    doc,
+                    entry,
+                    ty,
+                    margin,
+                    contentW,
+                    entry.page + tocPages - 1,
+                    entry.page + tocPages
+                );
+                ty += rowH;
+            }
+        }
+    }
+
+    const keyPages = new Set([...keyMetricPages].map((p) => p + tocPages));
     const total = doc.getNumberOfPages();
     for (let i = 1; i <= total; i++) {
         doc.setPage(i);
-        if (i > 1) {
-            drawPageChrome(doc, pageW, margin, facilityName || undefined, logo);
+        const w = doc.internal.pageSize.getWidth();
+        const h = doc.internal.pageSize.getHeight();
+        if (keyPages.has(i)) {
+            drawKeyMetricsFooter(doc, w, h, margin, i, total);
+            continue;
         }
-        drawFooter(doc, pageW, pageH, margin, i, total, facilityName);
+        if (i > 1) {
+            drawPageChrome(doc, w, margin, facilityName || undefined, logo);
+        }
+        drawFooter(doc, w, h, margin, i, total, facilityName);
     }
 
     return doc.output("blob");

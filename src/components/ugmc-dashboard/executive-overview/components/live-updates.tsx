@@ -24,7 +24,7 @@ export interface ResponseTimesData {
 }
 
 interface LiveUpdatesProps {
-    responseTimes?: ResponseTimesData;
+    responseTimes?: ResponseTimesData | Record<string, unknown>;
 }
 
 function fmtMin(minutes: number | null | undefined): string {
@@ -104,7 +104,7 @@ const LiveUpdates = ({ responseTimes }: LiveUpdatesProps) => {
                         Response Times
                     </Text>
                     <Text variant="body-sm" color="text-secondary">
-                        Average acknowledgment & read times
+                        Median acknowledgment & read times
                     </Text>
                 </div>
                 <div className="flex items-center gap-2">

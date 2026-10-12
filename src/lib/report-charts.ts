@@ -13,6 +13,9 @@ export type ChartImage = {
     height: number;
 };
 
+/** Pixel size used when a chart is printed alone on a report page. */
+export type ChartFrame = { width: number; height: number };
+
 /* ─── Theme (seaborn-adjacent) ──────────────────────────────────────────── */
 
 const T = {
@@ -37,6 +40,22 @@ const T = {
 };
 
 const FONT = "system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif";
+/** Canvas px → PDF pt. Charts are drawn ~1400px wide and fitted to ~500pt. */
+let fontScale = 1;
+function useFontScale(width: number) {
+    fontScale = Math.max(1, width / 560);
+}
+function px(size: number) {
+    return Math.round(size * fontScale);
+}
+function measureLabel(font: string, text: string): number {
+    if (typeof document === "undefined") return text.length * 8;
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return text.length * 8;
+    ctx.font = font;
+    return ctx.measureText(text).width;
+}
 const FB = (size: number) => `bold ${size}px ${FONT}`;
 const FS = (size: number) => `600 ${size}px ${FONT}`;
 const FN = (size: number) => `500 ${size}px ${FONT}`;
@@ -151,6 +170,71 @@ function paintCard(ctx: CanvasRenderingContext2D, w: number, h: number) {
     ctx.fillRect(0, 0, w, h);
 }
 
+function drawCategoryLabel(
+    ctx: CanvasRenderingContext2D,
+    label: string,
+    x: number,
+    y: number,
+    maxW: number
+) {
+    ctx.fillStyle = T.ink;
+    ctx.font = FS(px(12));
+    ctx.textBaseline = "middle";
+    if (ctx.measureText(label).width <= maxW) {
+        ctx.textAlign = "center";
+        ctx.fillText(label, x, y);
+        return;
+    }
+    ctx.save();
+    ctx.translate(x, y + px(8));
+    ctx.rotate(-Math.PI / 5);
+    ctx.textAlign = "right";
+    ctx.fillText(truncate(ctx, label, Math.max(maxW * 2.4, px(150))), 0, 0);
+    ctx.restore();
+}
+
+function drawSpacedAxisLabels(
+    ctx: CanvasRenderingContext2D,
+    labels: string[],
+    xAt: (index: number) => number,
+    y: number,
+    plotLeft: number,
+    plotRight: number
+) {
+    if (labels.length === 0) return;
+    ctx.font = FS(px(12));
+    ctx.fillStyle = T.ink;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+
+    const widest = labels.reduce((max, label) => Math.max(max, ctx.measureText(label).width), 0);
+    const gap = px(16);
+    const usable = Math.max(widest + gap, plotRight - plotLeft);
+    const maxCount = Math.max(2, Math.floor(usable / (widest + gap)));
+    const step = Math.max(1, Math.ceil((labels.length - 1) / Math.max(1, maxCount - 1)));
+    const indexes: number[] = [];
+    for (let i = 0; i < labels.length; i += step) indexes.push(i);
+    const last = labels.length - 1;
+    if (indexes[indexes.length - 1] !== last) {
+        const prev = indexes[indexes.length - 1];
+        if (xAt(last) - xAt(prev) >= widest + gap) indexes.push(last);
+        else indexes[indexes.length - 1] = last;
+    }
+
+    let lastRight = plotLeft - gap;
+    for (const i of indexes) {
+        const text = labels[i];
+        const width = ctx.measureText(text).width;
+        let x = xAt(i);
+        const half = width / 2;
+        if (x - half < plotLeft) x = plotLeft + half;
+        if (x + half > plotRight) x = plotRight - half;
+        if (x - half < lastRight + gap) continue;
+        ctx.fillText(text, x, y);
+        lastRight = x + half;
+    }
+}
+
 function drawLegend(
     ctx: CanvasRenderingContext2D,
     items: { name: string; color: string; style?: "line" | "swatch" | "dash" }[],
@@ -158,57 +242,59 @@ function drawLegend(
     y: number,
     centerIn?: number
 ) {
-    ctx.font = FS(11);
+    ctx.font = FS(px(12));
     ctx.textBaseline = "middle";
+    const sw = px(12);
 
     let lx = x;
     if (centerIn != null) {
         let total = 0;
         for (const it of items) {
-            total += 20 + ctx.measureText(it.name).width + 20;
+            total += sw + px(8) + ctx.measureText(it.name).width + px(22);
         }
-        lx = Math.max(0, (centerIn - total + 20) / 2);
+        lx = Math.max(0, (centerIn - total + px(22)) / 2);
     }
 
     for (const it of items) {
         const style = it.style ?? "swatch";
         if (style === "line") {
             ctx.strokeStyle = it.color;
-            ctx.lineWidth = 3;
+            ctx.lineWidth = px(3);
             ctx.lineCap = "round";
             ctx.beginPath();
             ctx.moveTo(lx, y);
-            ctx.lineTo(lx + 16, y);
+            ctx.lineTo(lx + sw, y);
             ctx.stroke();
             ctx.fillStyle = it.color;
             ctx.beginPath();
-            ctx.arc(lx + 8, y, 3, 0, Math.PI * 2);
+            ctx.arc(lx + sw / 2, y, px(4), 0, Math.PI * 2);
             ctx.fill();
         } else if (style === "dash") {
             ctx.strokeStyle = it.color;
-            ctx.lineWidth = 2.5;
-            ctx.setLineDash([4, 3]);
+            ctx.lineWidth = px(3);
+            ctx.setLineDash([px(5), px(4)]);
             ctx.beginPath();
             ctx.moveTo(lx, y);
-            ctx.lineTo(lx + 16, y);
+            ctx.lineTo(lx + sw, y);
             ctx.stroke();
             ctx.setLineDash([]);
         } else {
             ctx.fillStyle = it.color;
-            roundRect(ctx, lx, y - 5, 12, 12, 3);
+            roundRect(ctx, lx, y - sw / 2, sw, sw, px(3));
             ctx.fill();
         }
         ctx.fillStyle = T.ink;
         ctx.textAlign = "left";
-        ctx.fillText(it.name, lx + 20, y);
-        lx += 20 + ctx.measureText(it.name).width + 20;
+        ctx.fillText(it.name, lx + sw + px(8), y);
+        lx += sw + px(8) + ctx.measureText(it.name).width + px(22);
     }
 }
 
 function emptyState(ctx: CanvasRenderingContext2D, w: number, h: number, msg = "No data for this period.") {
     paintCard(ctx, w, h);
+    useFontScale(w);
     ctx.fillStyle = T.faint;
-    ctx.font = `italic 13px ${FONT}`;
+    ctx.font = `italic ${px(13)}px ${FONT}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(msg, w / 2, h / 2);
@@ -247,10 +333,11 @@ export function renderAreaChart(opts: {
 }): ChartImage {
     const width = opts.width ?? 740;
     const height = opts.height ?? 320;
+    useFontScale(width);
     const { canvas, ctx } = createCanvas(width, height);
     paintCard(ctx, width, height);
 
-    const pad = { top: 24, right: 28, bottom: 72, left: 58 };
+    const pad = { top: px(36), right: px(32), bottom: px(110), left: px(86) };
     const plotW = width - pad.left - pad.right;
     const plotH = height - pad.top - pad.bottom;
 
@@ -264,7 +351,7 @@ export function renderAreaChart(opts: {
     ctx.fill();
 
     // Grid
-    ctx.font = FN(10);
+    ctx.font = FN(px(12));
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
     for (let v = 0; v <= yMax + 1e-9; v += step) {
@@ -342,17 +429,14 @@ export function renderAreaChart(opts: {
         }
     });
 
-    // X labels
-    const maxLabels = 9;
-    const stepIdx = Math.max(1, Math.ceil(opts.categories.length / maxLabels));
-    ctx.fillStyle = T.muted;
-    ctx.font = FS(10);
-    ctx.textAlign = "center";
-    ctx.textBaseline = "top";
-    opts.categories.forEach((label, i) => {
-        if (i % stepIdx !== 0 && i !== opts.categories.length - 1) return;
-        ctx.fillText(truncate(ctx, label, 54), xAt(i), pad.top + plotH + 10);
-    });
+    drawSpacedAxisLabels(
+        ctx,
+        opts.categories,
+        xAt,
+        pad.top + plotH + px(14),
+        pad.left,
+        pad.left + plotW
+    );
 
     drawLegend(
         ctx,
@@ -362,7 +446,7 @@ export function renderAreaChart(opts: {
             style: "line" as const,
         })),
         0,
-        pad.top + plotH + 38,
+        pad.top + plotH + px(58),
         width
     );
 
@@ -381,6 +465,7 @@ export function renderStackedAreaChart(opts: {
 }): ChartImage {
     const width = opts.width ?? 740;
     const height = opts.height ?? 340;
+    useFontScale(width);
     const { canvas, ctx } = createCanvas(width, height);
     paintCard(ctx, width, height);
 
@@ -389,7 +474,7 @@ export function renderStackedAreaChart(opts: {
         return { dataUrl: toDataUrl(canvas), width, height };
     }
 
-    const pad = { top: 24, right: 28, bottom: 72, left: 58 };
+    const pad = { top: px(36), right: px(32), bottom: px(110), left: px(86) };
     const plotW = width - pad.left - pad.right;
     const plotH = height - pad.top - pad.bottom;
     const n = opts.categories.length;
@@ -410,7 +495,7 @@ export function renderStackedAreaChart(opts: {
     roundRect(ctx, pad.left, pad.top, plotW, plotH, 6);
     ctx.fill();
 
-    ctx.font = FN(10);
+    ctx.font = FN(px(12));
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
     for (let v = 0; v <= yMax + 1e-9; v += step) {
@@ -460,22 +545,13 @@ export function renderStackedAreaChart(opts: {
         ctx.stroke();
     }
 
-    const maxLabels = 9;
-    const stepIdx = Math.max(1, Math.ceil(n / maxLabels));
-    ctx.fillStyle = T.muted;
-    ctx.font = FS(10);
-    ctx.textAlign = "center";
-    ctx.textBaseline = "top";
-    opts.categories.forEach((label, i) => {
-        if (i % stepIdx !== 0 && i !== n - 1) return;
-        ctx.fillText(truncate(ctx, label, 54), xAt(i), pad.top + plotH + 10);
-    });
+    drawSpacedAxisLabels(ctx, opts.categories, xAt, pad.top + plotH + px(14), pad.left, pad.left + plotW);
 
     drawLegend(
         ctx,
         opts.series.map((s) => ({ name: s.name, color: s.color, style: "swatch" as const })),
         0,
-        pad.top + plotH + 38,
+        pad.top + plotH + px(58),
         width
     );
 
@@ -494,6 +570,7 @@ export function renderStackedColumns(opts: {
 }): ChartImage {
     const width = opts.width ?? 740;
     const height = opts.height ?? 320;
+    useFontScale(width);
     const { canvas, ctx } = createCanvas(width, height);
     paintCard(ctx, width, height);
 
@@ -502,7 +579,7 @@ export function renderStackedColumns(opts: {
         return { dataUrl: toDataUrl(canvas), width, height };
     }
 
-    const pad = { top: 24, right: 24, bottom: 72, left: 54 };
+    const pad = { top: px(36), right: px(24), bottom: px(100), left: px(72) };
     const plotW = width - pad.left - pad.right;
     const plotH = height - pad.top - pad.bottom;
 
@@ -515,7 +592,7 @@ export function renderStackedColumns(opts: {
     roundRect(ctx, pad.left, pad.top, plotW, plotH, 6);
     ctx.fill();
 
-    ctx.font = `10px ${FONT}`;
+    ctx.font = FN(px(12));
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
     for (let v = 0; v <= yMax + 1e-9; v += step) {
@@ -527,7 +604,7 @@ export function renderStackedColumns(opts: {
         ctx.lineTo(pad.left + plotW, y);
         ctx.stroke();
         ctx.fillStyle = T.muted;
-        ctx.fillText(formatTick(v), pad.left - 8, y);
+        ctx.fillText(formatTick(v), pad.left - px(12), y);
     }
 
     const n = opts.categories.length;
@@ -550,23 +627,18 @@ export function renderStackedColumns(opts: {
         }
     }
 
-    // X labels
-    ctx.fillStyle = T.muted;
-    ctx.font = `9.5px ${FONT}`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "top";
-    const labelEvery = Math.max(1, Math.ceil(n / 10));
+    const labelEvery = Math.max(1, Math.ceil(n / 8));
     opts.categories.forEach((label, i) => {
         if (i % labelEvery !== 0 && i !== n - 1) return;
         const x = pad.left + i * slot + slot / 2;
-        ctx.fillText(truncate(ctx, label, slot * 0.95), x, pad.top + plotH + 10);
+        drawCategoryLabel(ctx, label, x, pad.top + plotH + px(16), slot * 0.92);
     });
 
     drawLegend(
         ctx,
         opts.series.map((s) => ({ name: s.name, color: s.color })),
         0,
-        pad.top + plotH + 38,
+        pad.top + plotH + px(96),
         width
     );
 
@@ -586,6 +658,7 @@ export function renderGroupedBars(opts: {
 }): ChartImage {
     const width = opts.width ?? 740;
     const height = opts.height ?? 320;
+    useFontScale(width);
     const { canvas, ctx } = createCanvas(width, height);
     paintCard(ctx, width, height);
 
@@ -594,7 +667,21 @@ export function renderGroupedBars(opts: {
         return { dataUrl: toDataUrl(canvas), width, height };
     }
 
-    const pad = { top: 36, right: 24, bottom: 64, left: 54 };
+    const labelFont = FN(px(13));
+    const longestLabel = Math.max(
+        px(48),
+        ...opts.categories.map((label) => measureLabel(labelFont, label))
+    );
+    const verticalSlot = (width - px(120)) / Math.max(opts.categories.length, 1);
+    const layHorizontal = longestLabel > verticalSlot * 0.92;
+    const pad = layHorizontal
+        ? {
+              top: px(44),
+              right: px(64),
+              bottom: px(28),
+              left: Math.min(width * 0.48, longestLabel + px(18)),
+          }
+        : { top: px(40), right: px(24), bottom: px(96), left: px(72) };
     const plotW = width - pad.left - pad.right;
     const plotH = height - pad.top - pad.bottom;
     const all = opts.series.flatMap((s) => s.data);
@@ -604,73 +691,104 @@ export function renderGroupedBars(opts: {
     roundRect(ctx, pad.left, pad.top, plotW, plotH, 6);
     ctx.fill();
 
-    ctx.font = `10px ${FONT}`;
+    ctx.font = FN(px(12));
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
-    for (let v = 0; v <= yMax + 1e-9; v += step) {
-        const y = pad.top + plotH - (v / yMax) * plotH;
-        ctx.strokeStyle = v === 0 ? T.axis : T.grid;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(pad.left, y);
-        ctx.lineTo(pad.left + plotW, y);
-        ctx.stroke();
-        ctx.fillStyle = T.muted;
-        ctx.fillText(formatTick(v), pad.left - 8, y);
+    if (!layHorizontal) {
+        for (let v = 0; v <= yMax + 1e-9; v += step) {
+            const y = pad.top + plotH - (v / yMax) * plotH;
+            ctx.strokeStyle = v === 0 ? T.axis : T.grid;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(pad.left, y);
+            ctx.lineTo(pad.left + plotW, y);
+            ctx.stroke();
+            ctx.fillStyle = T.muted;
+            ctx.fillText(formatTick(v), pad.left - px(10), y);
+        }
     }
 
     const n = opts.categories.length;
     const k = opts.series.length;
-    const slot = plotW / n;
-    const groupGap = 0.22;
-    const inner = slot * (1 - groupGap);
-    const barW = inner / k;
     const suffix = opts.valueSuffix ?? "";
 
-    for (let i = 0; i < n; i++) {
-        const groupX = pad.left + i * slot + (slot - inner) / 2;
-        opts.series.forEach((ser, si) => {
-            const val = ser.data[i] ?? 0;
-            const h = yMax > 0 ? (val / yMax) * plotH : 0;
-            const x = groupX + si * barW;
-            const y = pad.top + plotH - h;
-            ctx.fillStyle = ser.color;
-            roundRect(ctx, x + 1, y, Math.max(0, barW - 2), Math.max(0, h), 3);
-            ctx.fill();
-            if (n <= 8 && h > 18) {
-                ctx.fillStyle = T.white;
-                ctx.font = `600 9px ${FONT}`;
-                ctx.textAlign = "center";
-                ctx.textBaseline = "bottom";
-                ctx.fillText(formatTick(val) + suffix, x + barW / 2, y + h - 3);
-            }
-        });
-    }
-
-    ctx.fillStyle = T.muted;
-    ctx.font = `9.5px ${FONT}`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "top";
-    opts.categories.forEach((label, i) => {
-        const x = pad.left + i * slot + slot / 2;
-        // Rotate if many / long labels
-        if (n > 6) {
-            ctx.save();
-            ctx.translate(x, pad.top + plotH + 10);
-            ctx.rotate(-Math.PI / 5);
-            ctx.textAlign = "right";
-            ctx.fillText(truncate(ctx, label, 70), 0, 0);
-            ctx.restore();
-        } else {
-            ctx.fillText(truncate(ctx, label, slot * 0.9), x, pad.top + plotH + 10);
+    if (layHorizontal) {
+        const rowH = plotH / Math.max(n, 1);
+        const barH = Math.min(rowH * 0.28, px(18));
+        const stackH = barH * k + px(4) * Math.max(0, k - 1);
+        ctx.strokeStyle = T.grid;
+        ctx.lineWidth = 1;
+        for (let i = 1; i <= 4; i++) {
+            const x = pad.left + (plotW * i) / 4;
+            ctx.beginPath();
+            ctx.moveTo(x, pad.top);
+            ctx.lineTo(x, pad.top + plotH);
+            ctx.stroke();
         }
-    });
+        for (let i = 0; i < n; i++) {
+            const rowMid = pad.top + i * rowH + rowH / 2;
+            ctx.fillStyle = T.ink;
+            ctx.font = labelFont;
+            ctx.textAlign = "right";
+            ctx.textBaseline = "middle";
+            ctx.fillText(truncate(ctx, opts.categories[i], pad.left - px(20)), pad.left - px(12), rowMid);
+            const stackTop = rowMid - stackH / 2;
+            opts.series.forEach((ser, si) => {
+                const val = ser.data[i] ?? 0;
+                const w = yMax > 0 ? (val / yMax) * plotW : 0;
+                const y = stackTop + si * (barH + px(4));
+                ctx.fillStyle = T.panelAlt;
+                roundRect(ctx, pad.left, y, plotW, barH, 4);
+                ctx.fill();
+                if (w > 0) {
+                    ctx.fillStyle = ser.color;
+                    roundRect(ctx, pad.left, y, Math.max(w, 3), barH, 4);
+                    ctx.fill();
+                }
+                if (val > 0) {
+                    const valueText = formatTick(val) + suffix;
+                    ctx.font = FS(px(11));
+                    ctx.fillStyle = T.ink;
+                    ctx.textAlign = "left";
+                    ctx.fillText(valueText, pad.left + w + px(8), y + barH / 2);
+                }
+            });
+        }
+    } else {
+        const slot = plotW / n;
+        const groupGap = 0.22;
+        const inner = slot * (1 - groupGap);
+        const barW = inner / k;
+        for (let i = 0; i < n; i++) {
+            const groupX = pad.left + i * slot + (slot - inner) / 2;
+            opts.series.forEach((ser, si) => {
+                const val = ser.data[i] ?? 0;
+                const h = yMax > 0 ? (val / yMax) * plotH : 0;
+                const x = groupX + si * barW;
+                const y = pad.top + plotH - h;
+                ctx.fillStyle = ser.color;
+                roundRect(ctx, x + 1, y, Math.max(0, barW - 2), Math.max(0, h), 3);
+                ctx.fill();
+                if (val > 0 && h > px(16)) {
+                    const valueText = formatTick(val) + suffix;
+                    ctx.font = FS(px(11));
+                    if (ctx.measureText(valueText).width <= Math.max(0, barW - 6)) {
+                        ctx.fillStyle = T.white;
+                        ctx.textAlign = "center";
+                        ctx.textBaseline = "bottom";
+                        ctx.fillText(valueText, x + barW / 2, y + h - px(4));
+                    }
+                }
+            });
+            drawCategoryLabel(ctx, opts.categories[i], pad.left + i * slot + slot / 2, pad.top + plotH + px(18), slot * 0.9);
+        }
+    }
 
     drawLegend(
         ctx,
         opts.series.map((s) => ({ name: s.name, color: s.color })),
         0,
-        20,
+        px(28),
         width
     );
 
@@ -693,9 +811,16 @@ export function renderLollipopChart(opts: {
 }): ChartImage {
     const items = opts.items.slice(0, opts.maxItems ?? 12);
     const width = opts.width ?? 740;
-    const rowH = 32;
-    const pad = { top: 20, right: 64, bottom: 20, left: 150 };
-    const height = opts.height ?? pad.top + pad.bottom + Math.max(1, items.length) * rowH + 16;
+    useFontScale(width);
+    const labelFont = FN(px(13));
+    const pad = {
+        top: px(28),
+        right: px(100),
+        bottom: px(28),
+        left: Math.min(width * 0.46, Math.max(px(160), ...items.map((item) => measureLabel(labelFont, item.label))) + px(24)),
+    };
+    const height = opts.height ?? pad.top + pad.bottom + Math.max(1, items.length) * 32 + 16;
+    const rowH = (height - pad.top - pad.bottom) / Math.max(1, items.length);
     const { canvas, ctx } = createCanvas(width, height);
     paintCard(ctx, width, height);
 
@@ -729,10 +854,10 @@ export function renderLollipopChart(opts: {
             (opts.gradient !== false ? sequentialColor(0.35 + t * 0.65, "#99F6E4", "#0F766E") : T.ok);
 
         ctx.fillStyle = T.ink;
-        ctx.font = `500 11.5px ${FONT}`;
+        ctx.font = labelFont;
         ctx.textAlign = "right";
         ctx.textBaseline = "middle";
-        ctx.fillText(truncate(ctx, item.label, pad.left - 16), pad.left - 12, y);
+        ctx.fillText(truncate(ctx, item.label, pad.left - px(16)), pad.left - px(14), y);
 
         // Stem
         ctx.strokeStyle = withAlpha(color, 0.33);
@@ -754,9 +879,9 @@ export function renderLollipopChart(opts: {
 
         // Value
         ctx.fillStyle = T.ink;
-        ctx.font = FB(11);
+        ctx.font = FB(px(12));
         ctx.textAlign = "left";
-        ctx.fillText(formatTick(item.value) + suffix, xEnd + 12, y);
+        ctx.fillText(formatTick(item.value) + suffix, xEnd + px(14), y);
     });
 
     return { dataUrl: toDataUrl(canvas), width, height };
@@ -777,9 +902,16 @@ export function renderHorizontalBars(opts: {
 }): ChartImage {
     const items = opts.items.slice(0, opts.maxItems ?? 12);
     const width = opts.width ?? 740;
-    const rowH = 30;
-    const pad = { top: 18, right: 58, bottom: 18, left: 148 };
-    const height = opts.height ?? pad.top + pad.bottom + Math.max(1, items.length) * rowH;
+    useFontScale(width);
+    const labelFont = FN(px(13));
+    const pad = {
+        top: px(24),
+        right: px(90),
+        bottom: px(24),
+        left: Math.min(width * 0.46, Math.max(px(160), ...items.map((item) => measureLabel(labelFont, item.label))) + px(24)),
+    };
+    const height = opts.height ?? pad.top + pad.bottom + Math.max(1, items.length) * 30;
+    const rowH = (height - pad.top - pad.bottom) / Math.max(1, items.length);
     const { canvas, ctx } = createCanvas(width, height);
     paintCard(ctx, width, height);
 
@@ -797,17 +929,17 @@ export function renderHorizontalBars(opts: {
 
     items.forEach((item, i) => {
         const y = pad.top + i * rowH;
-        const barH = 15;
+        const barH = Math.min(rowH * 0.55, px(56));
         const barY = y + (rowH - barH) / 2;
         const t = xMax > 0 ? item.value / xMax : 0;
         const barW = t * plotW;
         const color = item.color ?? sequentialColor(0.25 + t * 0.75, from, to);
 
         ctx.fillStyle = T.ink;
-        ctx.font = `500 11px ${FONT}`;
+        ctx.font = FN(px(13));
         ctx.textAlign = "right";
         ctx.textBaseline = "middle";
-        ctx.fillText(truncate(ctx, item.label, pad.left - 14), pad.left - 10, y + rowH / 2);
+        ctx.fillText(truncate(ctx, item.label, pad.left - px(16)), pad.left - px(14), y + rowH / 2);
 
         ctx.fillStyle = T.panelAlt;
         roundRect(ctx, pad.left, barY, plotW, barH, 5);
@@ -823,7 +955,7 @@ export function renderHorizontalBars(opts: {
         }
 
         ctx.fillStyle = T.muted;
-        ctx.font = `600 10.5px ${FONT}`;
+        ctx.font = FS(px(12));
         ctx.textAlign = "left";
         ctx.fillText(formatTick(item.value) + suffix, pad.left + barW + 8, y + rowH / 2);
     });
@@ -846,10 +978,17 @@ export function renderStackedHorizontalBars(opts: {
 }): ChartImage {
     const items = opts.items.slice(0, opts.maxItems ?? 10);
     const width = opts.width ?? 740;
-    const rowH = 32;
-    const legendH = opts.legend?.length ? 28 : 0;
-    const pad = { top: 12 + legendH, right: 52, bottom: 16, left: 148 };
-    const height = opts.height ?? pad.top + pad.bottom + Math.max(1, items.length) * rowH;
+    useFontScale(width);
+    const labelFont = FN(px(13));
+    const legendH = opts.legend?.length ? px(48) : 0;
+    const pad = {
+        top: px(16) + legendH,
+        right: px(80),
+        bottom: px(24),
+        left: Math.min(width * 0.46, Math.max(px(160), ...items.map((item) => measureLabel(labelFont, item.label))) + px(24)),
+    };
+    const height = opts.height ?? pad.top + pad.bottom + Math.max(1, items.length) * 32;
+    const rowH = (height - pad.top - pad.bottom) / Math.max(1, items.length);
     const { canvas, ctx } = createCanvas(width, height);
     paintCard(ctx, width, height);
 
@@ -858,7 +997,7 @@ export function renderStackedHorizontalBars(opts: {
             ctx,
             opts.legend.map((l) => ({ name: l.name, color: l.color })),
             0,
-            22,
+            px(28),
             width
         );
     }
@@ -874,14 +1013,14 @@ export function renderStackedHorizontalBars(opts: {
 
     items.forEach((item, i) => {
         const y = pad.top + i * rowH;
-        const barH = 16;
+        const barH = Math.min(rowH * 0.55, px(56));
         const barY = y + (rowH - barH) / 2;
 
         ctx.fillStyle = T.ink;
-        ctx.font = `500 11px ${FONT}`;
+        ctx.font = FN(px(13));
         ctx.textAlign = "right";
         ctx.textBaseline = "middle";
-        ctx.fillText(truncate(ctx, item.label, pad.left - 14), pad.left - 10, y + rowH / 2);
+        ctx.fillText(truncate(ctx, item.label, pad.left - px(16)), pad.left - px(14), y + rowH / 2);
 
         ctx.fillStyle = T.panelAlt;
         roundRect(ctx, pad.left, barY, plotW, barH, 4);
@@ -923,7 +1062,7 @@ export function renderStackedHorizontalBars(opts: {
         });
 
         ctx.fillStyle = T.muted;
-        ctx.font = `600 10.5px ${FONT}`;
+        ctx.font = FS(px(12));
         ctx.textAlign = "left";
         ctx.fillText(formatTick(totals[i]), x + 8, y + rowH / 2);
     });
@@ -945,17 +1084,19 @@ export function renderDonutChart(opts: {
     centerValue?: string;
 }): ChartImage {
     const width = opts.width ?? 740;
+    const height = opts.height ?? 420;
+    useFontScale(width);
     const activeSlices = opts.slices.filter((s) => s.value > 0);
-    const r = 128;
-    const rInner = 74;
-    const height = opts.height ?? 36 + r * 2 + 88;
+    const legendBlock = Math.max(px(88), Math.round(height * 0.16));
+    const r = Math.max(120, Math.min(width * 0.46, (height - legendBlock - 36) / 2));
+    const rInner = r * 0.58;
 
     const { canvas, ctx } = createCanvas(width, height);
     paintCard(ctx, width, height);
 
     const total = opts.slices.reduce((s, sl) => s + Math.max(0, sl.value), 0);
     const cx = width / 2;
-    const cy = 24 + r;
+    const cy = (height - legendBlock) / 2;
 
     if (total <= 0) {
         emptyState(ctx, width, height);
@@ -990,21 +1131,22 @@ export function renderDonutChart(opts: {
     ctx.fill();
 
     if (opts.centerValue) {
+        const valueSize = Math.round(Math.min(px(22), r * 0.16));
+        const labelSize = Math.round(Math.min(px(13), r * 0.06));
         ctx.fillStyle = T.ink;
-        ctx.font = FB(34);
+        ctx.font = FB(valueSize);
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.fillText(opts.centerValue, cx, cy - (opts.centerLabel ? 12 : 0));
+        ctx.fillText(opts.centerValue, cx, cy - (opts.centerLabel ? valueSize * 0.28 : 0));
         if (opts.centerLabel) {
             ctx.fillStyle = T.muted;
-            ctx.font = FS(13);
-            ctx.fillText(opts.centerLabel, cx, cy + 18);
+            ctx.font = FS(labelSize);
+            ctx.fillText(opts.centerLabel, cx, cy + valueSize * 0.42);
         }
     }
 
-    // Compact legend row below donut — keeps canvas short so the ring scales larger in PDF
-    const legendY = cy + r + 36;
-    ctx.font = FS(12);
+    const legendSize = Math.round(Math.min(px(13), Math.max(px(12), r * 0.045)));
+    ctx.font = FS(legendSize);
     const items = activeSlices.map((slice) => {
         const pct = total > 0 ? Math.round((slice.value / total) * 100) : 0;
         return {
@@ -1015,22 +1157,21 @@ export function renderDonutChart(opts: {
         };
     });
     items.forEach((it) => {
-        it.w = 18 + ctx.measureText(it.text).width;
+        it.w = px(22) + ctx.measureText(it.text).width;
     });
-    const gapX = 28;
-    const totalW = items.reduce((s, it) => s + it.w, 0) + gapX * Math.max(0, items.length - 1);
-    let lx = (width - totalW) / 2;
-
+    const lineH = px(40);
+    let y = cy + r + px(36);
     for (const it of items) {
+        const lx = Math.max(px(16), (width - it.w) / 2);
         ctx.fillStyle = it.slice.color;
-        roundRect(ctx, lx, legendY - 6, 12, 12, 3);
+        roundRect(ctx, lx, y - px(8), px(16), px(16), px(3));
         ctx.fill();
         ctx.fillStyle = T.ink;
-        ctx.font = FS(12);
+        ctx.font = FS(legendSize);
         ctx.textAlign = "left";
         ctx.textBaseline = "middle";
-        ctx.fillText(it.text, lx + 18, legendY);
-        lx += it.w + gapX;
+        ctx.fillText(it.text, lx + px(22), y);
+        y += lineH;
     }
 
     return { dataUrl: toDataUrl(canvas), width, height };
@@ -1051,11 +1192,23 @@ export function renderHeatmap(opts: {
     const rows = opts.rowLabels.length;
     const cols = opts.colLabels.length;
     const width = opts.width ?? 740;
-    const colLabelH = 56;
-    const legendW = 28;
-    const pad = { top: 20, right: 52 + legendW, bottom: 20, left: 140 };
-    const cellH = Math.max(26, Math.min(36, Math.floor(280 / Math.max(rows, 1))));
-    const height = opts.height ?? pad.top + pad.bottom + colLabelH + rows * cellH;
+    useFontScale(width);
+    const headerFont = FN(px(12));
+    const longestHeader = Math.max(px(48), ...opts.colLabels.map((label) => measureLabel(headerFont, label)));
+    const colLabelH = Math.ceil(longestHeader * Math.sin(Math.PI / 4)) + px(18);
+    const legendW = px(36);
+    const rowFont = FN(px(12));
+    const pad = {
+        top: px(24),
+        right: px(64) + legendW,
+        bottom: px(24),
+        left: Math.min(
+            width * 0.38,
+            Math.max(px(140), ...opts.rowLabels.map((label) => measureLabel(rowFont, label))) + px(20)
+        ),
+    };
+    const height = opts.height ?? pad.top + pad.bottom + colLabelH + rows * 32;
+    const cellH = Math.max(26, (height - pad.top - pad.bottom - colLabelH) / Math.max(rows, 1));
     const { canvas, ctx } = createCanvas(width, height);
     paintCard(ctx, width, height);
 
@@ -1073,27 +1226,27 @@ export function renderHeatmap(opts: {
     const suffix = opts.valueSuffix ?? "";
 
     // Column headers (rotated)
-    ctx.fillStyle = T.muted;
-    ctx.font = `500 10px ${FONT}`;
+    ctx.fillStyle = T.ink;
+    ctx.font = headerFont;
     for (let c = 0; c < cols; c++) {
         const x = pad.left + c * cellW + cellW / 2;
-        const y = pad.top + colLabelH - 8;
+        const y = pad.top + colLabelH - px(10);
         ctx.save();
         ctx.translate(x, y);
         ctx.rotate(-Math.PI / 4);
         ctx.textAlign = "left";
         ctx.textBaseline = "middle";
-        ctx.fillText(truncate(ctx, opts.colLabels[c], 72), 0, 0);
+        ctx.fillText(opts.colLabels[c], 0, 0);
         ctx.restore();
     }
 
     for (let r = 0; r < rows; r++) {
         const y = pad.top + colLabelH + r * cellH;
         ctx.fillStyle = T.ink;
-        ctx.font = `500 11px ${FONT}`;
+        ctx.font = rowFont;
         ctx.textAlign = "right";
         ctx.textBaseline = "middle";
-        ctx.fillText(truncate(ctx, opts.rowLabels[r], pad.left - 14), pad.left - 10, y + cellH / 2);
+        ctx.fillText(truncate(ctx, opts.rowLabels[r], pad.left - px(16)), pad.left - px(12), y + cellH / 2);
 
         for (let c = 0; c < cols; c++) {
             const v = opts.values[r]?.[c] ?? 0;
@@ -1106,7 +1259,7 @@ export function renderHeatmap(opts: {
             ctx.fill();
 
             ctx.fillStyle = t > 0.55 ? T.white : T.ink;
-            ctx.font = `600 10px ${FONT}`;
+            ctx.font = FS(px(11));
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
             ctx.fillText(formatTick(v) + suffix, x + cellW / 2, y + cellH / 2);
@@ -1129,10 +1282,10 @@ export function renderHeatmap(opts: {
     ctx.stroke();
 
     ctx.fillStyle = T.muted;
-    ctx.font = `10px ${FONT}`;
+    ctx.font = FN(px(11));
     ctx.textAlign = "left";
     ctx.textBaseline = "middle";
-    ctx.fillText(formatTick(vmax) + suffix, barX + barW + 6, barY + 4);
+    ctx.fillText(formatTick(vmax) + suffix, barX + barW + px(8), barY + 4);
     ctx.fillText(formatTick(vmin) + suffix, barX + barW + 6, barY + barH - 4);
 
     return { dataUrl: toDataUrl(canvas), width, height };
@@ -1149,6 +1302,7 @@ export function renderRadarChart(opts: {
     color?: string;
 }): ChartImage {
     const width = opts.width ?? 740;
+    useFontScale(width);
     const axes = opts.axes.filter((a) => a.label);
     const rowCount = Math.ceil(axes.length / 3);
     const height = opts.height ?? 500 + Math.max(0, rowCount - 2) * 36;
@@ -1160,9 +1314,10 @@ export function renderRadarChart(opts: {
         return { dataUrl: toDataUrl(canvas), width, height };
     }
 
+    const statsBlock = px(100) + rowCount * px(56);
     const cx = width / 2;
-    const R = Math.min(width * 0.3, 118);
-    const cy = 36 + R;
+    const R = Math.max(140, Math.min((width - 200) / 2, (height - statsBlock - 28) / 2));
+    const cy = 24 + R;
     const color = opts.color ?? T.ok;
     const n = axes.length;
 
@@ -1223,39 +1378,39 @@ export function renderRadarChart(opts: {
         ctx.stroke();
 
         const lp = point(i, 1.14);
-        ctx.fillStyle = T.muted;
-        ctx.font = FS(10);
+        ctx.fillStyle = T.ink;
+        ctx.font = FS(px(12));
         ctx.textAlign = lp.x < cx - 10 ? "right" : lp.x > cx + 10 ? "left" : "center";
         ctx.textBaseline = "middle";
-        ctx.fillText(truncate(ctx, ax.label, 88), lp.x, lp.y);
+        ctx.fillText(truncate(ctx, ax.label, px(160)), lp.x, lp.y);
     });
 
     // Metric profile summary below the radar
-    const statsY = cy + R + 56;
+    const statsY = cy + R + px(64);
     const colCount = Math.min(axes.length, 3);
-    const colW = Math.min(220, (width - 80) / colCount);
+    const colW = Math.min(px(280), (width - px(80)) / colCount);
     const statsW = colW * colCount;
     const statsX = (width - statsW) / 2;
 
-    ctx.font = FS(13);
+    ctx.font = FS(px(12));
     ctx.fillStyle = T.ink;
     ctx.textAlign = "center";
     ctx.fillText("Metric profile", width / 2, statsY);
 
-    const rowH = 46;
+    const rowH = px(52);
     axes.forEach((ax, i) => {
         const col = i % colCount;
         const row = Math.floor(i / colCount);
         const x = statsX + col * colW + colW / 2;
-        const y = statsY + 24 + row * rowH;
+        const y = statsY + px(28) + row * rowH;
         const max = ax.max && ax.max > 0 ? ax.max : 100;
 
         ctx.fillStyle = T.muted;
-        ctx.font = FS(11);
+        ctx.font = FS(px(12));
         ctx.fillText(ax.label, x, y);
         ctx.fillStyle = T.ink;
-        ctx.font = FB(15);
-        ctx.fillText(`${formatTick(ax.value)}${max === 100 ? "%" : ""}`, x, y + 18);
+        ctx.font = FB(px(14));
+        ctx.fillText(`${formatTick(ax.value)}${max === 100 ? "%" : ""}`, x, y + px(22));
     });
 
     return { dataUrl: toDataUrl(canvas), width, height };
@@ -1265,7 +1420,7 @@ export function renderRadarChart(opts: {
    Domain helpers — map report tables → chart types (variety)
    ═══════════════════════════════════════════════════════════════════════════ */
 
-export function chartDailyVolume(head: string[], body: string[][]): ChartImage | null {
+export function chartDailyVolume(head: string[], body: string[][], frame?: ChartFrame): ChartImage | null {
     const dayI = col(head, "day");
     const totI = col(head, "total_messages");
     const critI = col(head, "critical_messages");
@@ -1308,14 +1463,15 @@ export function chartDailyVolume(head: string[], body: string[][]): ChartImage |
             { name: "Critical", data: critical, color: T.danger },
         ];
         if (categories.length <= 14) {
-            return renderStackedColumns({ categories, series: breakdown });
+            return renderStackedColumns({ categories, series: breakdown, ...frame });
         }
-        return renderStackedAreaChart({ categories, series: breakdown });
+        return renderStackedAreaChart({ categories, series: breakdown, ...frame });
     }
 
     return renderAreaChart({
         categories,
         series: [{ name: "Total", data: total, color: T.ok, fill: true }],
+        ...frame,
     });
 }
 
@@ -1332,6 +1488,7 @@ export function chartRankedMetric(
         style?: "lollipop" | "bars";
         colorFrom?: string;
         colorTo?: string;
+        frame?: ChartFrame;
     }
 ): ChartImage | null {
     const rows = rowsFromTable(head, body, labelKey, [valueKey], 50);
@@ -1350,12 +1507,14 @@ export function chartRankedMetric(
             maxItems: opts?.maxItems ?? 12,
             colorFrom: opts?.colorFrom,
             colorTo: opts?.colorTo,
+            ...opts?.frame,
         });
     }
     return renderLollipopChart({
         items,
         valueSuffix: opts?.valueSuffix,
         maxItems: opts?.maxItems ?? 12,
+        ...opts?.frame,
     });
 }
 
@@ -1365,7 +1524,8 @@ export function chartStackedByColumns(
     labelKey: string,
     segments: { key: string; name: string; color: string }[],
     maxItems = 10,
-    orientation: "horizontal" | "grouped" = "horizontal"
+    orientation: "horizontal" | "grouped" = "horizontal",
+    frame?: ChartFrame
 ): ChartImage | null {
     const keys = segments.map((s) => s.key);
     const rows = rowsFromTable(head, body, labelKey, keys, 50);
@@ -1383,6 +1543,7 @@ export function chartStackedByColumns(
                 color: seg.color,
                 data: top.map((r) => r.values[i]),
             })),
+            ...frame,
         });
     }
 
@@ -1397,16 +1558,17 @@ export function chartStackedByColumns(
         })),
         legend: segments.map((s) => ({ name: s.name, color: s.color })),
         maxItems,
+        ...frame,
     });
 }
 
-export function chartDepartmentHeatmap(head: string[], body: string[][]): ChartImage | null {
+export function chartDepartmentHeatmap(head: string[], body: string[][], frame?: ChartFrame): ChartImage | null {
     const nameI = col(head, "department_name");
     const metrics = [
-        { key: "role_fill_rate_percent", label: "Fill %" },
-        { key: "critical_role_fill_rate_percent", label: "Crit fill %" },
-        { key: "escalation_rate_vs_dept_critical_messages_percent", label: "Escalation %" },
-        { key: "avg_critical_ack_minutes", label: "Ack (min)" },
+        { key: "role_fill_rate_percent", label: "Role fill rate (%)" },
+        { key: "critical_role_fill_rate_percent", label: "Critical role fill rate (%)" },
+        { key: "escalation_rate_vs_dept_critical_messages_percent", label: "Escalation rate (%)" },
+        { key: "median_critical_ack_minutes", label: "Median acknowledgment (min)" },
     ];
     const idxs = metrics.map((m) => col(head, m.key));
     if (nameI < 0 || idxs.every((i) => i < 0) || body.length === 0) return null;
@@ -1440,10 +1602,11 @@ export function chartDepartmentHeatmap(head: string[], body: string[][]): ChartI
         colLabels,
         values,
         valueSuffix: "",
+        ...frame,
     });
 }
 
-export function chartMessageMix(data: Record<string, unknown>): ChartImage | null {
+export function chartMessageMix(data: Record<string, unknown>, frame?: ChartFrame): ChartImage | null {
     const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : Number(v) || 0);
     const standard = num(data.standard_messages);
     const escalated = num(data.escalated_critical_messages);
@@ -1458,10 +1621,11 @@ export function chartMessageMix(data: Record<string, unknown>): ChartImage | nul
         ],
         centerLabel: "messages",
         centerValue: formatTick(total || standard + critical + escalated),
+        ...frame,
     });
 }
 
-export function chartPerformanceRadar(data: Record<string, unknown>): ChartImage | null {
+export function chartPerformanceRadar(data: Record<string, unknown>, frame?: ChartFrame): ChartImage | null {
     const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : Number(v) || 0);
     const axes = [
         { label: "Active users", value: num(data.active_users_rate_percent), max: 100 },
@@ -1478,7 +1642,7 @@ export function chartPerformanceRadar(data: Record<string, unknown>): ChartImage
     ].filter((a) => a.value > 0 || num(data.total_messages) > 0);
 
     if (axes.length < 3) return null;
-    return renderRadarChart({ axes, color: T.ok });
+    return renderRadarChart({ axes, color: T.ok, ...frame });
 }
 
 export { T as REPORT_CHART_COLORS };

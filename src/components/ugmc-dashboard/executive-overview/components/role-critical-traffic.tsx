@@ -5,11 +5,12 @@ import Text from '@/components/text';
 import InfoTooltip from '@/components/info-tooltip';
 import { tailwindTextColors } from '@/lib/theme-colors';
 import clsx from 'clsx';
+import { responseMinutes } from '@/lib/distribution-metrics';
 
 const infoText =
     'Escalation index, critical message volume, and reply time by role. ' +
     'Bar = escalation rate index for that role (normalized across the three roles shown). ' +
-    'The pill matches that index. Details: average first reply on critical threads, critical message count, and escalated critical count.';
+    'The pill matches that index. Details: median first reply on critical threads, critical message count, and escalated critical count.';
 
 function fmtCriticalReplyMin(minutes: unknown): string | null {
     if (minutes === undefined || minutes === null || minutes === '') return null;
@@ -132,7 +133,11 @@ const RoleCriticalTraffic = ({ roles = [] }: RoleCriticalTrafficProps) => {
                     const badgeRate = Math.round(role._rate);
                     const criticalCount = Math.round(num(role.critical_messages));
                     const esc = Math.round(num(role.escalated_critical_messages));
-                    const replyLabel = fmtCriticalReplyMin(role.avg_reply_response_minutes_critical);
+                    const replyLabel = fmtCriticalReplyMin(
+                        responseMinutes(role as Record<string, unknown>, "reply_critical", [
+                            "avg_reply_response_minutes_critical",
+                        ])
+                    );
                     const dept = String(role.department_name || '').trim();
                     const criticalLabel =
                         criticalCount === 1

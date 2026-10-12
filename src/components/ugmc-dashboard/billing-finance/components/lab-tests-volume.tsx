@@ -9,6 +9,7 @@ import {
     fillDailyMessageVolumePeriod,
     fillDailyMessageVolumeRange,
 } from "@/lib/daily-volume";
+import { responseMinutes } from "@/lib/distribution-metrics";
 
 const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
@@ -188,9 +189,9 @@ export default function LabTestsVolume({ data }: { data?: any }) {
 
             <div className="flex items-center gap-3">
                 <div className="rounded-[8px] bg-secondary px-3 py-2">
-                    <Text variant="body-sm" color="text-secondary">Average Response Time</Text>
+                    <Text variant="body-sm" color="text-secondary">Median response time</Text>
                     <div className="flex items-center gap-2">
-                        <Text variant="body-md-semibold" color="text-primary">{fmtMin(data?.avg_reply_response_minutes_all)}</Text>
+                        <Text variant="body-md-semibold" color="text-primary">{fmtMin(responseMinutes(data, "reply_all", ["avg_reply_response_minutes_all"]) ?? undefined)}</Text>
                         <IoTime className="text-text-secondary" />
                     </div>
                 </div>
